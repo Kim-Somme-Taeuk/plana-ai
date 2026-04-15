@@ -1,8 +1,8 @@
-"""create initial tables
+"""recreate initial tables
 
-Revision ID: 53866d8bbf63
+Revision ID: 50a5fba41070
 Revises: 
-Create Date: 2026-04-15 22:02:09.571719
+Create Date: 2026-04-16 00:20:29.299753
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '53866d8bbf63'
+revision: str = '50a5fba41070'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,6 +26,7 @@ def upgrade() -> None:
     sa.Column('event_type', sa.String(length=50), nullable=False),
     sa.Column('server', sa.String(length=20), nullable=False),
     sa.Column('boss_name', sa.String(length=100), nullable=False),
+    sa.Column('armor_type', sa.String(length=30), nullable=True),
     sa.Column('terrain', sa.String(length=50), nullable=False),
     sa.Column('season_label', sa.String(length=100), nullable=False),
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
@@ -33,17 +34,17 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('season_label')
     )
-    op.create_index(op.f('ix_seasons_id'), 'seasons', ['id'], unique=False)
     op.create_table('ranking_snapshots',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('season_id', sa.Integer(), nullable=False),
     sa.Column('captured_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('source_type', sa.String(length=50), nullable=False),
+    sa.Column('source_type', sa.String(length=50), server_default=sa.text("'manual'"), nullable=False),
+    sa.Column('status', sa.String(length=20), server_default=sa.text("'collecting'"), nullable=False),
+    sa.Column('total_rows_collected', sa.Integer(), nullable=True),
     sa.Column('note', sa.String(length=255), nullable=True),
     sa.ForeignKeyConstraint(['season_id'], ['seasons.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_ranking_snapshots_id'), 'ranking_snapshots', ['id'], unique=False)
     op.create_index(op.f('ix_ranking_snapshots_season_id'), 'ranking_snapshots', ['season_id'], unique=False)
     op.create_table('ranking_entries',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -54,10 +55,12 @@ def upgrade() -> None:
     sa.Column('ocr_confidence', sa.Float(), nullable=True),
     sa.Column('raw_text', sa.String(length=255), nullable=True),
     sa.Column('image_path', sa.String(length=255), nullable=True),
+    sa.Column('is_valid', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('validation_issue', sa.String(length=255), nullable=True),
     sa.ForeignKeyConstraint(['ranking_snapshot_id'], ['ranking_snapshots.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('ranking_snapshot_id', 'rank', name='uq_ranking_entries_snapshot_rank')
     )
-    op.create_index(op.f('ix_ranking_entries_id'), 'ranking_entries', ['id'], unique=False)
     op.create_index(op.f('ix_ranking_entries_rank'), 'ranking_entries', ['rank'], unique=False)
     op.create_index(op.f('ix_ranking_entries_ranking_snapshot_id'), 'ranking_entries', ['ranking_snapshot_id'], unique=False)
     op.create_index(op.f('ix_ranking_entries_score'), 'ranking_entries', ['score'], unique=False)
@@ -70,11 +73,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_ranking_entries_score'), table_name='ranking_entries')
     op.drop_index(op.f('ix_ranking_entries_ranking_snapshot_id'), table_name='ranking_entries')
     op.drop_index(op.f('ix_ranking_entries_rank'), table_name='ranking_entries')
-    op.drop_index(op.f('ix_ranking_entries_id'), table_name='ranking_entries')
     op.drop_table('ranking_entries')
     op.drop_index(op.f('ix_ranking_snapshots_season_id'), table_name='ranking_snapshots')
-    op.drop_index(op.f('ix_ranking_snapshots_id'), table_name='ranking_snapshots')
     op.drop_table('ranking_snapshots')
-    op.drop_index(op.f('ix_seasons_id'), table_name='seasons')
     op.drop_table('seasons')
     # ### end Alembic commands ###

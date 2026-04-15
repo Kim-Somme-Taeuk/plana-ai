@@ -9,10 +9,11 @@ from app.db.base import Base
 class Season(Base):
     __tablename__ = "seasons"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    event_type: Mapped[str] = mapped_column(String(50), nullable=False)   # total_assault / grand_assault
-    server: Mapped[str] = mapped_column(String(20), nullable=False)       # kr / jp / global
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    server: Mapped[str] = mapped_column(String(20), nullable=False)
     boss_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    armor_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     terrain: Mapped[str] = mapped_column(String(50), nullable=False)
     season_label: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
