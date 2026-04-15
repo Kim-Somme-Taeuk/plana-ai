@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.routes.ranking_entries import router as ranking_entries_router
 from app.api.routes.ranking_snapshots import router as ranking_snapshots_router
 from app.api.routes.seasons import router as seasons_router
 from app.db.session import check_db_connection
@@ -11,6 +12,7 @@ app = FastAPI(
 
 app.include_router(seasons_router)
 app.include_router(ranking_snapshots_router)
+app.include_router(ranking_entries_router)
 
 
 @app.get("/")
