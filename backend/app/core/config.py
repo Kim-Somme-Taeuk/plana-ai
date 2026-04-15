@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "plana"
     POSTGRES_DB: str = "plana_ai"
     POSTGRES_PORT: int = 5432
-    POSTGRES_HOST: str = "db"
+    POSTGRES_HOST: str = "localhost"
 
     model_config = SettingsConfigDict(
         extra="ignore",
