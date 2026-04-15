@@ -4,7 +4,7 @@ services:
     container_name: plana-ai-db
     restart: unless-stopped
     env_file:
-      - .env.example
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -19,10 +19,19 @@ services:
       context: ./backend
     container_name: plana-ai-backend
     restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_HOST: db
     ports:
       - "${BACKEND_PORT}:8000"
     volumes:
       - ./backend/app:/app/app
+      - ./backend/requirements.txt:/app/requirements.txt
     depends_on:
       - db
 
@@ -31,6 +40,8 @@ services:
       context: ./frontend
     container_name: plana-ai-frontend
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "${FRONTEND_PORT}:3000"
     volumes:
