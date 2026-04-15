@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Docker
+postgres_data/
+
+# Misc
+coverage/
+.pytest_cache/
