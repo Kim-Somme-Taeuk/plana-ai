@@ -38,6 +38,7 @@ type SeasonPageProps = {
 };
 
 const SERIES_RANK_OPTIONS = [1, 10, 100, 1000, 5000, 10000];
+const SEASON_STATUS_FILTERS = ["completed", "collecting", "failed"] as const;
 
 export default async function SeasonDetailPage({
   params,
@@ -57,6 +58,11 @@ export default async function SeasonDetailPage({
       : "all";
   const requestedCompareLeft = Number(resolvedSearchParams.compareLeft ?? "");
   const requestedCompareRight = Number(resolvedSearchParams.compareRight ?? "");
+  const selectedStatusFilter = SEASON_STATUS_FILTERS.includes(
+    selectedStatus as (typeof SEASON_STATUS_FILTERS)[number],
+  )
+    ? (selectedStatus as (typeof SEASON_STATUS_FILTERS)[number])
+    : undefined;
 
   const [
     seasonResult,
@@ -69,8 +75,14 @@ export default async function SeasonDetailPage({
       getSeason(numericSeasonId),
       getSeasonSnapshots(numericSeasonId),
       getSeasonCutoffSeries(numericSeasonId, Number.isNaN(seriesRank) ? 10 : seriesRank),
-      getSeasonValidationOverview(numericSeasonId),
-      getSeasonValidationSeries(numericSeasonId),
+      getSeasonValidationOverview(numericSeasonId, {
+        status: selectedStatusFilter,
+        sourceType: selectedSource === "all" ? undefined : selectedSource,
+      }),
+      getSeasonValidationSeries(numericSeasonId, {
+        status: selectedStatusFilter,
+        sourceType: selectedSource === "all" ? undefined : selectedSource,
+      }),
     ]);
 
   const season = seasonResult.data;

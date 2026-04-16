@@ -33,6 +33,7 @@
 - snapshot compare에서 left/right invalid, top issue drilldown 링크 제공
 - validation series에서 바로 이전 snapshot과 compare 링크 제공
 - validation series에서 invalid entry / top issue / snapshot 상세로 바로 drilldown
+- season validation overview / validation series는 현재 선택된 `status` / `source` 필터와 같이 움직임
 - cutoff-series 표시
 - 로딩 / 에러 / 빈 상태 처리
 

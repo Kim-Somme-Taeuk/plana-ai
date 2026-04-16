@@ -170,14 +170,40 @@ export function getSeasonCutoffSeries(seasonId: number, rank: number) {
   );
 }
 
-export function getSeasonValidationOverview(seasonId: number) {
+export function getSeasonValidationOverview(
+  seasonId: number,
+  options: {
+    status?: "completed" | "collecting" | "failed";
+    sourceType?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (options.status) {
+    params.set("status", options.status);
+  }
+  if (options.sourceType) {
+    params.set("source_type", options.sourceType);
+  }
   return fetchApi<SeasonValidationOverview>(
-    `/seasons/${seasonId}/validation-overview`,
+    `/seasons/${seasonId}/validation-overview${params.size ? `?${params.toString()}` : ""}`,
   );
 }
 
-export function getSeasonValidationSeries(seasonId: number) {
+export function getSeasonValidationSeries(
+  seasonId: number,
+  options: {
+    status?: "completed" | "collecting" | "failed";
+    sourceType?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (options.status) {
+    params.set("status", options.status);
+  }
+  if (options.sourceType) {
+    params.set("source_type", options.sourceType);
+  }
   return fetchApi<SeasonValidationSeries>(
-    `/seasons/${seasonId}/validation-series`,
+    `/seasons/${seasonId}/validation-series${params.size ? `?${params.toString()}` : ""}`,
   );
 }

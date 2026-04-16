@@ -180,6 +180,7 @@ entry 조회 사용성:
 - snapshot 통계는 snapshot이 존재하면 status와 관계없이 조회 가능
 - 통계 계산에는 `ranking_entries.is_valid=true`만 사용
 - `cutoff-series`는 `ranking_snapshots.status=completed` snapshot만 사용
+- `validation-overview`, `validation-series`는 `status`, `source_type` 필터를 지원
 
 ### validation 1차
 

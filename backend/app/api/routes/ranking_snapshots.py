@@ -1,4 +1,5 @@
 from statistics import median
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -309,13 +310,21 @@ def _build_season_cutoff_series(
 def _build_season_validation_overview(
     db: Session,
     season: Season,
+    *,
+    status: str | None = None,
+    source_type: str | None = None,
 ) -> SeasonValidationOverviewRead:
+    snapshot_filters = _build_season_snapshot_filters(
+        season_id=season.id,
+        status=status,
+        source_type=source_type,
+    )
     status_rows = db.execute(
         select(
             RankingSnapshot.status,
             func.count(RankingSnapshot.id),
         )
-        .where(RankingSnapshot.season_id == season.id)
+        .where(*snapshot_filters)
         .group_by(RankingSnapshot.status)
     ).all()
     snapshot_counts = {status: count for status, count in status_rows}
@@ -327,7 +336,7 @@ def _build_season_validation_overview(
             RankingSnapshot.id == RankingEntry.ranking_snapshot_id,
         )
         .where(
-            RankingSnapshot.season_id == season.id,
+            *snapshot_filters,
             RankingEntry.is_valid.is_(True),
         )
     ) or 0
@@ -338,7 +347,7 @@ def _build_season_validation_overview(
             RankingSnapshot.id == RankingEntry.ranking_snapshot_id,
         )
         .where(
-            RankingSnapshot.season_id == season.id,
+            *snapshot_filters,
             RankingEntry.is_valid.is_(False),
         )
     ) or 0
@@ -353,7 +362,7 @@ def _build_season_validation_overview(
             RankingSnapshot.id == RankingEntry.ranking_snapshot_id,
         )
         .where(
-            RankingSnapshot.season_id == season.id,
+            *snapshot_filters,
             RankingEntry.is_valid.is_(False),
             RankingEntry.validation_issue.is_not(None),
         )
@@ -387,11 +396,20 @@ def _build_season_validation_overview(
 def _build_season_validation_series(
     db: Session,
     season: Season,
+    *,
+    status: str | None = None,
+    source_type: str | None = None,
 ) -> SeasonValidationSeriesRead:
     snapshots = list(
         db.scalars(
             select(RankingSnapshot)
-            .where(RankingSnapshot.season_id == season.id)
+            .where(
+                *_build_season_snapshot_filters(
+                    season_id=season.id,
+                    status=status,
+                    source_type=source_type,
+                )
+            )
             .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
         ).all()
     )
@@ -418,6 +436,20 @@ def _build_season_validation_series(
         season_id=season.id,
         points=points,
     )
+
+
+def _build_season_snapshot_filters(
+    *,
+    season_id: int,
+    status: str | None,
+    source_type: str | None,
+):
+    filters = [RankingSnapshot.season_id == season_id]
+    if status is not None:
+        filters.append(RankingSnapshot.status == status)
+    if source_type is not None:
+        filters.append(RankingSnapshot.source_type == source_type)
+    return filters
 
 
 @router.post("/seasons/{season_id}/ranking-snapshots", response_model=RankingSnapshotRead, status_code=201)
@@ -554,10 +586,17 @@ def get_season_cutoff_series(
 )
 def get_season_validation_overview(
     season_id: int,
+    status: Literal["collecting", "completed", "failed"] | None = Query(None),
+    source_type: str | None = Query(None, min_length=1),
     db: Session = Depends(get_db),
 ) -> SeasonValidationOverviewRead:
     season = _get_season_or_404(db, season_id)
-    return _build_season_validation_overview(db, season)
+    return _build_season_validation_overview(
+        db,
+        season,
+        status=status,
+        source_type=source_type,
+    )
 
 
 @router.get(
@@ -566,7 +605,14 @@ def get_season_validation_overview(
 )
 def get_season_validation_series(
     season_id: int,
+    status: Literal["collecting", "completed", "failed"] | None = Query(None),
+    source_type: str | None = Query(None, min_length=1),
     db: Session = Depends(get_db),
 ) -> SeasonValidationSeriesRead:
     season = _get_season_or_404(db, season_id)
-    return _build_season_validation_series(db, season)
+    return _build_season_validation_series(
+        db,
+        season,
+        status=status,
+        source_type=source_type,
+    )
