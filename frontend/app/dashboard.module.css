@@ -122,6 +122,24 @@
   gap: 8px;
 }
 
+.mainColumn,
+.sidebarColumn {
+  min-width: 0;
+}
+
+.sidebarStack {
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 24px;
+  align-self: start;
+}
+
+.anchorTarget {
+  min-width: 0;
+  scroll-margin-top: 24px;
+}
+
 .panel {
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(89, 110, 82, 0.14);
@@ -156,6 +174,13 @@
   display: grid;
   gap: 10px;
   min-width: 0;
+}
+
+.panelLead {
+  margin: 0 0 14px;
+  color: #5b6c5d;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .muted {
@@ -425,6 +450,38 @@
   min-width: 0;
 }
 
+.filterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.filterActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filterSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef4ec;
+  color: #30513a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .controlRow {
   display: flex;
   flex-wrap: wrap;
@@ -479,6 +536,17 @@
   gap: 10px;
 }
 
+.quickLinkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quickLinkGrid .linkButton {
+  width: 100%;
+  min-width: 0;
+}
+
 .keyValueList {
   display: grid;
   gap: 10px;
@@ -517,6 +585,23 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.longformBlock {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f8faf4;
+  border: 1px solid rgba(102, 128, 97, 0.12);
+}
+
+.longformText {
+  margin: 0;
+  color: #1f2f21;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .inlineChip {
@@ -605,9 +690,18 @@
   display: inline-flex;
 }
 
+.cellWrap {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1280px) {
   .twoColumn {
     grid-template-columns: 1fr;
+  }
+
+  .sidebarStack {
+    position: static;
   }
 }
 
@@ -639,6 +733,10 @@
     grid-template-columns: 1fr;
   }
 
+  .quickLinkGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .controlRow {
     align-items: stretch;
   }
@@ -659,6 +757,10 @@
   .compareActions,
   .compareTableActions {
     flex-wrap: wrap;
+  }
+
+  .filterActions {
+    width: 100%;
   }
 
   .paginationLinks > *,
@@ -718,6 +820,11 @@
   .panelTitle h2,
   .panelTitle h3 {
     font-size: 16px;
+  }
+
+  .panelLead {
+    margin-bottom: 12px;
+    font-size: 13px;
   }
 
   .statsGrid,
@@ -792,6 +899,15 @@
   .paginationLinks > *,
   .compareActions > *,
   .compareTableActions > * {
+    flex: 1 1 100%;
+  }
+
+  .quickLinkGrid,
+  .filterGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .filterActions > * {
     flex: 1 1 100%;
   }
 
