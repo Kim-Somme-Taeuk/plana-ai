@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -235,12 +236,14 @@ def capture_adb_screenshot(
 
     image_paths: list[Path] = []
     previous_image_bytes: bytes | None = None
+    seen_frame_hashes: set[str] = set()
     stopped_reason: str | None = None
     for page_number in range(1, request.adb.page_count + 1):
         image_path = (
             request.adb.output_dir / f"{request.adb.page_prefix}-{page_number:03d}.png"
         )
         image_bytes = client.capture_screenshot(device_serial=request.adb.device_serial)
+        image_hash = hashlib.sha256(image_bytes).hexdigest()
 
         if (
             request.adb.stop_on_duplicate_frame
@@ -249,10 +252,14 @@ def capture_adb_screenshot(
         ):
             stopped_reason = "duplicate_frame"
             break
+        if request.adb.stop_on_duplicate_frame and image_hash in seen_frame_hashes:
+            stopped_reason = "repeated_frame"
+            break
 
         image_path.write_bytes(image_bytes)
         image_paths.append(image_path)
         previous_image_bytes = image_bytes
+        seen_frame_hashes.add(image_hash)
 
         if page_number < request.adb.page_count:
             assert request.adb.swipe is not None  # guarded during request loading

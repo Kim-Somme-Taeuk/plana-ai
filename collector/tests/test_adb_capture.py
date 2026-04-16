@@ -226,6 +226,57 @@ def test_capture_adb_screenshot_can_keep_duplicate_frames_when_disabled(
     assert len(client.swipes) == 1
 
 
+def test_capture_adb_screenshot_stops_on_repeated_non_consecutive_frame(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        adb={
+            "page_count": 4,
+            "swipe": {
+                "start_x": 500,
+                "start_y": 1600,
+                "end_x": 500,
+                "end_y": 600,
+                "duration_ms": 200,
+                "settle_delay_ms": 50,
+            },
+        },
+    )
+    request = load_adb_capture_request(request_path)
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+            self.swipes: list[tuple[str | None, object]] = []
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2", b"PNG-1", b"PNG-1"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            self.swipes.append((device_serial, swipe))
+
+    monkeypatch.setattr(adb_capture.time, "sleep", lambda seconds: None)
+
+    client = FakeAdbClient()
+    result = capture_adb_screenshot(request, client)
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert [page["image_path"] for page in manifest["pages"]] == [
+        "page-001.png",
+        "page-002.png",
+    ]
+    assert manifest["capture"] == {
+        "requested_page_count": 4,
+        "captured_page_count": 2,
+        "stopped_reason": "repeated_frame",
+    }
+    assert result.stopped_reason == "repeated_frame"
+    assert len(client.swipes) == 2
+
+
 def test_capture_adb_screenshot_rejects_non_empty_output_dir(tmp_path: Path) -> None:
     request_path = _write_request(tmp_path)
     output_dir = tmp_path / "captured"
