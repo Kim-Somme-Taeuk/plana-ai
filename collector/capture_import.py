@@ -50,10 +50,14 @@ OCR_NUMERIC_TRANSLATION = str.maketrans(
         "l": "1",
         "|": "1",
         "B": "8",
+        "，": ",",
+        "．": ".",
+        "％": "%",
     }
 )
 OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
 OCR_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’"
+SCORE_SUFFIX_TOKENS = frozenset({"점", "pt", "pts"})
 PAGINATION_RE = re.compile(
     r"^(?:page\s*)?\d+\s*(?:/|of)\s*\d+$",
     re.IGNORECASE,
@@ -937,9 +941,18 @@ def _normalize_rank_ocr_token(value: str) -> str:
 
 
 def _normalize_float_ocr_token(value: str) -> str:
-    normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
+    normalized = value.strip().translate(OCR_NUMERIC_TRANSLATION)
+    normalized = normalized.replace(" ", "")
     if _looks_like_percent_token(normalized):
         normalized = normalized[:-1]
+    elif "," in normalized and "." not in normalized and normalized.count(",") == 1:
+        integer_part, fractional_part = normalized.split(",", 1)
+        if integer_part.isdigit() and fractional_part.isdigit() and 1 <= len(fractional_part) <= 2:
+            normalized = f"{integer_part}.{fractional_part}"
+        else:
+            normalized = normalized.replace(",", "")
+    else:
+        normalized = normalized.replace(",", "")
     return normalized.strip(".:;/%" + OCR_EDGE_PUNCTUATION)
 
 
@@ -956,7 +969,7 @@ def _normalize_score_ocr_token(value: str) -> str:
 
 
 def _looks_like_percent_token(value: str) -> bool:
-    stripped = value.strip().rstrip(OCR_EDGE_PUNCTUATION)
+    stripped = value.strip().translate(OCR_NUMERIC_TRANSLATION).rstrip(OCR_EDGE_PUNCTUATION)
     return stripped.endswith("%")
 
 
@@ -968,7 +981,7 @@ def _parse_whitespace_fallback_line(
     page_index: int,
     line_index: int,
 ) -> dict[str, Any]:
-    tokens = raw_line.split()
+    tokens = _normalize_trailing_percent_tokens(raw_line.split())
     if len(tokens) < 3:
         raise MockImportError(
             "OCR line 파싱에 실패했습니다. "
@@ -1091,7 +1104,10 @@ def _parse_grouped_score_tokens(
     if len(score_tokens) == 1:
         return _parse_int_token(score_tokens[0], "score", page_index, line_index)
 
-    normalized_tokens = [_normalize_score_ocr_token(token) for token in score_tokens]
+    normalized_tokens = [
+        _normalize_score_ocr_token(token)
+        for token in _strip_trailing_score_suffix_tokens(score_tokens)
+    ]
     if not all(token.isdigit() for token in normalized_tokens):
         raise MockImportError(
             "OCR line 파싱에 실패했습니다. "
@@ -1120,6 +1136,22 @@ def _parse_score_text(
 
 def _normalize_player_name(value: str) -> str:
     return " ".join(value.split())
+
+
+def _normalize_trailing_percent_tokens(tokens: list[str]) -> list[str]:
+    if len(tokens) >= 2 and tokens[-1] in {"%", "％"}:
+        return [*tokens[:-2], tokens[-2] + tokens[-1]]
+    return tokens
+
+
+def _strip_trailing_score_suffix_tokens(score_tokens: list[str]) -> list[str]:
+    stripped_tokens = list(score_tokens)
+    while stripped_tokens:
+        lowered = stripped_tokens[-1].strip().lower().rstrip(OCR_EDGE_PUNCTUATION)
+        if lowered not in SCORE_SUFFIX_TOKENS:
+            break
+        stripped_tokens.pop()
+    return stripped_tokens
 
 
 def _validate_snapshot_entries(

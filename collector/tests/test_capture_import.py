@@ -163,6 +163,50 @@ def test_build_mock_payload_from_capture_parses_punctuated_score_and_percent_con
     assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
 
 
+def test_build_mock_payload_from_capture_parses_decimal_comma_confidence(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12345678 O,87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-decimal-comma-confidence-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["rank"] == 1
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
+
+
+def test_build_mock_payload_from_capture_parses_percent_tokens_split_by_space(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12 345 678 87 %\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-split-percent-confidence-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
+
+
 def test_build_mock_payload_from_capture_parses_bracketed_score_and_confidence(
     tmp_path: Path,
 ) -> None:
@@ -239,6 +283,29 @@ def test_build_mock_payload_from_capture_parses_fullwidth_pipe_structured_line(
     assert mock_payload.entries[0]["player_name"] == "Arona"
     assert mock_payload.entries[0]["score"] == 9876543
     assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.91)
+
+
+def test_build_mock_payload_from_capture_parses_structured_line_with_split_score_suffix(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "3｜Sensei｜8 765 432 점｜87 %\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-structured-split-score-suffix-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["rank"] == 3
+    assert mock_payload.entries[0]["player_name"] == "Sensei"
+    assert mock_payload.entries[0]["score"] == 8765432
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
 
 
 def test_build_mock_payload_from_capture_keeps_empty_player_in_structured_line(
