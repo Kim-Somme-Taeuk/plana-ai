@@ -1029,6 +1029,33 @@ def test_build_mock_payload_from_capture_strips_trailing_float_punctuation_varia
     assert mock_payload.entries[0]["ocr_confidence"] == 0.95
 
 
+def test_build_mock_payload_from_capture_parses_score_suffix_variants(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12,345,678점\t0.95\n2 Arona 9 876 543pt 0.87\n3 Sensei 8 765 432pts 0.86\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-score-suffix-variants-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert [entry["score"] for entry in mock_payload.entries] == [
+        12345678,
+        9876543,
+        8765432,
+    ]
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.95
+    assert mock_payload.entries[1]["ocr_confidence"] == 0.87
+    assert mock_payload.entries[2]["ocr_confidence"] == 0.86
+
+
 def test_build_mock_payload_from_capture_runs_tesseract_ocr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

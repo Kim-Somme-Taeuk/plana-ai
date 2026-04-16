@@ -765,6 +765,8 @@ def _parse_int_token(
     normalized = (
         _normalize_rank_ocr_token(value)
         if label == "rank"
+        else _normalize_score_ocr_token(value)
+        if label == "score"
         else _normalize_integer_ocr_token(value)
     )
     try:
@@ -927,6 +929,18 @@ def _normalize_float_ocr_token(value: str) -> str:
     return normalized.strip(".:;/%" + OCR_EDGE_PUNCTUATION)
 
 
+def _normalize_score_ocr_token(value: str) -> str:
+    stripped = value.strip()
+    lowered = stripped.lower().rstrip(OCR_EDGE_PUNCTUATION)
+    for suffix in ("pts", "pt"):
+        if lowered.endswith(suffix):
+            stripped = stripped[: -len(suffix)]
+            break
+    if stripped.endswith("점"):
+        stripped = stripped[:-1]
+    return _normalize_integer_ocr_token(stripped)
+
+
 def _looks_like_percent_token(value: str) -> bool:
     stripped = value.strip().rstrip(OCR_EDGE_PUNCTUATION)
     return stripped.endswith("%")
@@ -1013,19 +1027,19 @@ def _split_score_and_player_tokens(
         )
 
     score_start = len(body_tokens) - 1
-    last_token_normalized = _normalize_integer_ocr_token(body_tokens[-1])
+    last_token_normalized = _normalize_score_ocr_token(body_tokens[-1])
     if len(last_token_normalized) > 3:
         return body_tokens[-1:], body_tokens[:-1]
 
     while score_start > 0:
         candidate = body_tokens[score_start - 1]
-        normalized_candidate = _normalize_integer_ocr_token(candidate)
+        normalized_candidate = _normalize_score_ocr_token(candidate)
         if not (normalized_candidate.isdigit() and len(normalized_candidate) == 3):
             break
         score_start -= 1
 
     if score_start > 0:
-        leading_candidate = _normalize_integer_ocr_token(body_tokens[score_start - 1])
+        leading_candidate = _normalize_score_ocr_token(body_tokens[score_start - 1])
         if leading_candidate.isdigit() and 1 <= len(leading_candidate) <= 3:
             score_start -= 1
 
@@ -1047,7 +1061,7 @@ def _parse_grouped_score_tokens(
     if len(score_tokens) == 1:
         return _parse_int_token(score_tokens[0], "score", page_index, line_index)
 
-    normalized_tokens = [_normalize_integer_ocr_token(token) for token in score_tokens]
+    normalized_tokens = [_normalize_score_ocr_token(token) for token in score_tokens]
     if not all(token.isdigit() for token in normalized_tokens):
         raise MockImportError(
             "OCR line 파싱에 실패했습니다. "
