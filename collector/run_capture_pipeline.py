@@ -305,6 +305,13 @@ def _build_after_capture_page_callback(
                     ocr_language=ocr_language,
                     ocr_psm=ocr_psm,
                 ),
+                capture={
+                    "requested_page_count": request.adb.page_count,
+                    "captured_page_count": len(image_paths),
+                    "stopped_reason": None,
+                    "stopped_source": None,
+                    "stopped_level": None,
+                },
             )
         )
         ocr_stop_recommendation = build_ocr_stop_recommendation(

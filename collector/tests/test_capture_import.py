@@ -209,6 +209,10 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "overlap_with_previous_ranks": [],
         }
     ]
+    assert parsed_payload.mock_payload.snapshot["note"] == (
+        "capture import test fixture\n"
+        "collector: ignored=3(blank_line=1,non_entry_line=2); ocr_stop=noisy_last_page(hard)"
+    )
 
 
 def test_parse_capture_payload_classifies_separator_lines(
@@ -289,6 +293,7 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_ranks": [],
         },
     ]
+    assert parsed_payload.mock_payload.snapshot["note"] == "capture import test fixture"
 
 
 def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
@@ -334,6 +339,40 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "overlap_with_previous_ratio": 0.0,
         "overlap_with_previous_ranks": [],
     }
+    assert parsed_payload.mock_payload.snapshot["note"] == (
+        "capture import test fixture\n"
+        "collector: ignored=3(blank_line=1,non_entry_line=1,separator_line=1); "
+        "ocr_stop=empty_last_page(hard)"
+    )
+
+
+def test_parse_capture_payload_appends_capture_summary_to_snapshot_note(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(tmp_path, "page-001.png", "1\tPlana\t12345678\t0.99\n")
+    _write_capture_page(tmp_path, "page-002.png", "header\n2\tArona\t12000000\t0.98\n")
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-note-summary-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+        ],
+        capture={
+            "requested_page_count": 3,
+            "captured_page_count": 2,
+            "stopped_reason": "noisy_last_page",
+        },
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert parsed_payload.mock_payload.snapshot["note"] == (
+        "capture import test fixture\n"
+        "collector: pages=2/3; capture_stop=noisy_last_page; "
+        "ignored=1(non_entry_line=1); ocr_stop=noisy_last_page(hard)"
+    )
 
 
 def test_parse_capture_payload_raises_when_all_pages_are_empty(
@@ -926,6 +965,7 @@ def _write_capture_manifest(
     pages: list[dict[str, object]],
     snapshot: dict[str, object] | None = None,
     ocr: dict[str, object] | None = None,
+    capture: dict[str, object] | None = None,
 ) -> None:
     manifest = {
         "season": {
@@ -945,6 +985,8 @@ def _write_capture_manifest(
     }
     if ocr is not None:
         manifest["ocr"] = ocr
+    if capture is not None:
+        manifest["capture"] = capture
     (base_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False),
         encoding="utf-8",

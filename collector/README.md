@@ -268,6 +268,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 - OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page` 같은 후속 종료 힌트를 남깁니다.
 - `ocr_stop_recommendation`은 `hard` / `soft` level과 `primary_reason`을 함께 반환합니다.
 - `pipeline_stop_recommendation`은 capture 종료 사유와 OCR 종료 힌트를 합쳐 후속 자동화가 바로 쓸 수 있는 최종 stop 판단입니다.
+- import 시 snapshot `note`에는 기존 note를 유지한 채 collector 진단 요약이 자동으로 덧붙습니다.
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
 

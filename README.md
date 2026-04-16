@@ -282,6 +282,7 @@ JSON 파일만으로 아래 흐름을 검증합니다.
   - `pipeline_stop_recommendation`으로 capture 종료 사유와 OCR 종료 판단을 통합 제공
   - 필요하면 hard/any stop recommendation 시점에 backend import를 건너뛸 수 있음
   - 필요하면 hard/any stop recommendation 시점에 남은 ADB 캡처도 조기 종료할 수 있음
+  - import된 snapshot note에도 collector 진단 요약을 남길 수 있음
   - OCR provider override, ADB command override, device serial override 지원
 
 제약:

@@ -76,6 +76,7 @@ class CaptureImportPayload:
     snapshot: dict[str, Any]
     pages: list[CapturePage]
     ocr: OcrConfig
+    capture: dict[str, Any] | None
 
 
 @dataclass(frozen=True)
@@ -149,6 +150,7 @@ def load_capture_import_payload(
         },
         pages=capture_pages,
         ocr=ocr_config,
+        capture=_require_optional_mapping(root.get("capture"), "capture"),
     )
 
 
@@ -210,11 +212,20 @@ def parse_capture_payload(
         previous_page_ranks = current_page_ranks
 
     _validate_snapshot_entries(entries, page_summaries)
+    snapshot_note = _build_snapshot_note_with_collector_summary(
+        snapshot=payload.snapshot,
+        capture=payload.capture,
+        ignored_lines=ignored_lines,
+        page_summaries=page_summaries,
+    )
 
     return ParsedCapturePayload(
         mock_payload=MockImportPayload(
             season=payload.season,
-            snapshot=payload.snapshot,
+            snapshot={
+                **payload.snapshot,
+                "note": snapshot_note,
+            },
             entries=entries,
         ),
         ignored_lines=ignored_lines,
@@ -344,6 +355,54 @@ def build_ocr_stop_recommendation(
         "primary_reason": primary_reason,
         "reasons": reasons,
     }
+
+
+def _build_snapshot_note_with_collector_summary(
+    *,
+    snapshot: dict[str, Any],
+    capture: dict[str, Any] | None,
+    ignored_lines: list[IgnoredOcrLine],
+    page_summaries: list[dict[str, Any]],
+) -> str | None:
+    existing_note = snapshot.get("note")
+    existing_note_text = existing_note.strip() if isinstance(existing_note, str) else ""
+
+    summary_parts: list[str] = []
+    if capture:
+        requested = capture.get("requested_page_count")
+        captured = capture.get("captured_page_count")
+        if requested is not None and captured is not None:
+            summary_parts.append(f"pages={captured}/{requested}")
+        stopped_reason = capture.get("stopped_reason")
+        if isinstance(stopped_reason, str) and stopped_reason.strip():
+            summary_parts.append(f"capture_stop={stopped_reason}")
+
+    ignored_line_count = len(ignored_lines)
+    if ignored_line_count > 0:
+        ignored_summary = ",".join(
+            f"{row['reason']}={row['count']}"
+            for row in summarize_ignored_lines(ignored_lines)
+        )
+        summary_parts.append(f"ignored={ignored_line_count}({ignored_summary})")
+
+    ocr_stop_recommendation = build_ocr_stop_recommendation(
+        build_ocr_stop_hints(page_summaries)
+    )
+    if ocr_stop_recommendation["should_stop"] and (
+        ocr_stop_recommendation["level"] == "hard" or bool(capture)
+    ):
+        summary_parts.append(
+            "ocr_stop="
+            f"{ocr_stop_recommendation['primary_reason']}({ocr_stop_recommendation['level']})"
+        )
+
+    if not summary_parts:
+        return existing_note_text or None
+
+    collector_summary = "collector: " + "; ".join(summary_parts)
+    if existing_note_text:
+        return f"{existing_note_text}\n{collector_summary}"
+    return collector_summary
 
 
 def _resolve_manifest_path(path: str | Path) -> Path:
