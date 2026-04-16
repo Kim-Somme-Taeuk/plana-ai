@@ -8,6 +8,8 @@
    JSON 기반 mock 데이터 주입기
 2. `capture_import.py`
    이미지 파일 + OCR 추출 기반 1차 실제 collector
+3. `adb_capture.py`
+   ADB screenshot을 capture manifest 디렉터리로 저장하는 1차 캡처 도구
 
 루트 개요 문서는 [README.md](../README.md)를 먼저 참고하세요.
 
@@ -142,7 +144,75 @@ backend/.venv/bin/python collector/capture_import.py \
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
-## 2. mock import
+## 2. ADB screenshot capture
+
+`adb_capture.py`는 Android 기기에서 현재 화면을 PNG로 캡처하고, 나중에
+`capture_import.py`가 바로 읽을 수 있는 capture 디렉터리를 생성합니다.
+
+현재 1차 범위:
+
+- 한 번의 screenshot 캡처
+- `manifest.json` 자동 생성
+- OCR provider 설정 전달
+- 실제 import는 별도 단계로 유지
+
+### 요청 파일 형식
+
+```json
+{
+  "season": {
+    "event_type": "total_assault",
+    "server": "kr",
+    "boss_name": "Binah",
+    "armor_type": "heavy",
+    "terrain": "outdoor",
+    "season_label": "adb-capture-sample-season-20260416-a"
+  },
+  "snapshot": {
+    "captured_at": "2026-04-16T12:00:00Z",
+    "note": "sample adb screenshot capture"
+  },
+  "ocr": {
+    "provider": "tesseract",
+    "language": "eng",
+    "psm": 6
+  },
+  "adb": {
+    "output_dir": "collector/capture_runs/sample_adb_capture"
+  }
+}
+```
+
+샘플 파일:
+
+- [adb_data/sample_request.json](adb_data/sample_request.json)
+
+### 실행 예시
+
+```bash
+backend/.venv/bin/python collector/adb_capture.py collector/adb_data/sample_request.json
+```
+
+serial이나 adb 경로를 override하려면:
+
+```bash
+backend/.venv/bin/python collector/adb_capture.py \
+  --adb-command adb \
+  --device-serial emulator-5554 \
+  --output-dir /tmp/plana-adb-capture \
+  collector/adb_data/sample_request.json
+```
+
+성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`을 JSON으로 출력합니다.
+
+### 주의사항
+
+- 로컬에 `adb` 명령이 있어야 합니다.
+- 이 단계는 screenshot 캡처까지만 수행합니다.
+- OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
+- 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
+
+## 3. mock import
 
 실제 OCR/ADB 없이 JSON 파일만으로 아래 흐름을 주입합니다.
 
@@ -210,5 +280,7 @@ backend/.venv/bin/pytest backend/tests collector/tests -q
 
 - [mock_import.py](mock_import.py)
 - [capture_import.py](capture_import.py)
+- [adb_capture.py](adb_capture.py)
 - [tests/test_mock_import.py](tests/test_mock_import.py)
 - [tests/test_capture_import.py](tests/test_capture_import.py)
+- [tests/test_adb_capture.py](tests/test_adb_capture.py)

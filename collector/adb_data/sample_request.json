@@ -1,0 +1,22 @@
+{
+  "season": {
+    "event_type": "total_assault",
+    "server": "kr",
+    "boss_name": "Binah",
+    "armor_type": "heavy",
+    "terrain": "outdoor",
+    "season_label": "adb-capture-sample-season-20260416-a"
+  },
+  "snapshot": {
+    "captured_at": "2026-04-16T12:00:00Z",
+    "note": "sample adb screenshot capture"
+  },
+  "ocr": {
+    "provider": "tesseract",
+    "language": "eng",
+    "psm": 6
+  },
+  "adb": {
+    "output_dir": "collector/capture_runs/sample_adb_capture"
+  }
+}
