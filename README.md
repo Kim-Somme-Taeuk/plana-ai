@@ -140,6 +140,7 @@
 - mock import와 image capture import 둘 다 backend API를 재사용합니다.
 - frontend는 현재 backend API 응답 구조를 그대로 소비합니다.
 - backend + collector 테스트와 frontend lint/build가 통과 가능한 상태입니다.
+- GitHub Actions는 backend/collector pytest, frontend lint/build, docker 기반 smoke까지 기본 검증합니다.
 - 시즌 상세에서는 validation overview와 snapshot별 validation series를 함께 확인할 수 있습니다.
 
 ### backend API
@@ -401,6 +402,12 @@ cd frontend && npm run lint && npm run build
 
 ```bash
 bash scripts/smoke.sh
+```
+
+CI나 빈 DB 환경에서 seed까지 포함한 smoke:
+
+```bash
+bash scripts/ci_smoke.sh
 ```
 
 collector 전용 smoke:

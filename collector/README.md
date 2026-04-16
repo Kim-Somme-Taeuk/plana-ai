@@ -388,6 +388,12 @@ collector 전용 smoke:
 bash scripts/collector_smoke.sh
 ```
 
+빈 DB를 seed해서 frontend/backend/docker 경로까지 함께 검증하려면:
+
+```bash
+bash scripts/ci_smoke.sh
+```
+
 ## 다음 세션에서 먼저 볼 파일
 
 - [mock_import.py](mock_import.py)

@@ -102,6 +102,12 @@ npm run build
 bash scripts/smoke.sh
 ```
 
+빈 DB를 seed한 뒤 docker 경로까지 확인하는 CI용 smoke:
+
+```bash
+bash scripts/ci_smoke.sh
+```
+
 ## 구조
 
 - `app/page.tsx`

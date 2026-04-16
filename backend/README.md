@@ -156,6 +156,12 @@ collector까지 포함한 최소 회귀:
 backend/.venv/bin/pytest backend/tests collector/tests -q
 ```
 
+docker 기준 frontend/backend 연동 smoke:
+
+```bash
+bash scripts/ci_smoke.sh
+```
+
 ## 다음 세션에서 먼저 볼 파일
 
 - [app/main.py](app/main.py)
