@@ -317,6 +317,34 @@ def test_parse_capture_payload_classifies_datetime_metadata_lines(
     ]
 
 
+def test_parse_capture_payload_treats_unparseable_entry_like_line_as_malformed_ignored_line(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12345678\t0.99\n2 Broken Score ???\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-malformed-entry-line-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
+        {"reason": "malformed_entry_line", "count": 1}
+    ]
+    note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
+    assert (
+        note_lines[1]
+        == "collector: ignored=1(malformed_entry_line=1); ocr_stop=noisy_last_page(hard)"
+    )
+
+
 def test_parse_capture_payload_reports_multi_page_summaries(
     tmp_path: Path,
 ) -> None:

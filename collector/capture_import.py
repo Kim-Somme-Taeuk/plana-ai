@@ -681,7 +681,7 @@ def _parse_page_entries(
     image_path: Path,
     default_ocr_confidence: float | None,
     page_index: int,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[IgnoredOcrLine]]:
     entries: list[dict[str, Any]] = []
     ignored_lines: list[IgnoredOcrLine] = []
 
@@ -708,13 +708,24 @@ def _parse_page_entries(
             )
             continue
 
-        entry = _parse_ocr_line(
-            raw_line=raw_line,
-            image_path=image_path,
-            default_ocr_confidence=default_ocr_confidence,
-            page_index=page_index,
-            line_index=line_index,
-        )
+        try:
+            entry = _parse_ocr_line(
+                raw_line=raw_line,
+                image_path=image_path,
+                default_ocr_confidence=default_ocr_confidence,
+                page_index=page_index,
+                line_index=line_index,
+            )
+        except MockImportError:
+            ignored_lines.append(
+                IgnoredOcrLine(
+                    page_index=page_index,
+                    line_index=line_index,
+                    raw_text=raw_line,
+                    reason="malformed_entry_line",
+                )
+            )
+            continue
         entries.append(entry)
 
     return entries, ignored_lines
