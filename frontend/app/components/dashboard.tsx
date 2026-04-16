@@ -410,6 +410,8 @@ export function SnapshotComparisonPanel({
   const issueCodes = Array.from(
     new Set([...leftIssueMap.keys(), ...rightIssueMap.keys()]),
   ).sort();
+  const leftTopIssue = getTopValidationIssue(leftSummary.validation_issues);
+  const rightTopIssue = getTopValidationIssue(rightSummary.validation_issues);
 
   return (
     <section className={styles.panel}>
@@ -430,6 +432,25 @@ export function SnapshotComparisonPanel({
         <Link href={`/snapshots/${rightSnapshot.id}`} className={styles.linkButton}>
           Right 상세
         </Link>
+      </div>
+
+      <div className={styles.statsGrid}>
+        <StatCard
+          label="Left Issue Types"
+          value={String(leftSummary.validation_issues.length)}
+        />
+        <StatCard
+          label="Right Issue Types"
+          value={String(rightSummary.validation_issues.length)}
+        />
+        <StatCard
+          label="Left Top Issue"
+          value={leftTopIssue?.code ?? "-"}
+        />
+        <StatCard
+          label="Right Top Issue"
+          value={rightTopIssue?.code ?? "-"}
+        />
       </div>
 
       <div className={styles.tableWrap}>
@@ -774,4 +795,14 @@ function formatSignedNumber(value: number | null) {
   }
 
   return `${value > 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function getTopValidationIssue(
+  issues: RankingSnapshotValidationIssueCount[],
+) {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  return [...issues].sort((left, right) => right.count - left.count)[0];
 }
