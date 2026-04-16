@@ -26,6 +26,7 @@ from collector.capture_import import (
     import_parsed_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
+    summarize_ignored_lines,
 )
 from collector.mock_import import ApiClient, DEFAULT_API_BASE_URL, ImportResult, MockImportError
 
@@ -45,6 +46,7 @@ class CapturePipelineResult:
     total_rows_collected: int | None
     ocr_provider: str
     ignored_line_count: int
+    ignored_line_reasons: list[dict[str, int | str]]
 
 
 def run_capture_pipeline(
@@ -104,6 +106,7 @@ def run_capture_pipeline(
         total_rows_collected=import_result.total_rows_collected,
         ocr_provider=capture_payload.ocr.provider,
         ignored_line_count=len(parsed_payload.ignored_lines),
+        ignored_line_reasons=summarize_ignored_lines(parsed_payload.ignored_lines),
     )
 
 
@@ -216,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
                 "total_rows_collected": result.total_rows_collected,
                 "ocr_provider": result.ocr_provider,
                 "ignored_line_count": result.ignored_line_count,
+                "ignored_line_reasons": result.ignored_line_reasons,
             },
             ensure_ascii=False,
         )

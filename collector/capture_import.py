@@ -206,6 +206,19 @@ def import_parsed_capture_payload(
     return import_mock_payload(parsed_payload.mock_payload, client)
 
 
+def summarize_ignored_lines(
+    ignored_lines: list[IgnoredOcrLine],
+) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for ignored_line in ignored_lines:
+        counts[ignored_line.reason] = counts.get(ignored_line.reason, 0) + 1
+
+    return [
+        {"reason": reason, "count": count}
+        for reason, count in sorted(counts.items())
+    ]
+
+
 def _resolve_manifest_path(path: str | Path) -> Path:
     path_obj = Path(path)
     if path_obj.is_dir():
@@ -394,6 +407,14 @@ def _parse_page_entries(
 
     for line_index, raw_line in enumerate(ocr_text.splitlines(), start=1):
         if not raw_line.strip():
+            ignored_lines.append(
+                IgnoredOcrLine(
+                    page_index=page_index,
+                    line_index=line_index,
+                    raw_text=raw_line,
+                    reason="blank_line",
+                )
+            )
             continue
         if _should_ignore_ocr_line(raw_line):
             ignored_lines.append(
@@ -738,6 +759,7 @@ def main(argv: list[str] | None = None) -> int:
             ocr_psm=args.ocr_psm,
         )
         parsed_payload = parse_capture_payload(payload)
+        ignored_line_reasons = summarize_ignored_lines(parsed_payload.ignored_lines)
         result = import_mock_payload(parsed_payload.mock_payload, ApiClient(args.base_url))
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
@@ -751,6 +773,7 @@ def main(argv: list[str] | None = None) -> int:
                 "page_count": len(payload.pages),
                 "entry_count": len(parsed_payload.mock_payload.entries),
                 "ignored_line_count": len(parsed_payload.ignored_lines),
+                "ignored_line_reasons": ignored_line_reasons,
                 "ignored_lines": [
                     {
                         "page_index": line.page_index,

@@ -370,6 +370,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
     )
 
     assert result.ignored_line_count == 1
+    assert result.ignored_line_reasons == [{"reason": "non_entry_line", "count": 1}]
 
 
 def _write_request(

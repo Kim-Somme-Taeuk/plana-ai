@@ -12,6 +12,7 @@ from collector.capture_import import (
     import_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
+    summarize_ignored_lines,
 )
 from collector.mock_import import MockImportError
 
@@ -124,7 +125,7 @@ def test_parse_capture_payload_ignores_non_entry_lines(
     _write_capture_page(
         tmp_path,
         "page-001.png",
-        "RANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n총 참여 인원 999\n",
+        "\nRANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n총 참여 인원 999\n",
     )
     _write_capture_manifest(
         tmp_path,
@@ -134,11 +135,17 @@ def test_parse_capture_payload_ignores_non_entry_lines(
 
     payload = load_capture_import_payload(tmp_path)
     parsed_payload = parse_capture_payload(payload)
+    ignored_summary = summarize_ignored_lines(parsed_payload.ignored_lines)
 
     assert len(parsed_payload.mock_payload.entries) == 1
-    assert len(parsed_payload.ignored_lines) == 2
-    assert parsed_payload.ignored_lines[0].reason == "non_entry_line"
-    assert parsed_payload.ignored_lines[1].raw_text == "총 참여 인원 999"
+    assert len(parsed_payload.ignored_lines) == 3
+    assert parsed_payload.ignored_lines[0].reason == "blank_line"
+    assert parsed_payload.ignored_lines[1].reason == "non_entry_line"
+    assert parsed_payload.ignored_lines[2].raw_text == "총 참여 인원 999"
+    assert ignored_summary == [
+        {"reason": "blank_line", "count": 1},
+        {"reason": "non_entry_line", "count": 2},
+    ]
 
 
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
