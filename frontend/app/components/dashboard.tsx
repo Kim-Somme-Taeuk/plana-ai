@@ -1280,6 +1280,46 @@ export function SnapshotComparisonPanel({
               leftValue={leftCollectorDiagnostics?.ignored_line_count ?? null}
               rightValue={rightCollectorDiagnostics?.ignored_line_count ?? null}
             />
+            <CompareRow
+              label="빈 페이지"
+              leftValue={leftCollectorDiagnostics?.empty_page_count ?? null}
+              rightValue={rightCollectorDiagnostics?.empty_page_count ?? null}
+            />
+            <CompareRow
+              label="Sparse 페이지"
+              leftValue={leftCollectorDiagnostics?.sparse_page_count ?? null}
+              rightValue={rightCollectorDiagnostics?.sparse_page_count ?? null}
+            />
+            <CompareRow
+              label="중복 페이지"
+              leftValue={leftCollectorDiagnostics?.overlapping_page_count ?? null}
+              rightValue={rightCollectorDiagnostics?.overlapping_page_count ?? null}
+            />
+            <CompareRow
+              label="Stale 페이지"
+              leftValue={leftCollectorDiagnostics?.stale_page_count ?? null}
+              rightValue={rightCollectorDiagnostics?.stale_page_count ?? null}
+            />
+            <CompareRow
+              label="Noise 페이지"
+              leftValue={leftCollectorDiagnostics?.noisy_page_count ?? null}
+              rightValue={rightCollectorDiagnostics?.noisy_page_count ?? null}
+            />
+            <CompareRow
+              label="오버레이 OCR 줄"
+              leftValue={leftCollectorDiagnostics?.overlay_ignored_line_count ?? null}
+              rightValue={rightCollectorDiagnostics?.overlay_ignored_line_count ?? null}
+            />
+            <CompareRow
+              label="헤더 OCR 줄"
+              leftValue={leftCollectorDiagnostics?.header_ignored_line_count ?? null}
+              rightValue={rightCollectorDiagnostics?.header_ignored_line_count ?? null}
+            />
+            <CompareRow
+              label="비정상 엔트리 OCR"
+              leftValue={leftCollectorDiagnostics?.malformed_entry_line_count ?? null}
+              rightValue={rightCollectorDiagnostics?.malformed_entry_line_count ?? null}
+            />
             <CompareTextRow
               label="수집 페이지"
               leftValue={leftCollectorDiagnostics ? formatCollectorPages(leftCollectorDiagnostics) : "-"}
