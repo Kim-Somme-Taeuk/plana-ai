@@ -106,6 +106,10 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
         "primary_reason": None,
         "reasons": [],
     }
+    assert result.stop_policy == {
+        "min_pages_before_ocr_stop": 2,
+        "soft_stop_repeat_threshold": 2,
+    }
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
     assert [call[0] for call in api_client.calls] == [
@@ -852,6 +856,85 @@ def test_run_capture_pipeline_stops_capture_early_for_soft_recommendation_in_any
     assert result.import_skipped is False
 
 
+def test_run_capture_pipeline_does_not_stop_capture_before_minimum_ocr_stop_pages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-min-pages-guard-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"stop_capture_on_recommendation": True}
+    request_payload["adb"]["page_count"] = 3
+    request_payload["adb"]["swipe"] = {
+        "start_x": 500,
+        "start_y": 1600,
+        "end_x": 500,
+        "end_y": 600,
+        "duration_ms": 200,
+        "settle_delay_ms": 0,
+    }
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2", b"PNG-3"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            return None
+
+    class FakeApiClient:
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 3}
+
+    def fake_run(args, capture_output, text, check):
+        image_name = Path(args[1]).name
+        stdout_by_image = {
+            "page-001.png": "header\n1\tPlana\t12345678\t0.99\nfooter\n",
+            "page-002.png": "2\tSensei\t11000000\t0.98\n3\tMari\t10900000\t0.98\n",
+            "page-003.png": "4\tNoa\t10800000\t0.98\n5\tYuzu\t10700000\t0.97\n",
+        }
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=stdout_by_image[image_name],
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.captured_page_count == 3
+    assert result.stopped_reason is None
+    assert result.import_skipped is False
+
+
 def test_run_capture_pipeline_does_not_stop_capture_early_for_single_soft_recommendation_in_any_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -929,6 +1012,95 @@ def test_run_capture_pipeline_does_not_stop_capture_early_for_single_soft_recomm
     assert result.captured_page_count == 3
     assert result.stopped_reason is None
     assert result.import_skipped is False
+
+
+def test_run_capture_pipeline_supports_custom_soft_stop_repeat_threshold(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-soft-threshold-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {
+        "stop_capture_on_recommendation": "any",
+        "soft_stop_repeat_threshold": 3,
+    }
+    request_payload["adb"]["page_count"] = 5
+    request_payload["adb"]["swipe"] = {
+        "start_x": 500,
+        "start_y": 1600,
+        "end_x": 500,
+        "end_y": 600,
+        "duration_ms": 200,
+        "settle_delay_ms": 0,
+    }
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2", b"PNG-3", b"PNG-4", b"PNG-5"][
+                self.capture_index - 1
+            ]
+
+        def swipe(self, *, device_serial, swipe):
+            return None
+
+    class FakeApiClient:
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 4}
+
+    def fake_run(args, capture_output, text, check):
+        image_name = Path(args[1]).name
+        stdout_by_image = {
+            "page-001.png": "1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.98\n",
+            "page-002.png": "2\tSensei\t11000000\t0.98\n",
+            "page-003.png": "3\tMari\t10900000\t0.98\n",
+            "page-004.png": "4\tNoa\t10800000\t0.98\n",
+            "page-005.png": "5\tYuzu\t10700000\t0.97\n",
+        }
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=stdout_by_image[image_name],
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.captured_page_count == 4
+    assert result.stopped_reason == "sparse_last_page"
+    assert result.stop_policy == {
+        "min_pages_before_ocr_stop": 2,
+        "soft_stop_repeat_threshold": 3,
+    }
 
 
 def _write_request(

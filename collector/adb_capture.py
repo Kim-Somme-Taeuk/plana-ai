@@ -63,6 +63,12 @@ class AdbCaptureRequest:
 
 
 @dataclass(frozen=True)
+class PipelineStopPolicy:
+    min_pages_before_ocr_stop: int
+    soft_stop_repeat_threshold: int
+
+
+@dataclass(frozen=True)
 class AdbCaptureResult:
     output_dir: Path
     manifest_path: Path
@@ -237,6 +243,24 @@ def load_adb_capture_request(
         ),
         pipeline=pipeline,
         ocr_provider_explicit=ocr_provider_explicit,
+    )
+
+
+def build_pipeline_stop_policy(pipeline: dict[str, Any]) -> PipelineStopPolicy:
+    min_pages_before_ocr_stop = _parse_positive_int_option(
+        pipeline.get("min_pages_before_ocr_stop", 2),
+        "pipeline.min_pages_before_ocr_stop",
+        minimum=2,
+    )
+    soft_stop_repeat_threshold = _parse_positive_int_option(
+        pipeline.get("soft_stop_repeat_threshold", 2),
+        "pipeline.soft_stop_repeat_threshold",
+        minimum=2,
+    )
+
+    return PipelineStopPolicy(
+        min_pages_before_ocr_stop=min_pages_before_ocr_stop,
+        soft_stop_repeat_threshold=soft_stop_repeat_threshold,
     )
 
 
@@ -420,6 +444,22 @@ def _parse_boolean_option(value: Any, label: str) -> bool:
     if isinstance(value, bool):
         return value
     raise MockImportError(f"{label}는 true 또는 false 여야 합니다.")
+
+
+def _parse_positive_int_option(
+    value: Any,
+    label: str,
+    *,
+    minimum: int,
+) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise MockImportError(f"{label}는 정수여야 합니다.") from exc
+
+    if parsed < minimum:
+        raise MockImportError(f"{label}는 {minimum} 이상이어야 합니다.")
+    return parsed
 
 
 def build_parser() -> argparse.ArgumentParser:

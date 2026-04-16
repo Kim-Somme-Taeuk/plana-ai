@@ -287,6 +287,7 @@ JSON 파일만으로 아래 흐름을 검증합니다.
   - 필요하면 hard/any stop recommendation 시점에 backend import를 건너뛸 수 있음
   - 필요하면 hard/any stop recommendation 시점에 남은 ADB 캡처도 조기 종료할 수 있음
   - `stop_capture_on_recommendation=any`는 soft OCR stop hint가 연속 반복될 때만 조기 종료
+  - `pipeline.min_pages_before_ocr_stop`, `pipeline.soft_stop_repeat_threshold`로 OCR 기반 조기 종료 정책을 더 보수적으로 조절 가능
   - import된 snapshot note에도 collector 진단 요약을 남길 수 있음
   - OCR provider override, ADB command override, device serial override 지원
 

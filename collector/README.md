@@ -306,7 +306,7 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `season_id`, `snapshot_id`,
 `entry_count`, `entry_ids`, `status`, `total_rows_collected`, `ocr_provider`,
 `requested_page_count`, `captured_page_count`, `stopped_reason`, `ignored_line_count`,
-`ocr_stop_recommendation`, `pipeline_stop_recommendation`를 JSON으로 출력합니다.
+`ocr_stop_recommendation`, `pipeline_stop_recommendation`, `stop_policy`를 JSON으로 출력합니다.
 
 ### 주의사항
 
@@ -316,6 +316,8 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 - `pipeline.stop_on_recommendation: "any"` 또는 `--stop-on-soft-recommendation`을 쓰면 `soft` recommendation(`sparse_last_page`, `overlapping_last_page`)까지 포함해서 import를 건너뜁니다.
 - 요청 또는 CLI에서 `stop_capture_on_recommendation`을 켜면 `hard` recommendation 시점에 남은 캡처를 조기 종료합니다.
 - `pipeline.stop_capture_on_recommendation: "any"` 또는 `--stop-capture-on-soft-recommendation`을 쓰면 `soft` recommendation까지 포함해서 남은 캡처를 조기 종료합니다.
+- `pipeline.min_pages_before_ocr_stop`로 OCR 기반 조기 종료가 시작되기 전 최소 캡처 페이지 수를 조절할 수 있습니다. 기본값은 `2`입니다.
+- `pipeline.soft_stop_repeat_threshold`로 같은 soft OCR stop reason이 몇 번 연속 반복돼야 실제 조기 종료할지 조절할 수 있습니다. 기본값은 `2`입니다.
 - capture 자체가 성공해도 import 단계에서 실패할 수 있으며, 이 경우 생성된 capture 디렉터리는 디버깅용으로 그대로 남습니다.
 - 운영용 안정화가 끝난 collector가 아니라 개발/검증용 실제 입력 파이프라인 1차입니다.
 

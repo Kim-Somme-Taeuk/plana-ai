@@ -10,6 +10,7 @@ import collector.adb_capture as adb_capture
 from collector.adb_capture import (
     AdbCaptureStopDecision,
     AdbClient,
+    build_pipeline_stop_policy,
     capture_adb_screenshot,
     load_adb_capture_request,
 )
@@ -42,6 +43,22 @@ def test_load_adb_capture_request_marks_explicit_ocr_provider(tmp_path: Path) ->
 
     assert request.ocr["provider"] == "sidecar"
     assert request.ocr_provider_explicit is True
+
+
+def test_build_pipeline_stop_policy_reads_defaults() -> None:
+    policy = build_pipeline_stop_policy({})
+
+    assert policy.min_pages_before_ocr_stop == 2
+    assert policy.soft_stop_repeat_threshold == 2
+
+
+def test_build_pipeline_stop_policy_validates_positive_thresholds() -> None:
+    with pytest.raises(MockImportError) as exc_info:
+        build_pipeline_stop_policy({"soft_stop_repeat_threshold": 1})
+
+    assert "pipeline.soft_stop_repeat_threshold는 2 이상이어야 합니다." in str(
+        exc_info.value
+    )
 
 
 def test_load_adb_capture_request_resolves_relative_output_dir_from_request_file(

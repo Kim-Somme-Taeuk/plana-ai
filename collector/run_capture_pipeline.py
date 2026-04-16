@@ -21,6 +21,8 @@ from collector.adb_capture import (
     AdbCaptureResult,
     AdbCaptureStopDecision,
     AdbClient,
+    PipelineStopPolicy,
+    build_pipeline_stop_policy,
     capture_adb_screenshot,
     load_adb_capture_request,
 )
@@ -61,6 +63,7 @@ class CapturePipelineResult:
     ocr_stop_hints: list[dict[str, Any]]
     ocr_stop_recommendation: dict[str, Any]
     pipeline_stop_recommendation: dict[str, Any]
+    stop_policy: dict[str, int]
 
 
 def run_capture_pipeline(
@@ -85,6 +88,7 @@ def run_capture_pipeline(
         adb_command=adb_command,
         device_serial=device_serial,
     )
+    stop_policy = build_pipeline_stop_policy(request.pipeline)
     effective_ocr_provider = _resolve_pipeline_ocr_provider(
         requested_provider=ocr_provider,
         request=request,
@@ -100,6 +104,7 @@ def run_capture_pipeline(
         adb_client or AdbClient(request.adb.adb_command),
         after_capture_page=_build_after_capture_page_callback(
             request=request,
+            stop_policy=stop_policy,
             effective_ocr_provider=effective_ocr_provider,
             ocr_command=ocr_command,
             ocr_language=ocr_language,
@@ -175,6 +180,10 @@ def run_capture_pipeline(
         ocr_stop_hints=ocr_stop_hints,
         ocr_stop_recommendation=ocr_stop_recommendation,
         pipeline_stop_recommendation=pipeline_stop_recommendation,
+        stop_policy={
+            "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
+            "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
+        },
     )
 
 
@@ -270,6 +279,7 @@ def _build_pipeline_stop_recommendation(
 def _build_after_capture_page_callback(
     *,
     request: AdbCaptureRequest,
+    stop_policy: PipelineStopPolicy,
     effective_ocr_provider: str | None,
     ocr_command: str | None,
     ocr_language: str | None,
@@ -278,11 +288,11 @@ def _build_after_capture_page_callback(
 ):
     if stop_capture_on_recommendation_mode == "off":
         return None
-
     previous_soft_reason: str | None = None
+    previous_soft_count = 0
 
     def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
-        nonlocal previous_soft_reason
+        nonlocal previous_soft_reason, previous_soft_count
         parsed_payload = parse_capture_payload(
             CaptureImportPayload(
                 base_dir=request.adb.output_dir,
@@ -323,16 +333,25 @@ def _build_after_capture_page_callback(
         stop_decision = _build_capture_stop_decision(
             mode=stop_capture_on_recommendation_mode,
             ocr_stop_recommendation=ocr_stop_recommendation,
+            stop_policy=stop_policy,
+            captured_page_count=len(image_paths),
             previous_soft_reason=previous_soft_reason,
+            previous_soft_count=previous_soft_count,
         )
         if stop_decision is None:
             if ocr_stop_recommendation["level"] == "soft":
-                previous_soft_reason = ocr_stop_recommendation["primary_reason"]
+                if previous_soft_reason == ocr_stop_recommendation["primary_reason"]:
+                    previous_soft_count += 1
+                else:
+                    previous_soft_reason = ocr_stop_recommendation["primary_reason"]
+                    previous_soft_count = 1
             else:
                 previous_soft_reason = None
+                previous_soft_count = 0
             return AdbCaptureStopDecision(should_continue=True)
 
         previous_soft_reason = None
+        previous_soft_count = 0
         return stop_decision
 
     return after_capture_page
@@ -342,13 +361,19 @@ def _build_capture_stop_decision(
     *,
     mode: str,
     ocr_stop_recommendation: dict[str, Any],
+    stop_policy: PipelineStopPolicy,
+    captured_page_count: int,
     previous_soft_reason: str | None,
+    previous_soft_count: int,
 ) -> AdbCaptureStopDecision | None:
     if not ocr_stop_recommendation["should_stop"]:
         return None
 
     level = ocr_stop_recommendation["level"]
     reason = ocr_stop_recommendation["primary_reason"]
+
+    if captured_page_count < stop_policy.min_pages_before_ocr_stop:
+        return None
 
     if level == "hard":
         return AdbCaptureStopDecision(
@@ -362,6 +387,9 @@ def _build_capture_stop_decision(
         return None
 
     if previous_soft_reason != reason:
+        return None
+
+    if previous_soft_count + 1 < stop_policy.soft_stop_repeat_threshold:
         return None
 
     return AdbCaptureStopDecision(
@@ -524,6 +552,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ocr_stop_hints": result.ocr_stop_hints,
                 "ocr_stop_recommendation": result.ocr_stop_recommendation,
                 "pipeline_stop_recommendation": result.pipeline_stop_recommendation,
+                "stop_policy": result.stop_policy,
             },
             ensure_ascii=False,
         )
