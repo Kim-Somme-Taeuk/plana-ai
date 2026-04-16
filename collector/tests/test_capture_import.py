@@ -11,6 +11,7 @@ from collector.capture_import import (
     build_mock_payload_from_capture,
     import_capture_payload,
     load_capture_import_payload,
+    parse_capture_payload,
 )
 from collector.mock_import import MockImportError
 
@@ -115,6 +116,29 @@ def test_build_mock_payload_from_capture_parses_entries_and_keeps_invalid_candid
     assert mock_payload.entries[0]["score"] == 12345678
     assert mock_payload.entries[0]["ocr_confidence"] == 0.99
     assert mock_payload.entries[1]["player_name"] == "   "
+
+
+def test_parse_capture_payload_ignores_non_entry_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "RANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n총 참여 인원 999\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-ignored-lines-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert len(parsed_payload.ignored_lines) == 2
+    assert parsed_payload.ignored_lines[0].reason == "non_entry_line"
+    assert parsed_payload.ignored_lines[1].raw_text == "총 참여 인원 999"
 
 
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:

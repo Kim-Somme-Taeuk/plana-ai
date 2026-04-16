@@ -91,6 +91,7 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.requested_page_count == 1
     assert result.captured_page_count == 1
     assert result.stopped_reason is None
+    assert result.ignored_line_count == 0
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
     assert [call[0] for call in api_client.calls] == [
@@ -317,6 +318,58 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
     assert result.requested_page_count == 4
     assert result.captured_page_count == 2
     assert result.stopped_reason == "repeated_frame"
+
+
+def test_run_capture_pipeline_tracks_ignored_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-ignored-lines-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class FakeApiClient:
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 1,
+            }
+
+    def fake_run(args, capture_output, text, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="RANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.ignored_line_count == 1
 
 
 def _write_request(

@@ -77,6 +77,20 @@ class CaptureImportPayload:
     ocr: OcrConfig
 
 
+@dataclass(frozen=True)
+class IgnoredOcrLine:
+    page_index: int
+    line_index: int
+    raw_text: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ParsedCapturePayload:
+    mock_payload: MockImportPayload
+    ignored_lines: list[IgnoredOcrLine]
+
+
 def load_capture_import_payload(
     path: str | Path,
     *,
@@ -139,7 +153,14 @@ def load_capture_import_payload(
 def build_mock_payload_from_capture(
     payload: CaptureImportPayload,
 ) -> MockImportPayload:
+    return parse_capture_payload(payload).mock_payload
+
+
+def parse_capture_payload(
+    payload: CaptureImportPayload,
+) -> ParsedCapturePayload:
     entries: list[dict[str, Any]] = []
+    ignored_lines: list[IgnoredOcrLine] = []
 
     for page_index, page in enumerate(payload.pages, start=1):
         image_path = _resolve_existing_path(payload.base_dir, page.image_path, "image_path")
@@ -150,20 +171,24 @@ def build_mock_payload_from_capture(
             ocr=payload.ocr,
         )
 
-        page_entries = _parse_page_entries(
+        page_entries, page_ignored_lines = _parse_page_entries(
             ocr_text=ocr_text,
             image_path=image_path,
             default_ocr_confidence=page.default_ocr_confidence,
             page_index=page_index,
         )
         entries.extend(page_entries)
+        ignored_lines.extend(page_ignored_lines)
 
     _validate_snapshot_entries(entries)
 
-    return MockImportPayload(
-        season=payload.season,
-        snapshot=payload.snapshot,
-        entries=entries,
+    return ParsedCapturePayload(
+        mock_payload=MockImportPayload(
+            season=payload.season,
+            snapshot=payload.snapshot,
+            entries=entries,
+        ),
+        ignored_lines=ignored_lines,
     )
 
 
@@ -358,9 +383,20 @@ def _parse_page_entries(
     page_index: int,
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
+    ignored_lines: list[IgnoredOcrLine] = []
 
     for line_index, raw_line in enumerate(ocr_text.splitlines(), start=1):
         if not raw_line.strip():
+            continue
+        if _should_ignore_ocr_line(raw_line):
+            ignored_lines.append(
+                IgnoredOcrLine(
+                    page_index=page_index,
+                    line_index=line_index,
+                    raw_text=raw_line,
+                    reason="non_entry_line",
+                )
+            )
             continue
 
         entry = _parse_ocr_line(
@@ -377,7 +413,7 @@ def _parse_page_entries(
             f"page {page_index}에서 파싱 가능한 OCR entry가 없습니다: {image_path}"
         )
 
-    return entries
+    return entries, ignored_lines
 
 
 def _parse_ocr_line(
@@ -429,6 +465,20 @@ def _parse_int_token(
         raise MockImportError(
             f"{label} 파싱에 실패했습니다. page={page_index}, line={line_index}, value={value!r}"
         ) from exc
+
+
+def _can_parse_rank_token(value: str) -> bool:
+    normalized = _normalize_integer_ocr_token(value)
+    return normalized.isdigit()
+
+
+def _should_ignore_ocr_line(raw_line: str) -> bool:
+    stripped = raw_line.strip()
+    if not stripped:
+        return True
+
+    first_token = stripped.split()[0]
+    return not _can_parse_rank_token(first_token)
 
 
 def _parse_float_token(
@@ -680,8 +730,8 @@ def main(argv: list[str] | None = None) -> int:
             ocr_language=args.ocr_language,
             ocr_psm=args.ocr_psm,
         )
-        mock_payload = build_mock_payload_from_capture(payload)
-        result = import_mock_payload(mock_payload, ApiClient(args.base_url))
+        parsed_payload = parse_capture_payload(payload)
+        result = import_mock_payload(parsed_payload.mock_payload, ApiClient(args.base_url))
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -692,7 +742,17 @@ def main(argv: list[str] | None = None) -> int:
                 "season_id": result.season_id,
                 "snapshot_id": result.snapshot_id,
                 "page_count": len(payload.pages),
-                "entry_count": len(mock_payload.entries),
+                "entry_count": len(parsed_payload.mock_payload.entries),
+                "ignored_line_count": len(parsed_payload.ignored_lines),
+                "ignored_lines": [
+                    {
+                        "page_index": line.page_index,
+                        "line_index": line.line_index,
+                        "raw_text": line.raw_text,
+                        "reason": line.reason,
+                    }
+                    for line in parsed_payload.ignored_lines
+                ],
                 "entry_ids": result.entry_ids,
                 "status": result.status,
                 "total_rows_collected": result.total_rows_collected,
