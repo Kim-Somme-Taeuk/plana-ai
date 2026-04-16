@@ -92,6 +92,7 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.captured_page_count == 1
     assert result.stopped_reason is None
     assert result.ignored_line_count == 0
+    assert result.ocr_stop_hints == []
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
     assert [call[0] for call in api_client.calls] == [
@@ -318,6 +319,7 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
     assert result.requested_page_count == 4
     assert result.captured_page_count == 2
     assert result.stopped_reason == "repeated_frame"
+    assert result.ocr_stop_hints == [{"reason": "sparse_last_page", "page_index": 2, "entry_count": 1}]
 
 
 def test_run_capture_pipeline_tracks_ignored_lines(
@@ -371,6 +373,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
 
     assert result.ignored_line_count == 1
     assert result.ignored_line_reasons == [{"reason": "non_entry_line", "count": 1}]
+    assert result.ocr_stop_hints == [{"reason": "noisy_last_page", "page_index": 1, "ignored_line_count": 1, "entry_count": 1}]
     assert result.page_summaries == [
         {
             "page_index": 1,
