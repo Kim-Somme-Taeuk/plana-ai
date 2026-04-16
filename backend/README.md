@@ -1,73 +1,99 @@
 # backend
 
-FastAPI 백엔드입니다.
+`plana-ai`의 FastAPI + SQLAlchemy + PostgreSQL 기반 API 서버입니다.
+
+이 backend는 단순 저장소가 아니라 아래 책임을 가집니다.
+
+- season / snapshot / entry 저장
+- snapshot 상태 전이 관리
+- entry validation 적용
+- snapshot / season 통계 계산
+- frontend와 collector가 사용할 API 제공
+
+루트 개요 문서는 [README.md](../README.md)를 먼저 참고하세요.
 
 ## 실행
 
+```bash
+cd backend
 source .venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-## 엔드포인트
-
-- /
-- /health
-- /docs
-
-## ranking_entries API
-
-Swagger `/docs`에서 `ranking_entries` 섹션으로 바로 테스트할 수 있습니다.
-
-먼저 사용할 `snapshot_id`를 확인합니다.
-
-```bash
-curl http://localhost:8000/seasons
-curl http://localhost:8000/seasons/{season_id}/ranking-snapshots
 ```
 
-Entry 생성 예시입니다.
+엔드포인트:
 
-```bash
-curl -X POST http://localhost:8000/ranking-snapshots/{snapshot_id}/entries \
-  -H "Content-Type: application/json" \
-  -d '{
-    "rank": 1,
-    "score": 123456,
-    "player_name": "Shiroko",
-    "ocr_confidence": 0.98,
-    "raw_text": "1 Shiroko 123456",
-    "image_path": "/tmp/shiroko.png",
-    "is_valid": true,
-    "validation_issue": null
-  }'
-```
+- `/`
+- `/health`
+- `/docs`
 
-목록 조회와 단건 조회 예시입니다.
+## 현재 주요 API
 
-```bash
-curl http://localhost:8000/ranking-snapshots/{snapshot_id}/entries
-curl http://localhost:8000/ranking-entries/{entry_id}
-```
+기본 저장/조회:
 
-같은 `snapshot_id` 안에서 같은 `rank`를 다시 생성하면 `409 Conflict`를 반환합니다.
+- `POST /seasons`
+- `GET /seasons`
+- `GET /seasons/{season_id}`
+- `POST /seasons/{season_id}/ranking-snapshots`
+- `GET /seasons/{season_id}/ranking-snapshots`
+- `GET /ranking-snapshots/{snapshot_id}`
+- `PATCH /ranking-snapshots/{snapshot_id}/status`
+- `POST /ranking-snapshots/{snapshot_id}/entries`
+- `GET /ranking-snapshots/{snapshot_id}/entries`
+- `GET /ranking-entries/{entry_id}`
+
+통계:
+
+- `GET /ranking-snapshots/{snapshot_id}/summary`
+- `GET /ranking-snapshots/{snapshot_id}/cutoffs`
+- `GET /ranking-snapshots/{snapshot_id}/distribution`
+- `GET /seasons/{season_id}/cutoff-series`
+
+## ranking_snapshot 상태 정책
+
+- `collecting -> completed` 허용
+- `collecting -> failed` 허용
+- `completed -> collecting` 금지
+- `failed -> collecting` 금지
+- `completed -> failed` 금지
+- 같은 상태로 다시 PATCH 하는 no-op 요청은 허용
+- `completed` 전이 시 `total_rows_collected`를 실제 entry 개수로 반영
+- terminal 상태(`completed`, `failed`)가 되면 새 entry 입력은 거부
+
+## ranking_entries 조회 옵션
+
+`GET /ranking-snapshots/{snapshot_id}/entries`
+
+- `is_valid`
+- `limit`
+- `offset`
+- `sort_by=rank|score`
+- `order=asc|desc`
+
+기본 동작:
+
+- `rank ASC`
 
 ## ranking_entries validation
 
-entry 생성 시 backend가 아래 규칙으로 `is_valid`와 `validation_issue`를 정리합니다.
+entry 생성 시 backend가 `is_valid`와 `validation_issue`를 재계산합니다.
+
+현재 자동 규칙:
 
 - `rank <= 0` -> `invalid_rank`
 - `score <= 0` -> `invalid_score`
 - `player_name`이 비어 있거나 공백뿐임 -> `missing_player_name`
 - `ocr_confidence < 0.5` -> `low_ocr_confidence`
-- snapshot 보조 검증 코드:
-  - `duplicate_rank`
-  - `rank_order_violation`
 
-추가 정책:
+보조 코드:
+
+- `duplicate_rank`
+- `rank_order_violation`
+
+정책:
 
 - invalid entry도 저장됩니다.
-- valid entry면 `validation_issue=null`로 저장됩니다.
-- 요청의 `is_valid` / `validation_issue` 값보다 backend validation 결과가 우선합니다.
-- statistics API는 기존처럼 `is_valid=false` entry를 제외합니다.
+- 요청의 `is_valid` / `validation_issue`보다 backend validation 결과가 우선합니다.
+- statistics API는 `is_valid=false` entry를 제외합니다.
 
 예시:
 
@@ -102,3 +128,22 @@ curl -X POST http://localhost:8000/ranking-snapshots/{snapshot_id}/entries \
   "validation_issue": "low_ocr_confidence"
 }
 ```
+
+## 테스트
+
+```bash
+backend/.venv/bin/pytest backend/tests -q
+```
+
+collector까지 포함한 최소 회귀:
+
+```bash
+backend/.venv/bin/pytest backend/tests collector/tests -q
+```
+
+## 다음 세션에서 먼저 볼 파일
+
+- [app/main.py](app/main.py)
+- [app/api/routes/ranking_snapshots.py](app/api/routes/ranking_snapshots.py)
+- [app/api/routes/ranking_entries.py](app/api/routes/ranking_entries.py)
+- [app/core/ranking_entry_validation.py](app/core/ranking_entry_validation.py)
