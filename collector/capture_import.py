@@ -762,7 +762,11 @@ def _parse_int_token(
     page_index: int,
     line_index: int,
 ) -> int:
-    normalized = _normalize_integer_ocr_token(value)
+    normalized = (
+        _normalize_rank_ocr_token(value)
+        if label == "rank"
+        else _normalize_integer_ocr_token(value)
+    )
     try:
         return int(normalized)
     except ValueError as exc:
@@ -772,7 +776,7 @@ def _parse_int_token(
 
 
 def _can_parse_rank_token(value: str) -> bool:
-    normalized = _normalize_integer_ocr_token(value)
+    normalized = _normalize_rank_ocr_token(value)
     return normalized.isdigit()
 
 
@@ -901,6 +905,21 @@ def _normalize_integer_ocr_token(value: str) -> str:
     return normalized.strip(".:;%/" + OCR_EDGE_PUNCTUATION)
 
 
+def _normalize_rank_ocr_token(value: str) -> str:
+    normalized = value.strip().rstrip(OCR_EDGE_PUNCTUATION)
+    lowered = normalized.lower()
+    if lowered.startswith("no."):
+        normalized = normalized[3:]
+    elif lowered.startswith("no"):
+        normalized = normalized[2:]
+    if normalized.startswith("#"):
+        normalized = normalized[1:]
+    normalized = normalized.removeprefix("№")
+    normalized = normalized.removesuffix("위")
+    normalized = _normalize_integer_ocr_token(normalized)
+    return normalized.strip(".:- ")
+
+
 def _normalize_float_ocr_token(value: str) -> str:
     normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
     if _looks_like_percent_token(normalized):
@@ -1007,7 +1026,7 @@ def _split_score_and_player_tokens(
 
     if score_start > 0:
         leading_candidate = _normalize_integer_ocr_token(body_tokens[score_start - 1])
-        if leading_candidate.isdigit() and 2 <= len(leading_candidate) <= 3:
+        if leading_candidate.isdigit() and 1 <= len(leading_candidate) <= 3:
             score_start -= 1
 
     return body_tokens[score_start:], body_tokens[:score_start]

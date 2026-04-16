@@ -940,6 +940,52 @@ def test_build_mock_payload_from_capture_normalizes_common_ocr_numeric_tokens(
     assert mock_payload.entries[0]["ocr_confidence"] == 0.87
 
 
+def test_build_mock_payload_from_capture_parses_rank_token_variants(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "#1\tPlana\t12O,OOO\tO.87\n2위 Arona 9 876 543 0.95\nNo.3 Sensei 8 765 432 0.93\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-rank-token-variants-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert [entry["rank"] for entry in mock_payload.entries] == [1, 2, 3]
+    assert mock_payload.entries[0]["score"] == 120000
+    assert mock_payload.entries[1]["player_name"] == "Arona"
+    assert mock_payload.entries[1]["score"] == 9876543
+    assert mock_payload.entries[2]["player_name"] == "Sensei"
+    assert mock_payload.entries[2]["score"] == 8765432
+
+
+def test_parse_capture_payload_does_not_classify_rank_token_variants_as_non_entry_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "#1\tPlana\t12345678\t0.99\nNo.2 Arona 12 345 678 0.95\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-rank-token-variant-lines-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 2
+    assert parsed_payload.ignored_lines == []
+
+
 def test_build_mock_payload_from_capture_strips_trailing_numeric_punctuation(
     tmp_path: Path,
 ) -> None:
