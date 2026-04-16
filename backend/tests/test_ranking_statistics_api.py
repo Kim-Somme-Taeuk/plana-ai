@@ -1,0 +1,373 @@
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy.orm import Session
+
+from app.models.ranking_entry import RankingEntry
+from app.models.ranking_snapshot import RankingSnapshot
+
+
+def test_get_ranking_snapshot_summary_returns_expected_values(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1,
+                score=9000,
+                player_name="Top",
+                ocr_confidence=0.99,
+                raw_text="1 Top 9000",
+                image_path="/tmp/top.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=2,
+                score=7000,
+                player_name="Mid",
+                ocr_confidence=0.95,
+                raw_text="2 Mid 7000",
+                image_path="/tmp/mid.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=3,
+                score=1000,
+                player_name="Bad OCR",
+                ocr_confidence=0.40,
+                raw_text="3 Bad OCR 1000",
+                image_path="/tmp/bad.png",
+                is_valid=False,
+                validation_issue="ocr mismatch",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/summary")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "snapshot_id": ranking_snapshot.id,
+        "season_id": ranking_snapshot.season_id,
+        "status": "collecting",
+        "captured_at": ranking_snapshot.captured_at.isoformat().replace("+00:00", "Z"),
+        "total_rows_collected": 0,
+        "valid_entry_count": 2,
+        "invalid_entry_count": 1,
+        "highest_score": 9000,
+        "lowest_score": 7000,
+    }
+
+
+def test_get_ranking_snapshot_summary_returns_null_scores_without_valid_entries(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=1000,
+            player_name="Invalid",
+            ocr_confidence=0.1,
+            raw_text="1 Invalid 1000",
+            image_path="/tmp/invalid.png",
+            is_valid=False,
+            validation_issue="ocr mismatch",
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/summary")
+
+    assert response.status_code == 200
+    assert response.json()["valid_entry_count"] == 0
+    assert response.json()["invalid_entry_count"] == 1
+    assert response.json()["highest_score"] is None
+    assert response.json()["lowest_score"] is None
+
+
+def test_get_ranking_snapshot_cutoffs_returns_scores_and_nulls(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1,
+                score=9000,
+                player_name="Top",
+                ocr_confidence=0.99,
+                raw_text="1 Top 9000",
+                image_path="/tmp/top.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=10,
+                score=8000,
+                player_name="Ten",
+                ocr_confidence=0.95,
+                raw_text="10 Ten 8000",
+                image_path="/tmp/ten.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=100,
+                score=7000,
+                player_name="Hundred",
+                ocr_confidence=0.9,
+                raw_text="100 Hundred 7000",
+                image_path="/tmp/hundred.png",
+                is_valid=False,
+                validation_issue="ocr mismatch",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/cutoffs")
+
+    assert response.status_code == 200
+    assert response.json()["snapshot_id"] == ranking_snapshot.id
+    assert response.json()["status"] == "collecting"
+    assert response.json()["cutoffs"] == [
+        {"rank": 1, "score": 9000},
+        {"rank": 10, "score": 8000},
+        {"rank": 100, "score": None},
+        {"rank": 1000, "score": None},
+        {"rank": 5000, "score": None},
+        {"rank": 10000, "score": None},
+    ]
+
+
+def test_get_ranking_snapshot_distribution_uses_valid_entries_only(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1,
+                score=1000,
+                player_name="A",
+                ocr_confidence=0.99,
+                raw_text="1 A 1000",
+                image_path="/tmp/a.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=2,
+                score=3000,
+                player_name="B",
+                ocr_confidence=0.95,
+                raw_text="2 B 3000",
+                image_path="/tmp/b.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=3,
+                score=5000,
+                player_name="C",
+                ocr_confidence=0.9,
+                raw_text="3 C 5000",
+                image_path="/tmp/c.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=4,
+                score=9999,
+                player_name="Ignored",
+                ocr_confidence=0.2,
+                raw_text="4 Ignored 9999",
+                image_path="/tmp/ignored.png",
+                is_valid=False,
+                validation_issue="ocr mismatch",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/distribution")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "snapshot_id": ranking_snapshot.id,
+        "status": "collecting",
+        "count": 3,
+        "min_score": 1000,
+        "max_score": 5000,
+        "avg_score": 3000.0,
+        "median_score": 3000.0,
+    }
+
+
+def test_get_ranking_snapshot_distribution_returns_nulls_without_valid_entries(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=1000,
+            player_name="Invalid",
+            ocr_confidence=0.2,
+            raw_text="1 Invalid 1000",
+            image_path="/tmp/invalid.png",
+            is_valid=False,
+            validation_issue="ocr mismatch",
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/distribution")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "snapshot_id": ranking_snapshot.id,
+        "status": "collecting",
+        "count": 0,
+        "min_score": None,
+        "max_score": None,
+        "avg_score": None,
+        "median_score": None,
+    }
+
+
+def test_get_season_cutoff_series_uses_completed_snapshots_only(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.status = "completed"
+    ranking_snapshot.captured_at = datetime.now(UTC)
+    db_session.add(ranking_snapshot)
+
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=ranking_snapshot.captured_at + timedelta(minutes=5),
+        source_type="manual",
+        status="completed",
+        total_rows_collected=2,
+        note="second completed snapshot",
+    )
+    third_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=ranking_snapshot.captured_at + timedelta(minutes=10),
+        source_type="manual",
+        status="collecting",
+        total_rows_collected=1,
+        note="collecting snapshot should be excluded",
+    )
+    db_session.add_all([second_snapshot, third_snapshot])
+    db_session.commit()
+    db_session.refresh(second_snapshot)
+    db_session.refresh(third_snapshot)
+
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1000,
+                score=9000,
+                player_name="First",
+                ocr_confidence=0.9,
+                raw_text="1000 First 9000",
+                image_path="/tmp/first.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=second_snapshot.id,
+                rank=1000,
+                score=8500,
+                player_name="Second",
+                ocr_confidence=0.8,
+                raw_text="1000 Second 8500",
+                image_path="/tmp/second.png",
+                is_valid=False,
+                validation_issue="ocr mismatch",
+            ),
+            RankingEntry(
+                ranking_snapshot_id=third_snapshot.id,
+                rank=1000,
+                score=8000,
+                player_name="Ignored",
+                ocr_confidence=0.7,
+                raw_text="1000 Ignored 8000",
+                image_path="/tmp/ignored.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/cutoff-series",
+        params={"rank": 1000},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["season_id"] == ranking_snapshot.season_id
+    assert response.json()["rank"] == 1000
+    assert response.json()["points"] == [
+        {
+            "snapshot_id": ranking_snapshot.id,
+            "captured_at": ranking_snapshot.captured_at.isoformat().replace("+00:00", "Z"),
+            "score": 9000,
+        },
+        {
+            "snapshot_id": second_snapshot.id,
+            "captured_at": second_snapshot.captured_at.isoformat().replace("+00:00", "Z"),
+            "score": None,
+        },
+    ]
+
+
+def test_snapshot_statistics_return_404_for_missing_snapshot(client) -> None:
+    for suffix in ("summary", "cutoffs", "distribution"):
+        response = client.get(f"/ranking-snapshots/999999/{suffix}")
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Ranking snapshot not found"}
+
+
+def test_get_season_cutoff_series_returns_404_for_missing_season(client) -> None:
+    response = client.get("/seasons/999999/cutoff-series", params={"rank": 1000})
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Season not found"}
+
+
+def test_get_season_cutoff_series_requires_rank_query_param(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    response = client.get(f"/seasons/{ranking_snapshot.season_id}/cutoff-series")
+
+    assert response.status_code == 422
+    assert response.json()["detail"]
