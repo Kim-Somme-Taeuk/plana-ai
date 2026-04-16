@@ -163,6 +163,28 @@ def test_build_mock_payload_from_capture_parses_punctuated_score_and_percent_con
     assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
 
 
+def test_build_mock_payload_from_capture_parses_bracketed_score_and_confidence(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 [12.345.678] (87%)\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-bracketed-score-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
+
+
 def test_parse_capture_payload_ignores_non_entry_lines(
     tmp_path: Path,
 ) -> None:
@@ -241,6 +263,55 @@ def test_parse_capture_payload_classifies_separator_lines(
     assert len(parsed_payload.mock_payload.entries) == 1
     assert parsed_payload.ignored_lines[0].reason == "separator_line"
     assert ignored_summary == [{"reason": "separator_line", "count": 1}]
+
+
+def test_parse_capture_payload_classifies_korean_header_footer_and_pagination_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "순위 닉네임 점수\n1\tPlana\t12345678\t0.99\n2/5\n계속하려면 탭\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-korean-header-footer-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+    ignored_summary = summarize_ignored_lines(parsed_payload.ignored_lines)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert ignored_summary == [
+        {"reason": "footer_line", "count": 1},
+        {"reason": "header_line", "count": 1},
+        {"reason": "pagination_line", "count": 1},
+    ]
+
+
+def test_parse_capture_payload_classifies_datetime_metadata_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "captured 2026-04-17 10:30:45 UTC\n1\tPlana\t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-datetime-metadata-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
+        {"reason": "metadata_line", "count": 1}
+    ]
 
 
 def test_parse_capture_payload_reports_multi_page_summaries(

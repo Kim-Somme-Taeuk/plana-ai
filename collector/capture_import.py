@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,11 @@ OCR_NUMERIC_TRANSLATION = str.maketrans(
     }
 )
 OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
+OCR_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’"
+PAGINATION_RE = re.compile(
+    r"^(?:page\s*)?\d+\s*(?:/|of)\s*\d+$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -719,6 +725,10 @@ def _get_ignored_line_reason(raw_line: str) -> str | None:
         return "separator_line"
     if _looks_like_header_line(stripped):
         return "header_line"
+    if _looks_like_pagination_line(stripped):
+        return "pagination_line"
+    if _looks_like_footer_line(stripped):
+        return "footer_line"
     if _looks_like_metadata_line(stripped):
         return "metadata_line"
 
@@ -735,8 +745,48 @@ def _looks_like_separator_line(value: str) -> bool:
 
 def _looks_like_header_line(value: str) -> bool:
     lowered = value.lower().replace("\t", " ")
-    return "rank" in lowered and any(
+    english_header = "rank" in lowered and any(
         keyword in lowered for keyword in ("score", "player", "nickname", "name")
+    )
+    korean_header = "순위" in value and any(
+        keyword in value for keyword in ("점수", "스코어", "닉네임", "이름")
+    )
+    compact_korean_header = any(token in value for token in ("순위닉네임점수", "순위이름점수"))
+    return english_header or korean_header or compact_korean_header
+
+
+def _looks_like_pagination_line(value: str) -> bool:
+    normalized = " ".join(value.split())
+    if PAGINATION_RE.match(normalized):
+        return True
+    lowered = normalized.lower()
+    return lowered.startswith("page ") and any(separator in lowered for separator in ("/", " of "))
+
+
+def _looks_like_footer_line(value: str) -> bool:
+    lowered = value.lower()
+    footer_keywords = (
+        "tap to continue",
+        "touch to continue",
+        "press any key",
+        "click to continue",
+        "continue",
+        "back",
+        "close",
+        "retry",
+        "next",
+    )
+    korean_footer_keywords = (
+        "계속",
+        "다음",
+        "닫기",
+        "뒤로",
+        "재시도",
+        "터치",
+        "탭",
+    )
+    return any(keyword in lowered for keyword in footer_keywords) or any(
+        keyword in value for keyword in korean_footer_keywords
     )
 
 
@@ -744,10 +794,18 @@ def _looks_like_metadata_line(value: str) -> bool:
     lowered = value.lower()
     if any(keyword in lowered for keyword in ("page", "captured", "server", "season", "boss", "total")):
         return True
+    if any(keyword in lowered for keyword in ("time", "remaining", "version", "ver.", "utc", "kst")):
+        return True
+    if re.search(r"\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b", value):
+        return True
+    if re.search(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", value):
+        return True
 
     if any(character.isdigit() for character in value) and any(
         keyword in value for keyword in ("총", "인원", "참여", "합계")
     ):
+        return True
+    if any(keyword in value for keyword in ("남은시간", "버전", "서버", "캡처", "시각")):
         return True
 
     return False
@@ -767,7 +825,7 @@ def _parse_float_token(
             f"{label} 파싱에 실패했습니다. page={page_index}, line={line_index}, value={value!r}"
         ) from exc
 
-    if value.strip().endswith("%"):
+    if _looks_like_percent_token(value):
         return parsed / 100
 
     return parsed
@@ -780,14 +838,19 @@ def _normalize_integer_ocr_token(value: str) -> str:
         .replace(".", "")
         .translate(OCR_NUMERIC_TRANSLATION)
     )
-    return normalized.strip(".:;")
+    return normalized.strip(".:;%/" + OCR_EDGE_PUNCTUATION)
 
 
 def _normalize_float_ocr_token(value: str) -> str:
     normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
-    if normalized.endswith("%"):
+    if _looks_like_percent_token(normalized):
         normalized = normalized[:-1]
-    return normalized.strip(".:;")
+    return normalized.strip(".:;/%" + OCR_EDGE_PUNCTUATION)
+
+
+def _looks_like_percent_token(value: str) -> bool:
+    stripped = value.strip().rstrip(OCR_EDGE_PUNCTUATION)
+    return stripped.endswith("%")
 
 
 def _parse_whitespace_fallback_line(
@@ -844,7 +907,7 @@ def _parse_whitespace_fallback_line(
 def _looks_like_confidence_token(value: str) -> bool:
     stripped_original = value.strip()
     stripped = _normalize_float_ocr_token(value)
-    if "." not in stripped and not stripped_original.endswith("%"):
+    if "." not in stripped and not _looks_like_percent_token(stripped_original):
         return False
 
     try:
@@ -852,7 +915,7 @@ def _looks_like_confidence_token(value: str) -> bool:
     except ValueError:
         return False
 
-    if stripped_original.endswith("%"):
+    if _looks_like_percent_token(stripped_original):
         return 0 <= parsed <= 100
 
     return 0 <= parsed <= 1

@@ -148,13 +148,19 @@ backend/.venv/bin/python collector/capture_import.py \
   - 예: `O -> 0`, `l -> 1`, trailing `.` 제거
 - whitespace fallback의 confidence token도 같은 보정 규칙을 적용합니다.
 - `%`가 붙은 confidence token은 `87% -> 0.87`로 정규화합니다.
+- 괄호나 대괄호로 감싼 score/confidence token도 보정합니다.
+  - 예: `[12.345.678]`, `(87%)`
 - whitespace fallback에서는 `12 345 678`처럼 공백으로 분리된 score token도 보수적으로 합쳐서 파싱합니다.
 - 점수 token에 들어간 `.` 구분자도 `12.345.678 -> 12345678`로 정규화합니다.
 - `player_name`은 앞뒤 공백을 제거하고 내부 연속 공백을 한 칸으로 정리합니다.
 - rank로 시작하지 않는 OCR 잡음 줄은 import 전에 무시하고 결과에 `ignored_lines`로 남깁니다.
 - 빈 줄도 `blank_line` reason으로 집계합니다.
 - `RANK PLAYER SCORE` 같은 표 헤더는 `header_line` reason으로 집계합니다.
+- `순위 닉네임 점수` 같은 한글 표 헤더도 `header_line` reason으로 집계합니다.
+- `2/5`, `Page 2/5` 같은 페이지 표시는 `pagination_line` reason으로 집계합니다.
+- `계속하려면 탭`, `Tap to continue` 같은 UI footer는 `footer_line` reason으로 집계합니다.
 - 숫자가 섞인 부가 정보 줄은 `metadata_line` reason으로 집계합니다.
+- 날짜/시각/버전/remaining time 같은 메타 정보 줄도 `metadata_line` reason으로 집계합니다.
 - 구분선처럼 보이는 줄은 `separator_line` reason으로 집계합니다.
 - entry가 전혀 없는 마지막 페이지도 summary에 남기며, `empty_last_page` 종료 힌트 계산에 사용합니다.
 - 이전 페이지와 rank가 많이 겹치는 마지막 페이지는 `overlapping_last_page` 힌트로 표시합니다.
