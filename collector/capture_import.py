@@ -463,7 +463,7 @@ def _parse_ocr_line(
         return {
             "rank": _parse_int_token(rank_text, "rank", page_index, line_index),
             "score": _parse_int_token(score_text, "score", page_index, line_index),
-            "player_name": player_name,
+            "player_name": _normalize_player_name(player_name),
             "ocr_confidence": ocr_confidence,
             "raw_text": raw_line,
             "image_path": _build_entry_image_path(image_path),
@@ -576,7 +576,7 @@ def _parse_whitespace_fallback_line(
             page_index=page_index,
             line_index=line_index,
         ),
-        "player_name": " ".join(player_tokens),
+        "player_name": _normalize_player_name(" ".join(player_tokens)),
         "ocr_confidence": ocr_confidence,
         "raw_text": raw_line,
         "image_path": _build_entry_image_path(image_path),
@@ -653,6 +653,10 @@ def _parse_grouped_score_tokens(
         )
 
     return int("".join(normalized_tokens))
+
+
+def _normalize_player_name(value: str) -> str:
+    return " ".join(value.split())
 
 
 def _validate_snapshot_entries(entries: list[dict[str, Any]]) -> None:

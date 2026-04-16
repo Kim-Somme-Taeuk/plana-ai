@@ -116,7 +116,27 @@ def test_build_mock_payload_from_capture_parses_entries_and_keeps_invalid_candid
     assert mock_payload.entries[0]["rank"] == 1
     assert mock_payload.entries[0]["score"] == 12345678
     assert mock_payload.entries[0]["ocr_confidence"] == 0.99
-    assert mock_payload.entries[1]["player_name"] == "   "
+    assert mock_payload.entries[1]["player_name"] == ""
+
+
+def test_build_mock_payload_from_capture_normalizes_tab_player_name_spacing(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\t  Player   2  \t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tab-player-spacing-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
 
 
 def test_parse_capture_payload_ignores_non_entry_lines(
@@ -262,6 +282,28 @@ def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_numeric
     assert mock_payload.entries[0]["player_name"] == "Player 2"
     assert mock_payload.entries[0]["score"] == 12345678
     assert mock_payload.entries[0]["ocr_confidence"] is None
+
+
+def test_build_mock_payload_from_capture_normalizes_whitespace_player_spacing(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1   Player    2   12345678   0.87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-whitespace-player-spacing-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.87
 
 
 def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_confidence(
