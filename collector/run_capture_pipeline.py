@@ -69,7 +69,7 @@ def run_capture_pipeline(
     ocr_command: str | None = None,
     ocr_language: str | None = None,
     ocr_psm: int | None = None,
-    stop_on_recommendation: bool | None = None,
+    stop_on_recommendation: str | None = None,
     adb_client: AdbClient | None = None,
     api_client: ApiClient | None = None,
 ) -> CapturePipelineResult:
@@ -103,10 +103,14 @@ def run_capture_pipeline(
         capture_stopped_reason=capture_result.stopped_reason,
         ocr_stop_recommendation=ocr_stop_recommendation,
     )
-    should_skip_import = _resolve_stop_on_recommendation(
+    stop_on_recommendation_mode = _resolve_stop_on_recommendation(
         requested_stop_on_recommendation=stop_on_recommendation,
         request=request,
-    ) and pipeline_stop_recommendation["should_stop"]
+    )
+    should_skip_import = _should_skip_import_on_recommendation(
+        mode=stop_on_recommendation_mode,
+        pipeline_stop_recommendation=pipeline_stop_recommendation,
+    )
 
     if should_skip_import:
         import_skipped = True
@@ -177,22 +181,38 @@ def _resolve_pipeline_ocr_provider(
 
 def _resolve_stop_on_recommendation(
     *,
-    requested_stop_on_recommendation: bool | None,
+    requested_stop_on_recommendation: str | None,
     request,
-) -> bool:
+) -> str:
     if requested_stop_on_recommendation is not None:
         return requested_stop_on_recommendation
 
     raw_value = request.pipeline.get("stop_on_recommendation", False)
     if isinstance(raw_value, bool):
-        return raw_value
+        return "hard" if raw_value else "off"
     if isinstance(raw_value, str):
         normalized = raw_value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
+        if normalized in {"1", "true", "yes", "on", "hard"}:
+            return "hard"
+        if normalized in {"any", "soft"}:
+            return "any"
         if normalized in {"0", "false", "no", "off", ""}:
-            return False
-    return bool(raw_value)
+            return "off"
+    return "hard" if bool(raw_value) else "off"
+
+
+def _should_skip_import_on_recommendation(
+    *,
+    mode: str,
+    pipeline_stop_recommendation: dict[str, Any],
+) -> bool:
+    if mode == "off" or not pipeline_stop_recommendation["should_stop"]:
+        return False
+
+    if mode == "any":
+        return True
+
+    return pipeline_stop_recommendation.get("level") == "hard"
 
 
 def _build_pipeline_stop_recommendation(
@@ -203,6 +223,7 @@ def _build_pipeline_stop_recommendation(
     if capture_stopped_reason is not None:
         return {
             "should_stop": True,
+            "level": "hard",
             "source": "capture",
             "primary_reason": capture_stopped_reason,
             "reasons": [capture_stopped_reason],
@@ -212,6 +233,7 @@ def _build_pipeline_stop_recommendation(
         reasons = list(ocr_stop_recommendation["reasons"])
         return {
             "should_stop": True,
+            "level": ocr_stop_recommendation["level"],
             "source": "ocr",
             "primary_reason": reasons[0],
             "reasons": reasons,
@@ -219,6 +241,7 @@ def _build_pipeline_stop_recommendation(
 
     return {
         "should_stop": False,
+        "level": None,
         "source": None,
         "primary_reason": None,
         "reasons": [],
@@ -275,7 +298,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stop-on-recommendation",
         action="store_true",
-        help="pipeline stop recommendation이 있으면 backend import를 건너뜁니다.",
+        help="hard stop recommendation이 있으면 backend import를 건너뜁니다.",
+    )
+    parser.add_argument(
+        "--stop-on-soft-recommendation",
+        action="store_true",
+        help="soft/hard stop recommendation이 있으면 backend import를 건너뜁니다.",
     )
     return parser
 
@@ -283,6 +311,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.stop_on_recommendation and args.stop_on_soft_recommendation:
+        parser.error("--stop-on-recommendation과 --stop-on-soft-recommendation은 함께 사용할 수 없습니다.")
+
+    stop_on_recommendation: str | None = None
+    if args.stop_on_soft_recommendation:
+        stop_on_recommendation = "any"
+    elif args.stop_on_recommendation:
+        stop_on_recommendation = "hard"
 
     try:
         result = run_capture_pipeline(
@@ -295,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
             ocr_command=args.ocr_command,
             ocr_language=args.ocr_language,
             ocr_psm=args.ocr_psm,
-            stop_on_recommendation=args.stop_on_recommendation,
+            stop_on_recommendation=stop_on_recommendation,
         )
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)

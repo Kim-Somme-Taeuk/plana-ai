@@ -312,8 +312,24 @@ def build_ocr_stop_hints(
 def build_ocr_stop_recommendation(
     ocr_stop_hints: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    reason_levels = {
+        "empty_last_page": "hard",
+        "noisy_last_page": "hard",
+        "sparse_last_page": "soft",
+        "overlapping_last_page": "soft",
+    }
+    levels = [reason_levels.get(hint["reason"], "soft") for hint in ocr_stop_hints]
+
+    if not levels:
+        level = None
+    elif "hard" in levels:
+        level = "hard"
+    else:
+        level = "soft"
+
     return {
         "should_stop": len(ocr_stop_hints) > 0,
+        "level": level,
         "reasons": [hint["reason"] for hint in ocr_stop_hints],
     }
 
@@ -622,20 +638,32 @@ def _parse_float_token(
 ) -> float:
     normalized = _normalize_float_ocr_token(value)
     try:
-        return float(normalized)
+        parsed = float(normalized)
     except ValueError as exc:
         raise MockImportError(
             f"{label} 파싱에 실패했습니다. page={page_index}, line={line_index}, value={value!r}"
         ) from exc
 
+    if value.strip().endswith("%"):
+        return parsed / 100
+
+    return parsed
+
 
 def _normalize_integer_ocr_token(value: str) -> str:
-    normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
+    normalized = (
+        value.strip()
+        .replace(",", "")
+        .replace(".", "")
+        .translate(OCR_NUMERIC_TRANSLATION)
+    )
     return normalized.strip(".:;")
 
 
 def _normalize_float_ocr_token(value: str) -> str:
     normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
+    if normalized.endswith("%"):
+        normalized = normalized[:-1]
     return normalized.strip(".:;")
 
 
@@ -691,14 +719,18 @@ def _parse_whitespace_fallback_line(
 
 
 def _looks_like_confidence_token(value: str) -> bool:
+    stripped_original = value.strip()
     stripped = _normalize_float_ocr_token(value)
-    if "." not in stripped:
+    if "." not in stripped and not stripped_original.endswith("%"):
         return False
 
     try:
         parsed = float(stripped)
     except ValueError:
         return False
+
+    if stripped_original.endswith("%"):
+        return 0 <= parsed <= 100
 
     return 0 <= parsed <= 1
 

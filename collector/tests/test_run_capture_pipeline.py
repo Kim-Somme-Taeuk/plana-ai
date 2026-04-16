@@ -93,9 +93,14 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.stopped_reason is None
     assert result.ignored_line_count == 0
     assert result.ocr_stop_hints == []
-    assert result.ocr_stop_recommendation == {"should_stop": False, "reasons": []}
+    assert result.ocr_stop_recommendation == {
+        "should_stop": False,
+        "level": None,
+        "reasons": [],
+    }
     assert result.pipeline_stop_recommendation == {
         "should_stop": False,
+        "level": None,
         "source": None,
         "primary_reason": None,
         "reasons": [],
@@ -329,10 +334,12 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
     assert result.ocr_stop_hints == [{"reason": "sparse_last_page", "page_index": 2, "entry_count": 1}]
     assert result.ocr_stop_recommendation == {
         "should_stop": True,
+        "level": "soft",
         "reasons": ["sparse_last_page"],
     }
     assert result.pipeline_stop_recommendation == {
         "should_stop": True,
+        "level": "hard",
         "source": "capture",
         "primary_reason": "repeated_frame",
         "reasons": ["repeated_frame"],
@@ -394,10 +401,12 @@ def test_run_capture_pipeline_tracks_ignored_lines(
     assert result.ocr_stop_hints == [{"reason": "noisy_last_page", "page_index": 1, "ignored_line_count": 1, "entry_count": 1}]
     assert result.ocr_stop_recommendation == {
         "should_stop": True,
+        "level": "hard",
         "reasons": ["noisy_last_page"],
     }
     assert result.pipeline_stop_recommendation == {
         "should_stop": True,
+        "level": "hard",
         "source": "ocr",
         "primary_reason": "noisy_last_page",
         "reasons": ["noisy_last_page"],
@@ -510,6 +519,159 @@ def test_run_capture_pipeline_cli_flag_skips_import_on_recommendation(
 
     assert result.import_skipped is True
     assert result.skip_reason == "noisy_last_page"
+
+
+def test_run_capture_pipeline_does_not_skip_import_for_soft_recommendation_in_hard_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-hard-mode-soft-recommendation-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"stop_on_recommendation": True}
+    request_payload["adb"]["page_count"] = 2
+    request_payload["adb"]["swipe"] = {
+        "start_x": 500,
+        "start_y": 1600,
+        "end_x": 500,
+        "end_y": 600,
+        "duration_ms": 200,
+        "settle_delay_ms": 0,
+    }
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            return None
+
+    class FakeApiClient:
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 2,
+            }
+
+    def fake_run(args, capture_output, text, check):
+        image_path = Path(args[1]).name
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=(
+                "1\tPlana\t12345678\t0.99\n"
+                if image_path == "page-001.png"
+                else "2\tArona\t12000000\t0.98\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.ocr_stop_recommendation == {
+        "should_stop": True,
+        "level": "soft",
+        "reasons": ["sparse_last_page"],
+    }
+    assert result.import_skipped is False
+
+
+def test_run_capture_pipeline_skips_import_for_soft_recommendation_in_any_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-any-mode-soft-recommendation-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"stop_on_recommendation": "any"}
+    request_payload["adb"]["page_count"] = 2
+    request_payload["adb"]["swipe"] = {
+        "start_x": 500,
+        "start_y": 1600,
+        "end_x": 500,
+        "end_y": 600,
+        "duration_ms": 200,
+        "settle_delay_ms": 0,
+    }
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            return None
+
+    class UnusedApiClient:
+        def create_season(self, payload):
+            raise AssertionError("import는 건너뛰어야 합니다")
+
+    def fake_run(args, capture_output, text, check):
+        image_path = Path(args[1]).name
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=(
+                "1\tPlana\t12345678\t0.99\n"
+                if image_path == "page-001.png"
+                else "2\tArona\t12000000\t0.98\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=UnusedApiClient(),
+    )
+
+    assert result.import_skipped is True
+    assert result.skip_reason == "sparse_last_page"
 
 
 def _write_request(

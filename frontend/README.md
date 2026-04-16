@@ -47,6 +47,7 @@ snapshot 상세 페이지입니다.
 - validation report 표시
 - `is_valid`, `validation_issue`, `sort_by`, `order`, `limit`, `offset` 기반 entry 조회 제어
 - validation issue 집계 패널 표시
+- snapshot 상세에서 issue code 클릭 시 해당 issue로 바로 필터링
 - 로딩 / 에러 / 빈 상태 처리
 
 ## API 연결 방식

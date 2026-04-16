@@ -157,7 +157,10 @@ export default async function SnapshotDetailPage({
         </div>
 
         {summaryResult.error || !summaryResult.data ? null : (
-          <ValidationIssuesPanel issues={summaryResult.data.validation_issues} />
+          <ValidationIssuesPanel
+            issues={summaryResult.data.validation_issues}
+            snapshotId={snapshot.id}
+          />
         )}
 
         {validationReportResult.error || !validationReportResult.data ? (

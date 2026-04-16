@@ -448,6 +448,10 @@
   font-weight: 700;
 }
 
+.issueCodeLink {
+  display: inline-flex;
+}
+
 @media (max-width: 900px) {
   .twoColumn {
     grid-template-columns: 1fr;

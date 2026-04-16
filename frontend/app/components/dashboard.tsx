@@ -311,8 +311,10 @@ export function SnapshotValidationReportPanel({
 
 export function ValidationIssuesPanel({
   issues,
+  snapshotId,
 }: {
   issues: RankingSnapshotValidationIssueCount[];
+  snapshotId?: number;
 }) {
   return (
     <section className={styles.panel}>
@@ -335,7 +337,16 @@ export function ValidationIssuesPanel({
               {issues.map((issue) => (
                 <tr key={issue.code}>
                   <td>
-                    <span className={styles.issueCode}>{issue.code}</span>
+                    {snapshotId ? (
+                      <Link
+                        href={`/snapshots/${snapshotId}?validationIssue=${issue.code}&isValid=false`}
+                        className={styles.issueCodeLink}
+                      >
+                        <span className={styles.issueCode}>{issue.code}</span>
+                      </Link>
+                    ) : (
+                      <span className={styles.issueCode}>{issue.code}</span>
+                    )}
                   </td>
                   <td>{issue.count.toLocaleString()}</td>
                 </tr>

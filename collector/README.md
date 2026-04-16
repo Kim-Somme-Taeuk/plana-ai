@@ -147,7 +147,9 @@ backend/.venv/bin/python collector/capture_import.py \
 - 숫자 토큰은 흔한 OCR 오인식에 대해 보정합니다.
   - 예: `O -> 0`, `l -> 1`, trailing `.` 제거
 - whitespace fallback의 confidence token도 같은 보정 규칙을 적용합니다.
+- `%`가 붙은 confidence token은 `87% -> 0.87`로 정규화합니다.
 - whitespace fallback에서는 `12 345 678`처럼 공백으로 분리된 score token도 보수적으로 합쳐서 파싱합니다.
+- 점수 token에 들어간 `.` 구분자도 `12.345.678 -> 12345678`로 정규화합니다.
 - `player_name`은 앞뒤 공백을 제거하고 내부 연속 공백을 한 칸으로 정리합니다.
 - rank로 시작하지 않는 OCR 잡음 줄은 import 전에 무시하고 결과에 `ignored_lines`로 남깁니다.
 - 빈 줄도 `blank_line` reason으로 집계합니다.
@@ -291,6 +293,7 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
   --ocr-provider tesseract \
   --ocr-language eng \
   --ocr-psm 6 \
+  --stop-on-recommendation \
   --output-dir /tmp/plana-pipeline-run \
   collector/adb_data/sample_request.json
 ```
@@ -303,7 +306,8 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 
 - 이 파이프라인은 기존 `adb_capture.py`와 `capture_import.py`를 조합하는 얇은 orchestration 레이어입니다.
 - 요청 파일에 `ocr.provider`를 생략하면 통합 파이프라인에서는 `tesseract`를 기본값으로 사용합니다.
-- 요청 또는 CLI에서 `stop_on_recommendation`을 켜면 `pipeline_stop_recommendation.should_stop=true`인 경우 backend import를 건너뜁니다.
+- 요청 또는 CLI에서 `stop_on_recommendation`을 켜면 `hard` recommendation(`empty_last_page`, `noisy_last_page`, capture stop 사유)이 있을 때 backend import를 건너뜁니다.
+- `pipeline.stop_on_recommendation: "any"` 또는 `--stop-on-soft-recommendation`을 쓰면 `soft` recommendation(`sparse_last_page`, `overlapping_last_page`)까지 포함해서 import를 건너뜁니다.
 - capture 자체가 성공해도 import 단계에서 실패할 수 있으며, 이 경우 생성된 capture 디렉터리는 디버깅용으로 그대로 남습니다.
 - 운영용 안정화가 끝난 collector가 아니라 개발/검증용 실제 입력 파이프라인 1차입니다.
 

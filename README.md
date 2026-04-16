@@ -278,7 +278,7 @@ JSON 파일만으로 아래 흐름을 검증합니다.
   - `ocr_stop_hints`로 empty/sparse/noisy/overlap 마지막 페이지 힌트 제공
   - `ocr_stop_recommendation`으로 후속 자동화가 바로 쓸 수 있는 stop 판단 제공
   - `pipeline_stop_recommendation`으로 capture 종료 사유와 OCR 종료 판단을 통합 제공
-  - 필요하면 stop recommendation 시점에 backend import를 건너뛸 수 있음
+  - 필요하면 hard/any stop recommendation 시점에 backend import를 건너뛸 수 있음
   - OCR provider override, ADB command override, device serial override 지원
 
 제약:

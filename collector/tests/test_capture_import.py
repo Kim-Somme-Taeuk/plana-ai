@@ -141,6 +141,28 @@ def test_build_mock_payload_from_capture_normalizes_tab_player_name_spacing(
     assert mock_payload.entries[0]["player_name"] == "Player 2"
 
 
+def test_build_mock_payload_from_capture_parses_punctuated_score_and_percent_confidence(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12.345.678 87%\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-punctuated-score-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
+
+
 def test_parse_capture_payload_ignores_non_entry_lines(
     tmp_path: Path,
 ) -> None:
@@ -363,6 +385,7 @@ def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
         build_ocr_stop_hints(page_summaries)
     ) == {
         "should_stop": True,
+        "level": "hard",
         "reasons": ["sparse_last_page", "noisy_last_page"],
     }
 
@@ -421,6 +444,21 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
             "overlap_with_previous_ratio": 0.75,
         }
     ]
+
+    assert build_ocr_stop_recommendation(
+        [
+            {
+                "reason": "overlapping_last_page",
+                "page_index": 2,
+                "overlap_with_previous_count": 3,
+                "overlap_with_previous_ratio": 0.75,
+            }
+        ]
+    ) == {
+        "should_stop": True,
+        "level": "soft",
+        "reasons": ["overlapping_last_page"],
+    }
 
 
 def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_duplicate_rank(
