@@ -283,6 +283,15 @@ def build_ocr_stop_hints(
     return hints
 
 
+def build_ocr_stop_recommendation(
+    ocr_stop_hints: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "should_stop": len(ocr_stop_hints) > 0,
+        "reasons": [hint["reason"] for hint in ocr_stop_hints],
+    }
+
+
 def _resolve_manifest_path(path: str | Path) -> Path:
     path_obj = Path(path)
     if path_obj.is_dir():
@@ -853,6 +862,7 @@ def main(argv: list[str] | None = None) -> int:
         parsed_payload = parse_capture_payload(payload)
         ignored_line_reasons = summarize_ignored_lines(parsed_payload.ignored_lines)
         ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
+        ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
         result = import_mock_payload(parsed_payload.mock_payload, ApiClient(args.base_url))
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
@@ -869,6 +879,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ignored_line_reasons": ignored_line_reasons,
                 "page_summaries": parsed_payload.page_summaries,
                 "ocr_stop_hints": ocr_stop_hints,
+                "ocr_stop_recommendation": ocr_stop_recommendation,
                 "ignored_lines": [
                     {
                         "page_index": line.page_index,

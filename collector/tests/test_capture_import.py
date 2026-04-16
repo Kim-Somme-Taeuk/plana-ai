@@ -8,6 +8,7 @@ import pytest
 
 import collector.capture_import as capture_import
 from collector.capture_import import (
+    build_ocr_stop_recommendation,
     build_ocr_stop_hints,
     build_mock_payload_from_capture,
     import_capture_payload,
@@ -291,6 +292,12 @@ def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
             "entry_count": 1,
         },
     ]
+    assert build_ocr_stop_recommendation(
+        build_ocr_stop_hints(page_summaries)
+    ) == {
+        "should_stop": True,
+        "reasons": ["sparse_last_page", "noisy_last_page"],
+    }
 
 
 def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_duplicate_rank(

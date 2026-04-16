@@ -24,6 +24,7 @@ from collector.adb_capture import (
 from collector.capture_import import (
     CAPTURE_SOURCE_TYPE_BY_PROVIDER,
     build_ocr_stop_hints,
+    build_ocr_stop_recommendation,
     import_parsed_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
@@ -50,6 +51,7 @@ class CapturePipelineResult:
     ignored_line_reasons: list[dict[str, int | str]]
     page_summaries: list[dict[str, Any]]
     ocr_stop_hints: list[dict[str, Any]]
+    ocr_stop_recommendation: dict[str, Any]
 
 
 def run_capture_pipeline(
@@ -91,6 +93,7 @@ def run_capture_pipeline(
     )
     parsed_payload = parse_capture_payload(capture_payload)
     ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
+    ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
     import_result = import_parsed_capture_payload(
         parsed_payload,
         api_client or ApiClient(base_url),
@@ -113,6 +116,7 @@ def run_capture_pipeline(
         ignored_line_reasons=summarize_ignored_lines(parsed_payload.ignored_lines),
         page_summaries=parsed_payload.page_summaries,
         ocr_stop_hints=ocr_stop_hints,
+        ocr_stop_recommendation=ocr_stop_recommendation,
     )
 
 
@@ -226,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ignored_line_reasons": result.ignored_line_reasons,
                 "page_summaries": result.page_summaries,
                 "ocr_stop_hints": result.ocr_stop_hints,
+                "ocr_stop_recommendation": result.ocr_stop_recommendation,
             },
             ensure_ascii=False,
         )
