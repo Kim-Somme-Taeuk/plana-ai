@@ -21,8 +21,11 @@
 - `GET /seasons/{season_id}`
 - `GET /seasons/{season_id}/ranking-snapshots`
 - `GET /seasons/{season_id}/cutoff-series?rank=...`
+- `GET /seasons/{season_id}/validation-overview`
 - 시즌 요약
+- season validation overview / issue 집계
 - snapshot 목록
+- snapshot status / source 필터
 - cutoff-series 표시
 - 로딩 / 에러 / 빈 상태 처리
 
