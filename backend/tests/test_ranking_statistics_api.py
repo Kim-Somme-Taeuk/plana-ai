@@ -367,6 +367,9 @@ def test_get_season_validation_overview_returns_expected_values(
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
         "total_ignored_line_count": 0,
+        "capture_stop_reasons": [],
+        "ocr_stop_reasons": [],
+        "ignored_reasons": [],
     }
 
 
@@ -469,6 +472,9 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
         "total_ignored_line_count": 0,
+        "capture_stop_reasons": [],
+        "ocr_stop_reasons": [],
+        "ignored_reasons": [],
     }
 
 
@@ -752,6 +758,18 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert overview_response.json()["snapshots_with_capture_stop_count"] == 1
     assert overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
     assert overview_response.json()["total_ignored_line_count"] == 5
+    assert overview_response.json()["capture_stop_reasons"] == [
+        {"reason": "noisy_last_page", "count": 1}
+    ]
+    assert overview_response.json()["ocr_stop_reasons"] == [
+        {"reason": "noisy_last_page", "count": 1},
+        {"reason": "sparse_last_page", "count": 1},
+    ]
+    assert overview_response.json()["ignored_reasons"] == [
+        {"reason": "blank_line", "count": 1},
+        {"reason": "non_entry_line", "count": 3},
+        {"reason": "separator_line", "count": 1},
+    ]
 
     assert series_response.status_code == 200
     assert series_response.json()["points"] == [
@@ -830,6 +848,16 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert hard_overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
     assert hard_overview_response.json()["snapshots_with_capture_stop_count"] == 1
     assert hard_overview_response.json()["total_ignored_line_count"] == 4
+    assert hard_overview_response.json()["capture_stop_reasons"] == [
+        {"reason": "noisy_last_page", "count": 1}
+    ]
+    assert hard_overview_response.json()["ocr_stop_reasons"] == [
+        {"reason": "noisy_last_page", "count": 1}
+    ]
+    assert hard_overview_response.json()["ignored_reasons"] == [
+        {"reason": "blank_line", "count": 1},
+        {"reason": "non_entry_line", "count": 3},
+    ]
 
     assert capture_series_response.status_code == 200
     assert [point["snapshot_id"] for point in capture_series_response.json()["points"]] == [

@@ -27,6 +27,7 @@
 - season validation overview / validation series / issue 집계
 - season validation overview / validation series에서 collector 진단 집계와 stop 힌트 표시
 - season 상세에서 `collector=with_diagnostics|capture_stop|hard_ocr_stop` 필터로 품질 패널과 compare 후보를 좁혀볼 수 있음
+- season validation overview에서 capture stop / OCR stop / ignored OCR reason 집계를 테이블로 확인 가능
 - snapshot 목록
 - snapshot 목록에서 invalid ratio / top issue 표시
 - snapshot status / source 필터

@@ -14,6 +14,7 @@ from app.models.season import Season
 from app.schemas.ranking_statistics import (
     CollectorDiagnosticsRead,
     CollectorIgnoredReasonCountRead,
+    CollectorReasonCountRead,
     RankingSnapshotCutoffRead,
     RankingSnapshotCutoffsRead,
     RankingSnapshotDistributionRead,
@@ -446,6 +447,23 @@ def _build_season_validation_overview(
         RankingSnapshotValidationIssueCountRead(code=code, count=count)
         for code, count in issue_rows
     ]
+    capture_stop_reason_counts: dict[str, int] = {}
+    ocr_stop_reason_counts: dict[str, int] = {}
+    ignored_reason_counts: dict[str, int] = {}
+    for row in collector_diagnostics:
+        if row.capture_stop_reason is not None:
+            capture_stop_reason_counts[row.capture_stop_reason] = (
+                capture_stop_reason_counts.get(row.capture_stop_reason, 0) + 1
+            )
+        if row.ocr_stop_reason is not None:
+            ocr_stop_reason_counts[row.ocr_stop_reason] = (
+                ocr_stop_reason_counts.get(row.ocr_stop_reason, 0) + 1
+            )
+        for ignored_reason in row.ignored_reasons:
+            ignored_reason_counts[ignored_reason.reason] = (
+                ignored_reason_counts.get(ignored_reason.reason, 0)
+                + ignored_reason.count
+            )
 
     return SeasonValidationOverviewRead(
         season_id=season.id,
@@ -468,6 +486,18 @@ def _build_season_validation_overview(
             1 for row in collector_diagnostics if row.ocr_stop_level == "hard"
         ),
         total_ignored_line_count=sum(row.ignored_line_count for row in collector_diagnostics),
+        capture_stop_reasons=[
+            CollectorReasonCountRead(reason=reason, count=count)
+            for reason, count in sorted(capture_stop_reason_counts.items())
+        ],
+        ocr_stop_reasons=[
+            CollectorReasonCountRead(reason=reason, count=count)
+            for reason, count in sorted(ocr_stop_reason_counts.items())
+        ],
+        ignored_reasons=[
+            CollectorIgnoredReasonCountRead(reason=reason, count=count)
+            for reason, count in sorted(ignored_reason_counts.items())
+        ],
     )
 
 

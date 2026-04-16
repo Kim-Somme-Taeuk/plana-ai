@@ -13,6 +13,11 @@ class CollectorIgnoredReasonCountRead(BaseModel):
     count: int
 
 
+class CollectorReasonCountRead(BaseModel):
+    reason: str
+    count: int
+
+
 class CollectorDiagnosticsRead(BaseModel):
     raw_summary: str
     captured_page_count: int | None = None
@@ -74,6 +79,9 @@ class SeasonValidationOverviewRead(BaseModel):
     snapshots_with_capture_stop_count: int
     snapshots_with_hard_ocr_stop_count: int
     total_ignored_line_count: int
+    capture_stop_reasons: list[CollectorReasonCountRead]
+    ocr_stop_reasons: list[CollectorReasonCountRead]
+    ignored_reasons: list[CollectorIgnoredReasonCountRead]
 
 
 class SeasonValidationSeriesPointRead(BaseModel):

@@ -51,6 +51,11 @@ export type CollectorIgnoredReasonCount = {
   count: number;
 };
 
+export type CollectorReasonCount = {
+  reason: string;
+  count: number;
+};
+
 export type CollectorDiagnostics = {
   raw_summary: string;
   captured_page_count: number | null;
@@ -99,6 +104,9 @@ export type SeasonValidationOverview = {
   snapshots_with_capture_stop_count: number;
   snapshots_with_hard_ocr_stop_count: number;
   total_ignored_line_count: number;
+  capture_stop_reasons: CollectorReasonCount[];
+  ocr_stop_reasons: CollectorReasonCount[];
+  ignored_reasons: CollectorIgnoredReasonCount[];
 };
 
 export type SeasonValidationSeriesPoint = {

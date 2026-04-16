@@ -204,6 +204,20 @@
   gap: 12px;
 }
 
+.threeColumnGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.subPanel {
+  padding: 16px;
+  border-radius: 16px;
+  background: #f8faf4;
+  border: 1px solid rgba(102, 128, 97, 0.12);
+}
+
 .compareHeaderGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

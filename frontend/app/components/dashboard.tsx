@@ -459,6 +459,23 @@ export function SeasonValidationOverviewPanel({
           value={String(overview.total_ignored_line_count)}
         />
       </div>
+      <div className={styles.threeColumnGrid}>
+        <ReasonSummaryPanel
+          title="Capture Stop Reasons"
+          rows={overview.capture_stop_reasons}
+          emptyMessage="집계된 capture stop reason이 없습니다."
+        />
+        <ReasonSummaryPanel
+          title="OCR Stop Reasons"
+          rows={overview.ocr_stop_reasons}
+          emptyMessage="집계된 OCR stop reason이 없습니다."
+        />
+        <ReasonSummaryPanel
+          title="Ignored OCR Reasons"
+          rows={overview.ignored_reasons}
+          emptyMessage="집계된 ignored OCR reason이 없습니다."
+        />
+      </div>
     </section>
   );
 }
@@ -1068,6 +1085,46 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className={styles.statCard}>
       <span className={styles.metaLabel}>{label}</span>
       <div className={styles.statValue}>{value}</div>
+    </div>
+  );
+}
+
+function ReasonSummaryPanel({
+  title,
+  rows,
+  emptyMessage,
+}: {
+  title: string;
+  rows: Array<{ reason: string; count: number }>;
+  emptyMessage: string;
+}) {
+  return (
+    <div className={styles.subPanel}>
+      <div className={styles.panelTitle}>
+        <h3>{title}</h3>
+      </div>
+      {rows.length === 0 ? (
+        <div className={styles.muted}>{emptyMessage}</div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Reason</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.reason}>
+                  <td>{row.reason}</td>
+                  <td>{row.count.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
