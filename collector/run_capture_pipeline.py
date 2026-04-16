@@ -23,7 +23,7 @@ from collector.adb_capture import (
 )
 from collector.capture_import import (
     CAPTURE_SOURCE_TYPE_BY_PROVIDER,
-    import_capture_payload,
+    import_parsed_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
 )
@@ -85,8 +85,8 @@ def run_capture_pipeline(
         ocr_psm=ocr_psm,
     )
     parsed_payload = parse_capture_payload(capture_payload)
-    import_result = import_capture_payload(
-        capture_payload,
+    import_result = import_parsed_capture_payload(
+        parsed_payload,
         api_client or ApiClient(base_url),
     )
 

@@ -196,7 +196,14 @@ def import_capture_payload(
     payload: CaptureImportPayload,
     client: ApiClient,
 ) -> ImportResult:
-    return import_mock_payload(build_mock_payload_from_capture(payload), client)
+    return import_parsed_capture_payload(parse_capture_payload(payload), client)
+
+
+def import_parsed_capture_payload(
+    parsed_payload: ParsedCapturePayload,
+    client: ApiClient,
+) -> ImportResult:
+    return import_mock_payload(parsed_payload.mock_payload, client)
 
 
 def _resolve_manifest_path(path: str | Path) -> Path:
