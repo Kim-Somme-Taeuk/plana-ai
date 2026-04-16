@@ -58,6 +58,7 @@ OCR_NUMERIC_TRANSLATION = str.maketrans(
 )
 OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
 OCR_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’"
+PLAYER_NAME_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’「」『』【】"
 SCORE_SUFFIX_TOKENS = frozenset({"점", "pt", "pts"})
 ZERO_WIDTH_CHARACTERS_RE = re.compile(r"[\u200b\u200c\u200d\ufeff]")
 PAGINATION_RE = re.compile(
@@ -820,6 +821,8 @@ def _get_ignored_line_reason(raw_line: str) -> str | None:
         return "reward_line"
     if _looks_like_ui_control_line(normalized):
         return "ui_control_line"
+    if _looks_like_status_line(normalized):
+        return "status_line"
     if _looks_like_metadata_line(normalized):
         return "metadata_line"
 
@@ -914,6 +917,27 @@ def _looks_like_ui_control_line(value: str) -> bool:
     )
     return any(keyword in lowered for keyword in ui_keywords) or any(
         keyword in value for keyword in ("검색", "정렬", "필터", "새로고침", "메뉴")
+    )
+
+
+def _looks_like_status_line(value: str) -> bool:
+    lowered = value.lower()
+    english_keywords = (
+        "my rank",
+        "current rank",
+        "best score",
+        "current score",
+        "your rank",
+    )
+    korean_keywords = (
+        "내 순위",
+        "현재 순위",
+        "최고 점수",
+        "현재 점수",
+        "내 점수",
+    )
+    return any(keyword in lowered for keyword in english_keywords) or any(
+        keyword in value for keyword in korean_keywords
     )
 
 
@@ -1184,12 +1208,28 @@ def _parse_score_text(
 
 
 def _normalize_player_name(value: str) -> str:
-    return " ".join(_normalize_unicode_ocr_text(value).split())
+    normalized = " ".join(_normalize_unicode_ocr_text(value).split())
+    normalized = _strip_wrapping_player_name_punctuation(normalized)
+    return normalized.strip("·•ㆍ ")
 
 
 def _normalize_unicode_ocr_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value)
     return ZERO_WIDTH_CHARACTERS_RE.sub("", normalized)
+
+
+def _strip_wrapping_player_name_punctuation(value: str) -> str:
+    stripped = value.strip()
+    while len(stripped) >= 2:
+        first, last = stripped[0], stripped[-1]
+        if (
+            first in PLAYER_NAME_EDGE_PUNCTUATION
+            and last in PLAYER_NAME_EDGE_PUNCTUATION
+        ):
+            stripped = stripped[1:-1].strip()
+            continue
+        break
+    return stripped
 
 
 def _normalize_trailing_percent_tokens(tokens: list[str]) -> list[str]:

@@ -141,6 +141,26 @@ def test_build_mock_payload_from_capture_normalizes_tab_player_name_spacing(
     assert mock_payload.entries[0]["player_name"] == "Player 2"
 
 
+def test_build_mock_payload_from_capture_strips_wrapping_player_name_punctuation(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\t「 Plana 」\t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-player-name-wrapper-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Plana"
+
+
 def test_build_mock_payload_from_capture_parses_punctuated_score_and_percent_confidence(
     tmp_path: Path,
 ) -> None:
@@ -506,6 +526,29 @@ def test_parse_capture_payload_classifies_datetime_metadata_lines(
     assert len(parsed_payload.mock_payload.entries) == 1
     assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
         {"reason": "metadata_line", "count": 1}
+    ]
+
+
+def test_parse_capture_payload_classifies_status_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "내 순위 123\n1\tPlana\t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-status-line-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
+        {"reason": "status_line", "count": 1}
     ]
 
 
