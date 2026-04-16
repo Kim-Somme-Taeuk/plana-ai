@@ -168,6 +168,14 @@ export function SnapshotList({
                 label="Top Issue"
                 value={validationPoint?.top_validation_issue?.code ?? "-"}
               />
+              <MetaItem
+                label="Collector Stop"
+                value={formatCollectorStop(validationPoint?.collector_diagnostics ?? null)}
+              />
+              <MetaItem
+                label="Ignored OCR"
+                value={formatCollectorIgnoredCount(validationPoint?.collector_diagnostics ?? null)}
+              />
               <MetaItem label="Note" value={snapshot.note ?? "-"} />
             </div>
           </Link>

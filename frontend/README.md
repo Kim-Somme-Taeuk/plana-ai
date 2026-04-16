@@ -33,7 +33,7 @@
 - capture stop / OCR stop reason row를 클릭하면 해당 reason으로 시즌 상세를 다시 여는 drilldown 링크로 이동
 - ignored OCR reason row도 해당 reason으로 시즌 상세를 다시 여는 drilldown 링크로 이동
 - snapshot 목록
-- snapshot 목록에서 invalid ratio / top issue 표시
+- snapshot 목록에서 invalid ratio / top issue / collector stop / ignored OCR count 표시
 - snapshot status / source 필터
 - snapshot compare 패널
 - snapshot compare에서 validation issue delta 비교
