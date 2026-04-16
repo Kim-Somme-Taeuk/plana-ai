@@ -398,6 +398,17 @@
   font-weight: 600;
 }
 
+.issueCode {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef4ec;
+  color: #30513a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .twoColumn {
     grid-template-columns: 1fr;

@@ -9,6 +9,7 @@ import type {
   RankingSnapshotSummary,
   Season,
   SeasonCutoffSeries,
+  ValidationIssueFilter,
 } from "./types";
 
 const EXPLICIT_API_BASE_URL =
@@ -115,6 +116,7 @@ export function getSnapshotEntries(
   snapshotId: number,
   options: {
     isValid?: "true" | "false";
+    validationIssue?: ValidationIssueFilter;
     limit?: number;
     offset?: number;
     sortBy?: "rank" | "score";
@@ -125,6 +127,10 @@ export function getSnapshotEntries(
 
   if (options.isValid) {
     params.set("is_valid", options.isValid);
+  }
+
+  if (options.validationIssue) {
+    params.set("validation_issue", options.validationIssue);
   }
 
   if (options.limit) {

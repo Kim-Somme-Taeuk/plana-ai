@@ -39,6 +39,19 @@ export type RankingEntry = {
   validation_issue: string | null;
 };
 
+export type ValidationIssueFilter =
+  | "invalid_rank"
+  | "invalid_score"
+  | "missing_player_name"
+  | "low_ocr_confidence"
+  | "duplicate_rank"
+  | "rank_order_violation";
+
+export type RankingSnapshotValidationIssueCount = {
+  code: string;
+  count: number;
+};
+
 export type RankingSnapshotSummary = {
   snapshot_id: number;
   season_id: number;
@@ -49,6 +62,7 @@ export type RankingSnapshotSummary = {
   invalid_entry_count: number;
   highest_score: number | null;
   lowest_score: number | null;
+  validation_issues: RankingSnapshotValidationIssueCount[];
 };
 
 export type RankingSnapshotCutoff = {

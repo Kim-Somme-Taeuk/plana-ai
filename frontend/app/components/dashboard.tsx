@@ -9,6 +9,7 @@ import type {
   RankingSnapshotSummary,
   Season,
   SeasonCutoffSeries,
+  ValidationIssueFilter,
 } from "../lib/types";
 
 export function PageShell({
@@ -261,6 +262,45 @@ export function DistributionPanel({
   );
 }
 
+export function ValidationIssuesPanel({
+  issues,
+}: {
+  issues: RankingSnapshotSummary["validation_issues"];
+}) {
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelTitle}>
+        <h2>Validation Issues</h2>
+        <span className={styles.muted}>invalid entry 사유 집계</span>
+      </div>
+      {issues.length === 0 ? (
+        <EmptyBox message="현재 집계된 validation issue가 없습니다." />
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Issue Code</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {issues.map((issue) => (
+                <tr key={issue.code}>
+                  <td>
+                    <span className={styles.issueCode}>{issue.code}</span>
+                  </td>
+                  <td>{issue.count.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function CutoffSeriesPanel({
   series,
 }: {
@@ -379,6 +419,18 @@ export function SnapshotEntryTable({
     </div>
   );
 }
+
+export const VALIDATION_ISSUE_OPTIONS: Array<{
+  value: ValidationIssueFilter;
+  label: string;
+}> = [
+  { value: "invalid_rank", label: "invalid_rank" },
+  { value: "invalid_score", label: "invalid_score" },
+  { value: "missing_player_name", label: "missing_player_name" },
+  { value: "low_ocr_confidence", label: "low_ocr_confidence" },
+  { value: "duplicate_rank", label: "duplicate_rank" },
+  { value: "rank_order_violation", label: "rank_order_violation" },
+];
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (

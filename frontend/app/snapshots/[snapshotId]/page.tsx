@@ -9,6 +9,8 @@ import {
   PageShell,
   SnapshotEntryTable,
   SummaryCards,
+  VALIDATION_ISSUE_OPTIONS,
+  ValidationIssuesPanel,
 } from "../../components/dashboard";
 import {
   getSnapshot,
@@ -17,6 +19,7 @@ import {
   getSnapshotEntries,
   getSnapshotSummary,
 } from "../../lib/api";
+import type { ValidationIssueFilter } from "../../lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +27,7 @@ type SnapshotPageProps = {
   params: Promise<{ snapshotId: string }>;
   searchParams: Promise<{
     isValid?: string;
+    validationIssue?: string;
     sortBy?: string;
     order?: string;
   }>;
@@ -46,6 +50,11 @@ export default async function SnapshotDetailPage({
   const sortBy =
     resolvedSearchParams.sortBy === "score" ? "score" : "rank";
   const order = resolvedSearchParams.order === "desc" ? "desc" : "asc";
+  const validationIssue = VALIDATION_ISSUE_OPTIONS.some(
+    (option) => option.value === resolvedSearchParams.validationIssue,
+  )
+    ? (resolvedSearchParams.validationIssue as ValidationIssueFilter)
+    : "all";
 
   const snapshotResult = await getSnapshot(numericSnapshotId);
   const snapshot = snapshotResult.data;
@@ -75,6 +84,8 @@ export default async function SnapshotDetailPage({
       getSnapshotDistribution(snapshot.id),
       getSnapshotEntries(snapshot.id, {
         isValid: isValid === "all" ? undefined : isValid,
+        validationIssue:
+          validationIssue === "all" ? undefined : validationIssue,
         limit: PAGE_SIZE,
         offset: 0,
         sortBy,
@@ -122,6 +133,10 @@ export default async function SnapshotDetailPage({
           )}
         </div>
 
+        {summaryResult.error || !summaryResult.data ? null : (
+          <ValidationIssuesPanel issues={summaryResult.data.validation_issues} />
+        )}
+
         <section className={styles.panel}>
           <div className={styles.panelTitle}>
             <h2>Ranking Entries</h2>
@@ -145,6 +160,21 @@ export default async function SnapshotDetailPage({
                 <select id="sortBy" name="sortBy" defaultValue={sortBy}>
                   <option value="rank">rank</option>
                   <option value="score">score</option>
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="validationIssue">Issue</label>
+                <select
+                  id="validationIssue"
+                  name="validationIssue"
+                  defaultValue={validationIssue}
+                >
+                  <option value="all">all</option>
+                  {VALIDATION_ISSUE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className={styles.field}>
