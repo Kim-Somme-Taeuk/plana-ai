@@ -268,14 +268,18 @@ def _build_season_cutoff_series(
     db: Session,
     season: Season,
     rank: int,
+    *,
+    source_type: str | None = None,
 ) -> SeasonCutoffSeriesRead:
+    snapshot_filters = _build_season_snapshot_filters(
+        season_id=season.id,
+        status=COMPLETED_STATUS,
+        source_type=source_type,
+    )
     snapshots = list(
         db.scalars(
             select(RankingSnapshot)
-            .where(
-                RankingSnapshot.season_id == season.id,
-                RankingSnapshot.status == COMPLETED_STATUS,
-            )
+            .where(*snapshot_filters)
             .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
         ).all()
     )
@@ -574,10 +578,16 @@ def get_ranking_snapshot_distribution(
 def get_season_cutoff_series(
     season_id: int,
     rank: int = Query(..., ge=1),
+    source_type: str | None = Query(None, min_length=1),
     db: Session = Depends(get_db),
 ) -> SeasonCutoffSeriesRead:
     season = _get_season_or_404(db, season_id)
-    return _build_season_cutoff_series(db, season, rank)
+    return _build_season_cutoff_series(
+        db,
+        season,
+        rank,
+        source_type=source_type,
+    )
 
 
 @router.get(

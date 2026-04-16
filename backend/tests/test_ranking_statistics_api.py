@@ -949,6 +949,78 @@ def test_get_season_cutoff_series_returns_404_for_missing_season(client) -> None
     assert response.json() == {"detail": "Season not found"}
 
 
+def test_get_season_cutoff_series_supports_source_type_filter(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    adb_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) - timedelta(hours=2),
+        source_type="adb_capture",
+        status="completed",
+        total_rows_collected=1,
+        note="adb snapshot",
+    )
+    mock_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) - timedelta(hours=1),
+        source_type="mock_json",
+        status="completed",
+        total_rows_collected=1,
+        note="mock snapshot",
+    )
+    db_session.add_all([adb_snapshot, mock_snapshot])
+    db_session.flush()
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=adb_snapshot.id,
+                rank=100,
+                score=10000,
+                player_name="ADB",
+                ocr_confidence=0.99,
+                raw_text="100 ADB 10000",
+                image_path="/tmp/adb.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=mock_snapshot.id,
+                rank=100,
+                score=9000,
+                player_name="Mock",
+                ocr_confidence=0.99,
+                raw_text="100 Mock 9000",
+                image_path="/tmp/mock.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/cutoff-series",
+        params={"rank": 100, "source_type": "adb_capture"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "season_id": ranking_snapshot.season_id,
+        "rank": 100,
+        "points": [
+            {
+                "snapshot_id": adb_snapshot.id,
+                "captured_at": adb_snapshot.captured_at.isoformat().replace(
+                    "+00:00", "Z"
+                ),
+                "score": 10000,
+            }
+        ],
+    }
+
+
 def test_get_season_cutoff_series_requires_rank_query_param(
     client,
     ranking_snapshot: RankingSnapshot,

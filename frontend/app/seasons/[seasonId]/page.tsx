@@ -74,7 +74,9 @@ export default async function SeasonDetailPage({
     await Promise.all([
       getSeason(numericSeasonId),
       getSeasonSnapshots(numericSeasonId),
-      getSeasonCutoffSeries(numericSeasonId, Number.isNaN(seriesRank) ? 10 : seriesRank),
+      getSeasonCutoffSeries(numericSeasonId, Number.isNaN(seriesRank) ? 10 : seriesRank, {
+        sourceType: selectedSource === "all" ? undefined : selectedSource,
+      }),
       getSeasonValidationOverview(numericSeasonId, {
         status: selectedStatusFilter,
         sourceType: selectedSource === "all" ? undefined : selectedSource,
@@ -94,24 +96,6 @@ export default async function SeasonDetailPage({
     (left, right) =>
       new Date(right.captured_at).getTime() - new Date(left.captured_at).getTime(),
   );
-  const completedCompareCandidates = compareCandidates.filter(
-    (snapshot) => snapshot.status === "completed",
-  );
-  const defaultCompareCandidates =
-    completedCompareCandidates.length >= 2
-      ? completedCompareCandidates
-      : compareCandidates;
-  const fallbackLeftSnapshot = defaultCompareCandidates[0] ?? null;
-  const fallbackRightSnapshot =
-    defaultCompareCandidates.find(
-      (snapshot) => snapshot.id !== fallbackLeftSnapshot?.id,
-    ) ?? null;
-  const selectedCompareLeft =
-    compareCandidates.find((snapshot) => snapshot.id === requestedCompareLeft) ??
-    fallbackLeftSnapshot;
-  const selectedCompareRight =
-    compareCandidates.find((snapshot) => snapshot.id === requestedCompareRight) ??
-    fallbackRightSnapshot;
   const filteredSnapshots = snapshots.filter((snapshot) => {
     if (selectedStatus !== "all" && snapshot.status !== selectedStatus) {
       return false;
@@ -121,6 +105,28 @@ export default async function SeasonDetailPage({
     }
     return true;
   });
+  const filteredCompareCandidates = [...filteredSnapshots].sort(
+    (left, right) =>
+      new Date(right.captured_at).getTime() - new Date(left.captured_at).getTime(),
+  );
+  const completedCompareCandidates = filteredCompareCandidates.filter(
+    (snapshot) => snapshot.status === "completed",
+  );
+  const defaultCompareCandidates =
+    completedCompareCandidates.length >= 2
+      ? completedCompareCandidates
+      : filteredCompareCandidates;
+  const fallbackLeftSnapshot = defaultCompareCandidates[0] ?? null;
+  const fallbackRightSnapshot =
+    defaultCompareCandidates.find(
+      (snapshot) => snapshot.id !== fallbackLeftSnapshot?.id,
+    ) ?? null;
+  const selectedCompareLeft =
+    filteredCompareCandidates.find((snapshot) => snapshot.id === requestedCompareLeft) ??
+    fallbackLeftSnapshot;
+  const selectedCompareRight =
+    filteredCompareCandidates.find((snapshot) => snapshot.id === requestedCompareRight) ??
+    fallbackRightSnapshot;
   const validationPointsBySnapshotId = new Map(
     (validationSeriesResult.data?.points ?? []).map((point) => [
       point.snapshot_id,
@@ -316,7 +322,7 @@ export default async function SeasonDetailPage({
                   최근 snapshot 두 개를 기본 비교 대상으로 잡습니다.
                 </span>
               </div>
-              {compareCandidates.length < 2 ? (
+              {filteredCompareCandidates.length < 2 ? (
                 <EmptyBox message="비교하려면 snapshot이 두 개 이상 필요합니다." />
               ) : (
                 <form className={styles.controls}>
@@ -328,7 +334,7 @@ export default async function SeasonDetailPage({
                         name="compareLeft"
                         defaultValue={String(selectedCompareLeft?.id ?? "")}
                       >
-                        {compareCandidates.map((snapshot) => (
+                        {filteredCompareCandidates.map((snapshot) => (
                           <option key={snapshot.id} value={snapshot.id}>
                             #{snapshot.id} · {snapshot.status} · {snapshot.source_type}
                           </option>
@@ -342,7 +348,7 @@ export default async function SeasonDetailPage({
                         name="compareRight"
                         defaultValue={String(selectedCompareRight?.id ?? "")}
                       >
-                        {compareCandidates.map((snapshot) => (
+                        {filteredCompareCandidates.map((snapshot) => (
                           <option key={snapshot.id} value={snapshot.id}>
                             #{snapshot.id} · {snapshot.status} · {snapshot.source_type}
                           </option>
@@ -370,7 +376,7 @@ export default async function SeasonDetailPage({
               <EmptyBox message="cutoff-series를 표시할 데이터가 없습니다." />
             )}
 
-            {compareCandidates.length < 2 ? null : !canCompareSnapshots ? (
+            {filteredCompareCandidates.length < 2 ? null : !canCompareSnapshots ? (
               <ErrorBox message="같은 snapshot 두 개는 비교할 수 없습니다." />
             ) : comparisonHasError || compareResults === null ? (
               <ErrorBox message="snapshot 비교 데이터를 불러오지 못했습니다." />

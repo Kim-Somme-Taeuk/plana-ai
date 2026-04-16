@@ -164,9 +164,20 @@ export function getSnapshotEntries(
   );
 }
 
-export function getSeasonCutoffSeries(seasonId: number, rank: number) {
+export function getSeasonCutoffSeries(
+  seasonId: number,
+  rank: number,
+  options: {
+    sourceType?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  params.set("rank", String(rank));
+  if (options.sourceType) {
+    params.set("source_type", options.sourceType);
+  }
   return fetchApi<SeasonCutoffSeries>(
-    `/seasons/${seasonId}/cutoff-series?rank=${rank}`,
+    `/seasons/${seasonId}/cutoff-series?${params.toString()}`,
   );
 }
 
