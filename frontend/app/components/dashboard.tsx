@@ -339,7 +339,7 @@ export function ValidationIssuesPanel({
                   <td>
                     {snapshotId ? (
                       <Link
-                        href={`/snapshots/${snapshotId}?validationIssue=${issue.code}&isValid=false`}
+                        href={`/snapshots/${snapshotId}?validationIssue=${encodeURIComponent(issue.code)}&isValid=false`}
                         className={styles.issueCodeLink}
                       >
                         <span className={styles.issueCode}>{issue.code}</span>
