@@ -23,6 +23,7 @@ from collector.adb_capture import (
 )
 from collector.capture_import import (
     CAPTURE_SOURCE_TYPE_BY_PROVIDER,
+    build_ocr_stop_hints,
     import_parsed_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
@@ -89,7 +90,7 @@ def run_capture_pipeline(
         ocr_psm=ocr_psm,
     )
     parsed_payload = parse_capture_payload(capture_payload)
-    ocr_stop_hints = _build_ocr_stop_hints(parsed_payload.page_summaries)
+    ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
     import_result = import_parsed_capture_payload(
         parsed_payload,
         api_client or ApiClient(base_url),
@@ -135,42 +136,6 @@ def _resolve_pipeline_ocr_provider(
         return None
 
     return "tesseract"
-
-
-def _build_ocr_stop_hints(
-    page_summaries: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    if not page_summaries:
-        return []
-
-    hints: list[dict[str, Any]] = []
-    last_page = page_summaries[-1]
-
-    if len(page_summaries) >= 2 and last_page["entry_count"] <= 3:
-        hints.append(
-            {
-                "reason": "sparse_last_page",
-                "page_index": last_page["page_index"],
-                "entry_count": last_page["entry_count"],
-            }
-        )
-
-    if (
-        last_page["ignored_line_count"] >= last_page["entry_count"]
-        and last_page["ignored_line_count"] > 0
-    ):
-        hints.append(
-            {
-                "reason": "noisy_last_page",
-                "page_index": last_page["page_index"],
-                "ignored_line_count": last_page["ignored_line_count"],
-                "entry_count": last_page["entry_count"],
-            }
-        )
-
-    return hints
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="ADB capture부터 OCR import까지 한 번에 수행합니다.",

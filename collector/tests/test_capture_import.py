@@ -8,6 +8,7 @@ import pytest
 
 import collector.capture_import as capture_import
 from collector.capture_import import (
+    build_ocr_stop_hints,
     build_mock_payload_from_capture,
     import_capture_payload,
     load_capture_import_payload,
@@ -263,6 +264,31 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
             "overlap_with_previous_ranks": [],
+        },
+    ]
+
+
+def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
+    page_summaries = [
+        {
+            "page_index": 1,
+            "entry_count": 20,
+            "ignored_line_count": 0,
+        },
+        {
+            "page_index": 2,
+            "entry_count": 1,
+            "ignored_line_count": 2,
+        },
+    ]
+
+    assert build_ocr_stop_hints(page_summaries) == [
+        {"reason": "sparse_last_page", "page_index": 2, "entry_count": 1},
+        {
+            "reason": "noisy_last_page",
+            "page_index": 2,
+            "ignored_line_count": 2,
+            "entry_count": 1,
         },
     ]
 

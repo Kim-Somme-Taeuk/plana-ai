@@ -249,6 +249,40 @@ def summarize_ignored_lines(
     ]
 
 
+def build_ocr_stop_hints(
+    page_summaries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not page_summaries:
+        return []
+
+    hints: list[dict[str, Any]] = []
+    last_page = page_summaries[-1]
+
+    if len(page_summaries) >= 2 and last_page["entry_count"] <= 3:
+        hints.append(
+            {
+                "reason": "sparse_last_page",
+                "page_index": last_page["page_index"],
+                "entry_count": last_page["entry_count"],
+            }
+        )
+
+    if (
+        last_page["ignored_line_count"] >= last_page["entry_count"]
+        and last_page["ignored_line_count"] > 0
+    ):
+        hints.append(
+            {
+                "reason": "noisy_last_page",
+                "page_index": last_page["page_index"],
+                "ignored_line_count": last_page["ignored_line_count"],
+                "entry_count": last_page["entry_count"],
+            }
+        )
+
+    return hints
+
+
 def _resolve_manifest_path(path: str | Path) -> Path:
     path_obj = Path(path)
     if path_obj.is_dir():
@@ -818,6 +852,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         parsed_payload = parse_capture_payload(payload)
         ignored_line_reasons = summarize_ignored_lines(parsed_payload.ignored_lines)
+        ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
         result = import_mock_payload(parsed_payload.mock_payload, ApiClient(args.base_url))
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
@@ -833,6 +868,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ignored_line_count": len(parsed_payload.ignored_lines),
                 "ignored_line_reasons": ignored_line_reasons,
                 "page_summaries": parsed_payload.page_summaries,
+                "ocr_stop_hints": ocr_stop_hints,
                 "ignored_lines": [
                     {
                         "page_index": line.page_index,
