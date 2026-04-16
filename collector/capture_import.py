@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,10 +30,7 @@ from collector.mock_import import (
     import_mock_payload,
 )
 
-LINE_PATTERN = re.compile(
-    r"^\s*(?P<rank>\d[\d,]*)\s+(?P<player_name>.+?)\s+(?P<score>\d[\d,]*)"
-    r"(?:\s+(?P<ocr_confidence>\d+(?:\.\d+)?))?\s*$"
-)
+CAPTURE_SOURCE_TYPE = "image_sidecar"
 
 
 @dataclass(frozen=True)
@@ -82,7 +78,10 @@ def load_capture_import_payload(path: str | Path) -> CaptureImportPayload:
     return CaptureImportPayload(
         base_dir=manifest_path.parent,
         season=season,
-        snapshot=snapshot,
+        snapshot={
+            **snapshot,
+            "source_type": snapshot.get("source_type", CAPTURE_SOURCE_TYPE),
+        },
         pages=capture_pages,
     )
 
@@ -242,28 +241,13 @@ def _parse_ocr_line(
             "validation_issue": None,
         }
 
-    match = LINE_PATTERN.match(raw_line)
-    if match is None:
-        raise MockImportError(
-            "OCR line 파싱에 실패했습니다. "
-            f"page={page_index}, line={line_index}, raw_text={raw_line!r}"
-        )
-
-    ocr_confidence = match.group("ocr_confidence")
-    return {
-        "rank": _parse_int_token(match.group("rank"), "rank", page_index, line_index),
-        "score": _parse_int_token(match.group("score"), "score", page_index, line_index),
-        "player_name": match.group("player_name"),
-        "ocr_confidence": (
-            _parse_float_token(ocr_confidence, "ocr_confidence", page_index, line_index)
-            if ocr_confidence is not None
-            else default_ocr_confidence
-        ),
-        "raw_text": raw_line,
-        "image_path": _build_entry_image_path(image_path),
-        "is_valid": True,
-        "validation_issue": None,
-    }
+    return _parse_whitespace_fallback_line(
+        raw_line=raw_line,
+        image_path=image_path,
+        default_ocr_confidence=default_ocr_confidence,
+        page_index=page_index,
+        line_index=line_index,
+    )
 
 
 def _parse_int_token(
@@ -293,6 +277,65 @@ def _parse_float_token(
         raise MockImportError(
             f"{label} 파싱에 실패했습니다. page={page_index}, line={line_index}, value={value!r}"
         ) from exc
+
+
+def _parse_whitespace_fallback_line(
+    *,
+    raw_line: str,
+    image_path: Path,
+    default_ocr_confidence: float | None,
+    page_index: int,
+    line_index: int,
+) -> dict[str, Any]:
+    tokens = raw_line.split()
+    if len(tokens) < 3:
+        raise MockImportError(
+            "OCR line 파싱에 실패했습니다. "
+            f"page={page_index}, line={line_index}, raw_text={raw_line!r}"
+        )
+
+    rank = _parse_int_token(tokens[0], "rank", page_index, line_index)
+    ocr_confidence: float | None = default_ocr_confidence
+
+    if len(tokens) >= 4 and _looks_like_confidence_token(tokens[-1]):
+        score_index = -2
+        player_tokens = tokens[1:-2]
+        ocr_confidence = _parse_float_token(
+            tokens[-1], "ocr_confidence", page_index, line_index
+        )
+    else:
+        score_index = -1
+        player_tokens = tokens[1:-1]
+
+    if not player_tokens:
+        raise MockImportError(
+            "OCR line 파싱에 실패했습니다. "
+            f"page={page_index}, line={line_index}, raw_text={raw_line!r}"
+        )
+
+    return {
+        "rank": rank,
+        "score": _parse_int_token(tokens[score_index], "score", page_index, line_index),
+        "player_name": " ".join(player_tokens),
+        "ocr_confidence": ocr_confidence,
+        "raw_text": raw_line,
+        "image_path": _build_entry_image_path(image_path),
+        "is_valid": True,
+        "validation_issue": None,
+    }
+
+
+def _looks_like_confidence_token(value: str) -> bool:
+    stripped = value.strip()
+    if "." not in stripped:
+        return False
+
+    try:
+        parsed = float(stripped)
+    except ValueError:
+        return False
+
+    return 0 <= parsed <= 1
 
 
 def _validate_snapshot_entries(entries: list[dict[str, Any]]) -> None:

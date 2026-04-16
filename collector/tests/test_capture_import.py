@@ -33,6 +33,7 @@ def test_load_capture_import_payload_reads_manifest_directory(tmp_path: Path) ->
 
     assert payload.season["season_label"] == "capture-test-season"
     assert payload.snapshot["captured_at"] == "2026-04-16T10:00:00Z"
+    assert payload.snapshot["source_type"] == "image_sidecar"
     assert payload.pages[0].image_path == "page-001.png"
 
 
@@ -154,6 +155,52 @@ def test_build_mock_payload_from_capture_rejects_duplicate_ranks(tmp_path: Path)
         build_mock_payload_from_capture(payload)
 
     assert "duplicate_rank" in str(exc_info.value)
+
+
+def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_numeric_name(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12345678\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-whitespace-player-number-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert len(mock_payload.entries) == 1
+    assert mock_payload.entries[0]["rank"] == 1
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] is None
+
+
+def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_confidence(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12345678 0.87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-whitespace-confidence-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.87
 
 
 def _write_capture_manifest(
