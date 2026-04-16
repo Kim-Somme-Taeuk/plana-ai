@@ -487,8 +487,29 @@ export function SnapshotValidationReportPanel({
                       : ""}
                   </Link>
                 ) : null}
+                {collectorDiagnostics.pipeline_stop_recommendation?.source ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pipelineStopSource=${encodeURIComponent(
+                      collectorDiagnostics.pipeline_stop_recommendation.source,
+                    )}${
+                      collectorDiagnostics.pipeline_stop_recommendation.level
+                        ? `&pipelineStopLevel=${encodeURIComponent(
+                            collectorDiagnostics.pipeline_stop_recommendation.level,
+                          )}`
+                        : ""
+                    }`}
+                    className={styles.linkButton}
+                  >
+                    파이프라인 중단:{" "}
+                    {collectorDiagnostics.pipeline_stop_recommendation.source}
+                    {collectorDiagnostics.pipeline_stop_recommendation.level
+                      ? ` (${collectorDiagnostics.pipeline_stop_recommendation.level})`
+                      : ""}
+                  </Link>
+                ) : null}
                 {!collectorDiagnostics.capture_stop_reason &&
-                !collectorDiagnostics.ocr_stop_reason ? (
+                !collectorDiagnostics.ocr_stop_reason &&
+                !collectorDiagnostics.pipeline_stop_recommendation?.source ? (
                   <span className={styles.muted}>수집 중단 신호가 없습니다.</span>
                 ) : null}
               </div>
@@ -748,6 +769,8 @@ export function SeasonValidationOverviewPanel({
   selectedCollector,
   selectedCaptureStopReason,
   selectedOcrStopReason,
+  selectedPipelineStopSource,
+  selectedPipelineStopLevel,
   selectedIgnoredReason,
   selectedIgnoredGroup,
   selectedPageSignal,
@@ -760,13 +783,22 @@ export function SeasonValidationOverviewPanel({
   selectedCollector?: string;
   selectedCaptureStopReason?: string;
   selectedOcrStopReason?: string;
+  selectedPipelineStopSource?: string;
+  selectedPipelineStopLevel?: string;
   selectedIgnoredReason?: string;
   selectedIgnoredGroup?: string;
   selectedPageSignal?: string;
   selectedOcrStopLevel?: string;
 }) {
   const buildSeasonReasonHref = (
-    reasonType: "capture" | "ocr" | "ignored" | "ignored-group" | "page-signal",
+    reasonType:
+      | "capture"
+      | "ocr"
+      | "pipeline-source"
+      | "pipeline-level"
+      | "ignored"
+      | "ignored-group"
+      | "page-signal",
     reason: string,
   ) => {
     const params = new URLSearchParams();
@@ -796,6 +828,12 @@ export function SeasonValidationOverviewPanel({
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
       }
+      if (selectedPipelineStopSource && selectedPipelineStopSource !== "all") {
+        params.set("pipelineStopSource", selectedPipelineStopSource);
+      }
+      if (selectedPipelineStopLevel && selectedPipelineStopLevel !== "all") {
+        params.set("pipelineStopLevel", selectedPipelineStopLevel);
+      }
     } else if (reasonType === "ocr") {
       params.set(
         "collector",
@@ -806,6 +844,70 @@ export function SeasonValidationOverviewPanel({
       params.set("ocrStopReason", reason);
       if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
         params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
+        params.set("ignoredReason", selectedIgnoredReason);
+      }
+      if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
+        params.set("ignoredGroup", selectedIgnoredGroup);
+      }
+      if (selectedPageSignal && selectedPageSignal !== "all") {
+        params.set("pageSignal", selectedPageSignal);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
+      if (selectedPipelineStopSource && selectedPipelineStopSource !== "all") {
+        params.set("pipelineStopSource", selectedPipelineStopSource);
+      }
+      if (selectedPipelineStopLevel && selectedPipelineStopLevel !== "all") {
+        params.set("pipelineStopLevel", selectedPipelineStopLevel);
+      }
+    } else if (reasonType === "pipeline-source") {
+      params.set(
+        "collector",
+        selectedCollector && selectedCollector !== "all"
+          ? selectedCollector
+          : "with_diagnostics",
+      );
+      params.set("pipelineStopSource", reason);
+      if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
+        params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
+        params.set("ocrStopReason", selectedOcrStopReason);
+      }
+      if (selectedPipelineStopLevel && selectedPipelineStopLevel !== "all") {
+        params.set("pipelineStopLevel", selectedPipelineStopLevel);
+      }
+      if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
+        params.set("ignoredReason", selectedIgnoredReason);
+      }
+      if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
+        params.set("ignoredGroup", selectedIgnoredGroup);
+      }
+      if (selectedPageSignal && selectedPageSignal !== "all") {
+        params.set("pageSignal", selectedPageSignal);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
+    } else if (reasonType === "pipeline-level") {
+      params.set(
+        "collector",
+        selectedCollector && selectedCollector !== "all"
+          ? selectedCollector
+          : "with_diagnostics",
+      );
+      params.set("pipelineStopLevel", reason);
+      if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
+        params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
+        params.set("ocrStopReason", selectedOcrStopReason);
+      }
+      if (selectedPipelineStopSource && selectedPipelineStopSource !== "all") {
+        params.set("pipelineStopSource", selectedPipelineStopSource);
       }
       if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
         params.set("ignoredReason", selectedIgnoredReason);
@@ -842,6 +944,12 @@ export function SeasonValidationOverviewPanel({
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
       }
+      if (selectedPipelineStopSource && selectedPipelineStopSource !== "all") {
+        params.set("pipelineStopSource", selectedPipelineStopSource);
+      }
+      if (selectedPipelineStopLevel && selectedPipelineStopLevel !== "all") {
+        params.set("pipelineStopLevel", selectedPipelineStopLevel);
+      }
     } else if (reasonType === "page-signal") {
       params.set(
         "collector",
@@ -865,6 +973,12 @@ export function SeasonValidationOverviewPanel({
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
       }
+      if (selectedPipelineStopSource && selectedPipelineStopSource !== "all") {
+        params.set("pipelineStopSource", selectedPipelineStopSource);
+      }
+      if (selectedPipelineStopLevel && selectedPipelineStopLevel !== "all") {
+        params.set("pipelineStopLevel", selectedPipelineStopLevel);
+      }
     } else {
       params.set(
         "collector",
@@ -887,6 +1001,12 @@ export function SeasonValidationOverviewPanel({
       }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
+      if (selectedPipelineStopSource && selectedPipelineStopSource !== "all") {
+        params.set("pipelineStopSource", selectedPipelineStopSource);
+      }
+      if (selectedPipelineStopLevel && selectedPipelineStopLevel !== "all") {
+        params.set("pipelineStopLevel", selectedPipelineStopLevel);
       }
     }
 
@@ -937,6 +1057,10 @@ export function SeasonValidationOverviewPanel({
         <StatCard
           label="강한 OCR 중단"
           value={String(overview.snapshots_with_hard_ocr_stop_count)}
+        />
+        <StatCard
+          label="파이프라인 중단"
+          value={String(overview.snapshots_with_pipeline_stop_count)}
         />
         <StatCard
           label="무시된 OCR 줄"
@@ -1066,6 +1190,18 @@ export function SeasonValidationOverviewPanel({
           getHref={(reason) => buildSeasonReasonHref("ocr", reason)}
         />
         <ReasonSummaryPanel
+          title="파이프라인 소스"
+          rows={overview.pipeline_stop_sources}
+          emptyMessage="집계된 파이프라인 소스가 없습니다."
+          getHref={(reason) => buildSeasonReasonHref("pipeline-source", reason)}
+        />
+        <ReasonSummaryPanel
+          title="파이프라인 레벨"
+          rows={overview.pipeline_stop_levels}
+          emptyMessage="집계된 파이프라인 레벨이 없습니다."
+          getHref={(reason) => buildSeasonReasonHref("pipeline-level", reason)}
+        />
+        <ReasonSummaryPanel
           title="무시된 OCR 사유"
           rows={overview.ignored_reasons}
           emptyMessage="집계된 무시된 OCR 사유가 없습니다."
@@ -1086,6 +1222,8 @@ export function SeasonValidationSeriesPanel({
   selectedSource,
   captureStopReason,
   ocrStopReason,
+  pipelineStopSource,
+  pipelineStopLevel,
   ignoredReason,
   ignoredGroup,
   pageSignal,
@@ -1100,6 +1238,8 @@ export function SeasonValidationSeriesPanel({
   selectedSource?: string;
   captureStopReason?: string;
   ocrStopReason?: string;
+  pipelineStopSource?: string;
+  pipelineStopLevel?: string;
   ignoredReason?: string;
   ignoredGroup?: string;
   pageSignal?: string;
@@ -1240,6 +1380,16 @@ export function SeasonValidationSeriesPanel({
                                 }${
                                   ocrStopReason && ocrStopReason !== "all"
                                     ? `&ocrStopReason=${encodeURIComponent(ocrStopReason)}`
+                                    : ""
+                                }${
+                                  pipelineStopSource &&
+                                  pipelineStopSource !== "all"
+                                    ? `&pipelineStopSource=${encodeURIComponent(pipelineStopSource)}`
+                                    : ""
+                                }${
+                                  pipelineStopLevel &&
+                                  pipelineStopLevel !== "all"
+                                    ? `&pipelineStopLevel=${encodeURIComponent(pipelineStopLevel)}`
                                     : ""
                                 }${
                                   ignoredReason && ignoredReason !== "all"

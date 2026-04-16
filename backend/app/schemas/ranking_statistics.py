@@ -136,6 +136,7 @@ class SeasonValidationOverviewRead(BaseModel):
     snapshots_with_collector_diagnostics_count: int
     snapshots_with_capture_stop_count: int
     snapshots_with_hard_ocr_stop_count: int
+    snapshots_with_pipeline_stop_count: int
     total_ignored_line_count: int
     empty_page_count: int
     sparse_page_count: int
@@ -147,6 +148,8 @@ class SeasonValidationOverviewRead(BaseModel):
     malformed_entry_line_count: int
     capture_stop_reasons: list[CollectorReasonCountRead]
     ocr_stop_reasons: list[CollectorReasonCountRead]
+    pipeline_stop_sources: list[CollectorReasonCountRead]
+    pipeline_stop_levels: list[CollectorReasonCountRead]
     ignored_reasons: list[CollectorIgnoredReasonCountRead]
 
 

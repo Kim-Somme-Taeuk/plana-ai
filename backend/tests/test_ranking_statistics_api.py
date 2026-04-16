@@ -494,6 +494,7 @@ def test_get_season_validation_overview_returns_expected_values(
         "snapshots_with_collector_diagnostics_count": 0,
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
+        "snapshots_with_pipeline_stop_count": 0,
         "total_ignored_line_count": 0,
         "empty_page_count": 0,
         "sparse_page_count": 0,
@@ -505,6 +506,8 @@ def test_get_season_validation_overview_returns_expected_values(
         "malformed_entry_line_count": 0,
         "capture_stop_reasons": [],
         "ocr_stop_reasons": [],
+        "pipeline_stop_sources": [],
+        "pipeline_stop_levels": [],
         "ignored_reasons": [],
     }
 
@@ -607,6 +610,7 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "snapshots_with_collector_diagnostics_count": 0,
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
+        "snapshots_with_pipeline_stop_count": 0,
         "total_ignored_line_count": 0,
         "empty_page_count": 0,
         "sparse_page_count": 0,
@@ -618,6 +622,8 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "malformed_entry_line_count": 0,
         "capture_stop_reasons": [],
         "ocr_stop_reasons": [],
+        "pipeline_stop_sources": [],
+        "pipeline_stop_levels": [],
         "ignored_reasons": [],
     }
 
@@ -901,6 +907,7 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert overview_response.json()["snapshots_with_collector_diagnostics_count"] == 2
     assert overview_response.json()["snapshots_with_capture_stop_count"] == 1
     assert overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
+    assert overview_response.json()["snapshots_with_pipeline_stop_count"] == 0
     assert overview_response.json()["total_ignored_line_count"] == 5
     assert overview_response.json()["empty_page_count"] == 0
     assert overview_response.json()["sparse_page_count"] == 0
@@ -917,6 +924,8 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
         {"reason": "noisy_last_page", "count": 1},
         {"reason": "sparse_last_page", "count": 1},
     ]
+    assert overview_response.json()["pipeline_stop_sources"] == []
+    assert overview_response.json()["pipeline_stop_levels"] == []
     assert overview_response.json()["ignored_reasons"] == [
         {"reason": "blank_line", "count": 1},
         {"reason": "non_entry_line", "count": 3},
@@ -1025,6 +1034,7 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert hard_overview_response.json()["snapshot_count"] == 1
     assert hard_overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
     assert hard_overview_response.json()["snapshots_with_capture_stop_count"] == 1
+    assert hard_overview_response.json()["snapshots_with_pipeline_stop_count"] == 0
     assert hard_overview_response.json()["total_ignored_line_count"] == 4
     assert hard_overview_response.json()["capture_stop_reasons"] == [
         {"reason": "noisy_last_page", "count": 1}
@@ -1041,6 +1051,50 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert [point["snapshot_id"] for point in capture_series_response.json()["points"]] == [
         ranking_snapshot.id
     ]
+
+
+def test_get_season_validation_endpoints_filter_pipeline_stop_source_and_level(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "collector: pages=2/3; ignored=1(header_line=1); "
+        "ocr_stop=duplicate_last_page(hard)\n"
+        'collector_json: {"page_summaries":[{"page_index":1,"image_path":"page-001.png","entry_count":3,"ignored_line_count":0,"ignored_line_reasons":[],"first_rank":1,"last_rank":3,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":3,"new_rank_ratio":1.0}],"ocr_stop_hints":[{"reason":"duplicate_last_page","page_index":2,"overlap_with_previous_count":3,"overlap_with_previous_ratio":1.0}],"ocr_stop_recommendation":{"should_stop":true,"level":"hard","primary_reason":"duplicate_last_page","reasons":["duplicate_last_page"]},"pipeline_stop_recommendation":{"should_stop":true,"level":"hard","source":"ocr","primary_reason":"duplicate_last_page","reasons":["duplicate_last_page"]},"stop_policy":{"min_pages_before_ocr_stop":2,"soft_stop_repeat_threshold":2}}'
+    )
+    db_session.add(ranking_snapshot)
+    db_session.commit()
+
+    overview_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-overview"
+        "?pipeline_stop_source=ocr&pipeline_stop_level=hard"
+    )
+    series_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-series"
+        "?pipeline_stop_source=ocr&pipeline_stop_level=hard"
+    )
+
+    assert overview_response.status_code == 200
+    assert overview_response.json()["snapshot_count"] == 1
+    assert overview_response.json()["snapshots_with_pipeline_stop_count"] == 1
+    assert overview_response.json()["pipeline_stop_sources"] == [
+        {"reason": "ocr", "count": 1}
+    ]
+    assert overview_response.json()["pipeline_stop_levels"] == [
+        {"reason": "hard", "count": 1}
+    ]
+
+    assert series_response.status_code == 200
+    assert [point["snapshot_id"] for point in series_response.json()["points"]] == [
+        ranking_snapshot.id
+    ]
+    assert (
+        series_response.json()["points"][0]["collector_diagnostics"][
+            "pipeline_stop_recommendation"
+        ]["source"]
+        == "ocr"
+    )
 
 
 def test_get_season_validation_overview_aggregates_derived_ignored_reason_counts(

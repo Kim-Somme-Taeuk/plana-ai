@@ -161,6 +161,7 @@ export type SeasonValidationOverview = {
   snapshots_with_collector_diagnostics_count: number;
   snapshots_with_capture_stop_count: number;
   snapshots_with_hard_ocr_stop_count: number;
+  snapshots_with_pipeline_stop_count: number;
   total_ignored_line_count: number;
   empty_page_count: number;
   sparse_page_count: number;
@@ -172,6 +173,8 @@ export type SeasonValidationOverview = {
   malformed_entry_line_count: number;
   capture_stop_reasons: CollectorReasonCount[];
   ocr_stop_reasons: CollectorReasonCount[];
+  pipeline_stop_sources: CollectorReasonCount[];
+  pipeline_stop_levels: CollectorReasonCount[];
   ignored_reasons: CollectorIgnoredReasonCount[];
 };
 

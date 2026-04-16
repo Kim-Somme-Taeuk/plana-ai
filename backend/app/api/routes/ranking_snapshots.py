@@ -267,6 +267,8 @@ def _matches_collector_filter(
     collector_filter: str | None,
     capture_stop_reason: str | None,
     ocr_stop_reason: str | None,
+    pipeline_stop_source: str | None,
+    pipeline_stop_level: str | None,
     ignored_reason: str | None,
     ignored_group: str | None,
     page_signal: str | None,
@@ -291,6 +293,8 @@ def _matches_collector_filter(
     if (
         capture_stop_reason is None
         and ocr_stop_reason is None
+        and pipeline_stop_source is None
+        and pipeline_stop_level is None
         and ignored_reason is None
         and ignored_group is None
         and page_signal is None
@@ -307,6 +311,22 @@ def _matches_collector_filter(
     ):
         return False
     if ocr_stop_reason is not None and diagnostics.ocr_stop_reason != ocr_stop_reason:
+        return False
+    if (
+        pipeline_stop_source is not None
+        and diagnostics.pipeline_stop_recommendation is not None
+        and diagnostics.pipeline_stop_recommendation.source != pipeline_stop_source
+    ):
+        return False
+    if pipeline_stop_source is not None and diagnostics.pipeline_stop_recommendation is None:
+        return False
+    if (
+        pipeline_stop_level is not None
+        and diagnostics.pipeline_stop_recommendation is not None
+        and diagnostics.pipeline_stop_recommendation.level != pipeline_stop_level
+    ):
+        return False
+    if pipeline_stop_level is not None and diagnostics.pipeline_stop_recommendation is None:
         return False
     if ocr_stop_level is not None and diagnostics.ocr_stop_level != ocr_stop_level:
         return False
@@ -353,6 +373,8 @@ def _get_filtered_season_snapshots(
     collector_filter: str | None,
     capture_stop_reason: str | None,
     ocr_stop_reason: str | None,
+    pipeline_stop_source: str | None,
+    pipeline_stop_level: str | None,
     ignored_reason: str | None,
     ignored_group: str | None,
     page_signal: str | None,
@@ -380,6 +402,8 @@ def _get_filtered_season_snapshots(
             collector_filter,
             capture_stop_reason,
             ocr_stop_reason,
+            pipeline_stop_source,
+            pipeline_stop_level,
             ignored_reason,
             ignored_group,
             page_signal,
@@ -562,6 +586,8 @@ def _build_season_validation_overview(
     collector_filter: str | None = None,
     capture_stop_reason: str | None = None,
     ocr_stop_reason: str | None = None,
+    pipeline_stop_source: str | None = None,
+    pipeline_stop_level: str | None = None,
     ignored_reason: str | None = None,
     ignored_group: str | None = None,
     page_signal: str | None = None,
@@ -575,6 +601,8 @@ def _build_season_validation_overview(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        pipeline_stop_source=pipeline_stop_source,
+        pipeline_stop_level=pipeline_stop_level,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
         page_signal=page_signal,
@@ -629,6 +657,8 @@ def _build_season_validation_overview(
     ]
     capture_stop_reason_counts: dict[str, int] = {}
     ocr_stop_reason_counts: dict[str, int] = {}
+    pipeline_stop_source_counts: dict[str, int] = {}
+    pipeline_stop_level_counts: dict[str, int] = {}
     ignored_reason_counts: dict[str, int] = {}
     empty_page_count = 0
     sparse_page_count = 0
@@ -646,6 +676,28 @@ def _build_season_validation_overview(
         if row.ocr_stop_reason is not None:
             ocr_stop_reason_counts[row.ocr_stop_reason] = (
                 ocr_stop_reason_counts.get(row.ocr_stop_reason, 0) + 1
+            )
+        if (
+            row.pipeline_stop_recommendation is not None
+            and row.pipeline_stop_recommendation.source is not None
+        ):
+            pipeline_stop_source_counts[row.pipeline_stop_recommendation.source] = (
+                pipeline_stop_source_counts.get(
+                    row.pipeline_stop_recommendation.source,
+                    0,
+                )
+                + 1
+            )
+        if (
+            row.pipeline_stop_recommendation is not None
+            and row.pipeline_stop_recommendation.level is not None
+        ):
+            pipeline_stop_level_counts[row.pipeline_stop_recommendation.level] = (
+                pipeline_stop_level_counts.get(
+                    row.pipeline_stop_recommendation.level,
+                    0,
+                )
+                + 1
             )
         for ignored_reason in row.ignored_reasons:
             ignored_reason_counts[ignored_reason.reason] = (
@@ -681,6 +733,12 @@ def _build_season_validation_overview(
         snapshots_with_hard_ocr_stop_count=sum(
             1 for row in collector_diagnostics if row.ocr_stop_level == "hard"
         ),
+        snapshots_with_pipeline_stop_count=sum(
+            1
+            for row in collector_diagnostics
+            if row.pipeline_stop_recommendation is not None
+            and row.pipeline_stop_recommendation.should_stop
+        ),
         total_ignored_line_count=sum(row.ignored_line_count for row in collector_diagnostics),
         empty_page_count=empty_page_count,
         sparse_page_count=sparse_page_count,
@@ -698,6 +756,14 @@ def _build_season_validation_overview(
             CollectorReasonCountRead(reason=reason, count=count)
             for reason, count in sorted(ocr_stop_reason_counts.items())
         ],
+        pipeline_stop_sources=[
+            CollectorReasonCountRead(reason=reason, count=count)
+            for reason, count in sorted(pipeline_stop_source_counts.items())
+        ],
+        pipeline_stop_levels=[
+            CollectorReasonCountRead(reason=reason, count=count)
+            for reason, count in sorted(pipeline_stop_level_counts.items())
+        ],
         ignored_reasons=[
             CollectorIgnoredReasonCountRead(reason=reason, count=count)
             for reason, count in sorted(ignored_reason_counts.items())
@@ -714,6 +780,8 @@ def _build_season_validation_series(
     collector_filter: str | None = None,
     capture_stop_reason: str | None = None,
     ocr_stop_reason: str | None = None,
+    pipeline_stop_source: str | None = None,
+    pipeline_stop_level: str | None = None,
     ignored_reason: str | None = None,
     ignored_group: str | None = None,
     page_signal: str | None = None,
@@ -728,6 +796,8 @@ def _build_season_validation_series(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        pipeline_stop_source=pipeline_stop_source,
+        pipeline_stop_level=pipeline_stop_level,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
         page_signal=page_signal,
@@ -915,6 +985,8 @@ def get_season_validation_overview(
     collector_filter: Literal["with_diagnostics", "capture_stop", "hard_ocr_stop"] | None = Query(None),
     capture_stop_reason: str | None = Query(None, min_length=1),
     ocr_stop_reason: str | None = Query(None, min_length=1),
+    pipeline_stop_source: Literal["capture", "ocr"] | None = Query(None),
+    pipeline_stop_level: Literal["soft", "hard"] | None = Query(None),
     ignored_reason: str | None = Query(None, min_length=1),
     ignored_group: Literal["overlay", "header", "malformed"] | None = Query(None),
     page_signal: Literal["empty", "sparse", "overlapping", "stale", "noisy"] | None = Query(None),
@@ -930,6 +1002,8 @@ def get_season_validation_overview(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        pipeline_stop_source=pipeline_stop_source,
+        pipeline_stop_level=pipeline_stop_level,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
         page_signal=page_signal,
@@ -948,6 +1022,8 @@ def get_season_validation_series(
     collector_filter: Literal["with_diagnostics", "capture_stop", "hard_ocr_stop"] | None = Query(None),
     capture_stop_reason: str | None = Query(None, min_length=1),
     ocr_stop_reason: str | None = Query(None, min_length=1),
+    pipeline_stop_source: Literal["capture", "ocr"] | None = Query(None),
+    pipeline_stop_level: Literal["soft", "hard"] | None = Query(None),
     ignored_reason: str | None = Query(None, min_length=1),
     ignored_group: Literal["overlay", "header", "malformed"] | None = Query(None),
     page_signal: Literal["empty", "sparse", "overlapping", "stale", "noisy"] | None = Query(None),
@@ -963,6 +1039,8 @@ def get_season_validation_series(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        pipeline_stop_source=pipeline_stop_source,
+        pipeline_stop_level=pipeline_stop_level,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
         page_signal=page_signal,

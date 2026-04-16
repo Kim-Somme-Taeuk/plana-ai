@@ -36,6 +36,8 @@ type SeasonPageProps = {
     collector?: string;
     captureStopReason?: string;
     ocrStopReason?: string;
+    pipelineStopSource?: string;
+    pipelineStopLevel?: string;
     ignoredReason?: string;
     ignoredGroup?: string;
     pageSignal?: string;
@@ -81,6 +83,16 @@ export default async function SeasonDetailPage({
   const selectedOcrStopReason =
     resolvedSearchParams.ocrStopReason && resolvedSearchParams.ocrStopReason.trim()
       ? resolvedSearchParams.ocrStopReason
+      : "all";
+  const selectedPipelineStopSource =
+    resolvedSearchParams.pipelineStopSource &&
+    resolvedSearchParams.pipelineStopSource.trim()
+      ? resolvedSearchParams.pipelineStopSource
+      : "all";
+  const selectedPipelineStopLevel =
+    resolvedSearchParams.pipelineStopLevel &&
+    resolvedSearchParams.pipelineStopLevel.trim()
+      ? resolvedSearchParams.pipelineStopLevel
       : "all";
   const selectedIgnoredReason =
     resolvedSearchParams.ignoredReason && resolvedSearchParams.ignoredReason.trim()
@@ -134,6 +146,14 @@ export default async function SeasonDetailPage({
             : selectedCaptureStopReason,
         ocrStopReason:
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
+        pipelineStopSource:
+          selectedPipelineStopSource === "all"
+            ? undefined
+            : (selectedPipelineStopSource as "capture" | "ocr"),
+        pipelineStopLevel:
+          selectedPipelineStopLevel === "all"
+            ? undefined
+            : (selectedPipelineStopLevel as "soft" | "hard"),
         ignoredReason:
           selectedIgnoredReason === "all" ? undefined : selectedIgnoredReason,
         ignoredGroup:
@@ -164,6 +184,14 @@ export default async function SeasonDetailPage({
             : selectedCaptureStopReason,
         ocrStopReason:
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
+        pipelineStopSource:
+          selectedPipelineStopSource === "all"
+            ? undefined
+            : (selectedPipelineStopSource as "capture" | "ocr"),
+        pipelineStopLevel:
+          selectedPipelineStopLevel === "all"
+            ? undefined
+            : (selectedPipelineStopLevel as "soft" | "hard"),
         ignoredReason:
           selectedIgnoredReason === "all" ? undefined : selectedIgnoredReason,
         ignoredGroup:
@@ -202,6 +230,8 @@ export default async function SeasonDetailPage({
       (selectedCollector !== "all" ||
         selectedCaptureStopReason !== "all" ||
         selectedOcrStopReason !== "all" ||
+        selectedPipelineStopSource !== "all" ||
+        selectedPipelineStopLevel !== "all" ||
         selectedIgnoredReason !== "all" ||
         selectedPageSignal !== "all" ||
         selectedOcrStopLevel !== "all") &&
@@ -283,6 +313,12 @@ export default async function SeasonDetailPage({
       ? `캡처 중단: ${selectedCaptureStopReason}`
       : null,
     selectedOcrStopReason !== "all" ? `OCR 중단: ${selectedOcrStopReason}` : null,
+    selectedPipelineStopSource !== "all"
+      ? `파이프라인 소스: ${formatPipelineStopSourceLabel(selectedPipelineStopSource)}`
+      : null,
+    selectedPipelineStopLevel !== "all"
+      ? `파이프라인 레벨: ${formatOcrStopLevelLabel(selectedPipelineStopLevel)}`
+      : null,
     selectedIgnoredReason !== "all" ? `무시된 OCR: ${selectedIgnoredReason}` : null,
     selectedIgnoredGroup !== "all"
       ? `무시 그룹: ${formatIgnoredGroupLabel(selectedIgnoredGroup)}`
@@ -329,6 +365,8 @@ export default async function SeasonDetailPage({
                     selectedCollector={selectedCollector}
                     selectedCaptureStopReason={selectedCaptureStopReason}
                     selectedOcrStopReason={selectedOcrStopReason}
+                    selectedPipelineStopSource={selectedPipelineStopSource}
+                    selectedPipelineStopLevel={selectedPipelineStopLevel}
                     selectedIgnoredReason={selectedIgnoredReason}
                     selectedIgnoredGroup={selectedIgnoredGroup}
                     selectedPageSignal={selectedPageSignal}
@@ -355,6 +393,8 @@ export default async function SeasonDetailPage({
                     selectedSource={selectedSource}
                     captureStopReason={selectedCaptureStopReason}
                     ocrStopReason={selectedOcrStopReason}
+                    pipelineStopSource={selectedPipelineStopSource}
+                    pipelineStopLevel={selectedPipelineStopLevel}
                     ignoredReason={selectedIgnoredReason}
                     ignoredGroup={selectedIgnoredGroup}
                     pageSignal={selectedPageSignal}
@@ -531,6 +571,36 @@ export default async function SeasonDetailPage({
                         </select>
                       </div>
                       <div className={styles.field}>
+                        <label htmlFor="pipelineStopSource">파이프라인 소스</label>
+                        <select
+                          id="pipelineStopSource"
+                          name="pipelineStopSource"
+                          defaultValue={selectedPipelineStopSource}
+                        >
+                          <option value="all">전체</option>
+                          {validationOverviewResult.data?.pipeline_stop_sources.map((row) => (
+                            <option key={row.reason} value={row.reason}>
+                              {formatPipelineStopSourceLabel(row.reason)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className={styles.field}>
+                        <label htmlFor="pipelineStopLevel">파이프라인 레벨</label>
+                        <select
+                          id="pipelineStopLevel"
+                          name="pipelineStopLevel"
+                          defaultValue={selectedPipelineStopLevel}
+                        >
+                          <option value="all">전체</option>
+                          {validationOverviewResult.data?.pipeline_stop_levels.map((row) => (
+                            <option key={row.reason} value={row.reason}>
+                              {formatOcrStopLevelLabel(row.reason)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className={styles.field}>
                         <label htmlFor="ignoredReason">무시된 OCR 사유</label>
                         <select
                           id="ignoredReason"
@@ -651,6 +721,16 @@ export default async function SeasonDetailPage({
                     />
                     <input
                       type="hidden"
+                      name="pipelineStopSource"
+                      value={selectedPipelineStopSource}
+                    />
+                    <input
+                      type="hidden"
+                      name="pipelineStopLevel"
+                      value={selectedPipelineStopLevel}
+                    />
+                    <input
+                      type="hidden"
                       name="ignoredReason"
                       value={selectedIgnoredReason}
                     />
@@ -743,6 +823,16 @@ export default async function SeasonDetailPage({
                         type="hidden"
                         name="ocrStopReason"
                         value={selectedOcrStopReason}
+                      />
+                      <input
+                        type="hidden"
+                        name="pipelineStopSource"
+                        value={selectedPipelineStopSource}
+                      />
+                      <input
+                        type="hidden"
+                        name="pipelineStopLevel"
+                        value={selectedPipelineStopLevel}
                       />
                       <input
                         type="hidden"
@@ -844,6 +934,17 @@ function formatCollectorFilterLabel(value: string) {
       return "캡처 중단";
     case "hard_ocr_stop":
       return "강한 OCR 중단";
+    default:
+      return value;
+  }
+}
+
+function formatPipelineStopSourceLabel(value: string) {
+  switch (value) {
+    case "capture":
+      return "캡처";
+    case "ocr":
+      return "OCR";
     default:
       return value;
   }
