@@ -71,6 +71,57 @@
   min-width: 0;
 }
 
+.rightRail {
+  gap: 14px;
+}
+
+.rightRail .panel {
+  padding: 16px;
+}
+
+.rightRail .panelTitle {
+  margin-bottom: 10px;
+}
+
+.rightRail .controls {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.rightRail .controlRow {
+  gap: 8px;
+}
+
+.rightRail .field {
+  gap: 4px;
+}
+
+.rightRail .field label {
+  font-size: 11px;
+}
+
+.rightRail .field select,
+.rightRail .field input,
+.rightRail .button,
+.rightRail .linkButton {
+  height: 36px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.rightRail .linkButton {
+  min-width: 80px;
+  padding: 0 12px;
+}
+
+.rightRail .muted {
+  font-size: 13px;
+}
+
+.rightRail .paginationLinks {
+  gap: 8px;
+}
+
 .panel {
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(89, 110, 82, 0.14);
@@ -99,6 +150,12 @@
 .panelTitle .muted {
   flex: 1 0 100%;
   text-align: left;
+}
+
+.panelBody {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
 }
 
 .muted {
@@ -317,6 +374,10 @@
   background: rgba(255, 255, 255, 0.82);
 }
 
+.compareTableSection {
+  margin-top: 24px;
+}
+
 .table {
   width: max-content;
   min-width: 100%;
@@ -480,6 +541,7 @@
   gap: 10px;
   min-height: 160px;
   padding-top: 12px;
+  overflow-x: auto;
 }
 
 .seriesBar {
@@ -561,5 +623,212 @@
   .shell {
     width: min(100vw - 24px, 1180px);
     padding: 24px 0 40px;
+  }
+
+  .panel {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .statsGrid,
+  .metaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .threeColumnGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .controlRow {
+    align-items: stretch;
+  }
+
+  .controlRow > .field,
+  .controlRow > .button {
+    flex: 1 1 100%;
+  }
+
+  .field select,
+  .field input,
+  .button {
+    width: 100%;
+  }
+
+  .pagination,
+  .paginationLinks,
+  .compareActions,
+  .compareTableActions {
+    flex-wrap: wrap;
+  }
+
+  .paginationLinks > *,
+  .compareActions > *,
+  .compareTableActions > * {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .seriesBar {
+    min-width: 56px;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    width: min(100vw - 16px, 1180px);
+    padding: 18px 0 28px;
+  }
+
+  .header {
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .title {
+    font-size: clamp(24px, 8vw, 32px);
+    line-height: 1.1;
+  }
+
+  .subtitle,
+  .muted {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .grid,
+  .seasonList,
+  .snapshotList,
+  .rightRail {
+    gap: 12px;
+  }
+
+  .panel {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .tableWrap {
+    border-radius: 14px;
+  }
+
+  .panelTitle {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .panelTitle h2,
+  .panelTitle h3 {
+    font-size: 16px;
+  }
+
+  .statsGrid,
+  .metaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .statCard,
+  .compareHeaderCard,
+  .subPanel,
+  .seasonCard,
+  .snapshotCard {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .statValue {
+    font-size: 20px;
+  }
+
+  .statusBadge {
+    min-width: 0;
+    width: auto;
+  }
+
+  .snapshotCardTop,
+  .seasonCardTitle,
+  .titleRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .snapshotCardTop .statusBadge,
+  .seasonCardTitle .muted {
+    align-self: flex-start;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  .table th {
+    font-size: 11px;
+    position: static;
+  }
+
+  .compareTableSection {
+    margin-top: 18px;
+  }
+
+  .controls {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .controlRow {
+    gap: 8px;
+  }
+
+  .field {
+    gap: 4px;
+  }
+
+  .field label {
+    font-size: 11px;
+  }
+
+  .paginationLinks > *,
+  .compareActions > *,
+  .compareTableActions > * {
+    flex: 1 1 100%;
+  }
+
+  .pagination {
+    align-items: stretch;
+  }
+
+  .paginationLinks {
+    width: 100%;
+  }
+
+  .linkButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .keyValueRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .seriesChart {
+    gap: 8px;
+    min-height: 0;
+    padding-top: 8px;
+    padding-bottom: 4px;
+  }
+
+  .seriesBar {
+    min-width: 52px;
+    gap: 6px;
+  }
+
+  .seriesBarTrack {
+    height: 96px;
+    padding: 6px;
+    border-radius: 14px;
   }
 }

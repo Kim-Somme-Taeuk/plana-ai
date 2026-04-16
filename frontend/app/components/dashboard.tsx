@@ -243,7 +243,7 @@ export function CutoffTable({
         <h2>컷오프</h2>
         <span className={styles.muted}>유효 엔트리 기준</span>
       </div>
-      <div className={styles.tableWrap}>
+      <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -1060,7 +1060,7 @@ export function SnapshotComparisonPanel({
         />
       </div>
 
-      <div className={styles.tableWrap}>
+      <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -1125,7 +1125,7 @@ export function SnapshotComparisonPanel({
         </table>
       </div>
 
-      <div className={styles.tableWrap}>
+      <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -1151,7 +1151,7 @@ export function SnapshotComparisonPanel({
       {issueCodes.length === 0 ? (
         <EmptyBox message="두 스냅샷 모두 집계된 검증 이슈가 없습니다." />
       ) : (
-        <div className={styles.tableWrap}>
+        <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
           <table className={styles.table}>
             <thead>
               <tr>

@@ -239,8 +239,9 @@ export default async function SeasonDetailPage({
           }`}
         />
       ) : (
-        <div className={`${styles.grid} ${styles.twoColumn}`}>
-          <div className={styles.grid}>
+        <div className={styles.grid}>
+          <div className={`${styles.grid} ${styles.twoColumn}`}>
+            <div className={`${styles.grid} ${styles.rightRail}`}>
             <SeasonSummary season={season} />
 
             {validationOverviewResult.error || !validationOverviewResult.data ? (
@@ -429,119 +430,25 @@ export default async function SeasonDetailPage({
                 <EmptyBox message="조건에 맞는 스냅샷이 없습니다." />
               )}
             </section>
-          </div>
+            </div>
 
-          <div className={styles.grid}>
-            <section className={styles.panel}>
-              <div className={styles.panelTitle}>
-                <h2>컷오프 시계열 설정</h2>
-              </div>
-              <form className={styles.controls}>
-                <div className={styles.controlRow}>
-                  <div className={styles.field}>
-                    <label htmlFor="rank">순위</label>
-                    <select id="rank" name="rank" defaultValue={String(seriesRank)}>
-                      {SERIES_RANK_OPTIONS.map((rank) => (
-                        <option key={rank} value={rank}>
-                          {rank.toLocaleString()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <input type="hidden" name="status" value={selectedStatus} />
-                  <input type="hidden" name="source" value={selectedSource} />
-                  <input
-                    type="hidden"
-                    name="collector"
-                    value={selectedCollector}
-                  />
-                  <input
-                    type="hidden"
-                    name="captureStopReason"
-                    value={selectedCaptureStopReason}
-                  />
-                  <input
-                    type="hidden"
-                    name="ocrStopReason"
-                    value={selectedOcrStopReason}
-                  />
-                  <input
-                    type="hidden"
-                    name="ignoredReason"
-                    value={selectedIgnoredReason}
-                  />
-                  <input
-                    type="hidden"
-                    name="ocrStopLevel"
-                    value={selectedOcrStopLevel}
-                  />
-                  {selectedCompareLeft ? (
-                    <input
-                      type="hidden"
-                      name="compareLeft"
-                      value={String(selectedCompareLeft.id)}
-                    />
-                  ) : null}
-                  {selectedCompareRight ? (
-                    <input
-                      type="hidden"
-                      name="compareRight"
-                      value={String(selectedCompareRight.id)}
-                    />
-                  ) : null}
-                  <button type="submit" className={styles.button}>
-                    갱신
-                  </button>
+            <div className={styles.grid}>
+              <section className={styles.panel}>
+                <div className={styles.panelTitle}>
+                  <h2>컷오프 시계열 설정</h2>
                 </div>
-              </form>
-              <p className={styles.muted}>
-                완료된 스냅샷만 시계열에 포함됩니다.
-              </p>
-            </section>
-
-            <section className={styles.panel}>
-              <div className={styles.panelTitle}>
-                <h2>스냅샷 비교 설정</h2>
-                <span className={styles.muted}>
-                  최근 스냅샷 두 개를 기본 비교 대상으로 잡습니다.
-                </span>
-              </div>
-              {filteredCompareCandidates.length < 2 ? (
-                <EmptyBox message="비교하려면 스냅샷이 두 개 이상 필요합니다." />
-              ) : (
                 <form className={styles.controls}>
                   <div className={styles.controlRow}>
                     <div className={styles.field}>
-                      <label htmlFor="compareLeft">왼쪽 스냅샷</label>
-                      <select
-                        id="compareLeft"
-                        name="compareLeft"
-                        defaultValue={String(selectedCompareLeft?.id ?? "")}
-                      >
-                        {filteredCompareCandidates.map((snapshot) => (
-                          <option key={snapshot.id} value={snapshot.id}>
-                            #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
-                            {formatSourceTypeLabel(snapshot.source_type)}
+                      <label htmlFor="rank">순위</label>
+                      <select id="rank" name="rank" defaultValue={String(seriesRank)}>
+                        {SERIES_RANK_OPTIONS.map((rank) => (
+                          <option key={rank} value={rank}>
+                            {rank.toLocaleString()}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <div className={styles.field}>
-                      <label htmlFor="compareRight">오른쪽 스냅샷</label>
-                      <select
-                        id="compareRight"
-                        name="compareRight"
-                        defaultValue={String(selectedCompareRight?.id ?? "")}
-                      >
-                        {filteredCompareCandidates.map((snapshot) => (
-                          <option key={snapshot.id} value={snapshot.id}>
-                            #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
-                            {formatSourceTypeLabel(snapshot.source_type)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <input type="hidden" name="rank" value={String(seriesRank)} />
                     <input type="hidden" name="status" value={selectedStatus} />
                     <input type="hidden" name="source" value={selectedSource} />
                     <input
@@ -569,57 +476,154 @@ export default async function SeasonDetailPage({
                       name="ocrStopLevel"
                       value={selectedOcrStopLevel}
                     />
+                    {selectedCompareLeft ? (
+                      <input
+                        type="hidden"
+                        name="compareLeft"
+                        value={String(selectedCompareLeft.id)}
+                      />
+                    ) : null}
+                    {selectedCompareRight ? (
+                      <input
+                        type="hidden"
+                        name="compareRight"
+                        value={String(selectedCompareRight.id)}
+                      />
+                    ) : null}
                     <button type="submit" className={styles.button}>
-                      비교
+                      갱신
                     </button>
                   </div>
                 </form>
+                <p className={styles.muted}>
+                  완료된 스냅샷만 시계열에 포함됩니다.
+                </p>
+              </section>
+
+              <section className={styles.panel}>
+                <div className={styles.panelTitle}>
+                  <h2>스냅샷 비교 설정</h2>
+                  <span className={styles.muted}>
+                    최근 스냅샷 두 개를 기본 비교 대상으로 잡습니다.
+                  </span>
+                </div>
+                {filteredCompareCandidates.length < 2 ? (
+                  <EmptyBox message="비교하려면 스냅샷이 두 개 이상 필요합니다." />
+                ) : (
+                  <form className={styles.controls}>
+                    <div className={styles.controlRow}>
+                      <div className={styles.field}>
+                        <label htmlFor="compareLeft">왼쪽 스냅샷</label>
+                        <select
+                          id="compareLeft"
+                          name="compareLeft"
+                          defaultValue={String(selectedCompareLeft?.id ?? "")}
+                        >
+                          {filteredCompareCandidates.map((snapshot) => (
+                            <option key={snapshot.id} value={snapshot.id}>
+                              #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
+                              {formatSourceTypeLabel(snapshot.source_type)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className={styles.field}>
+                        <label htmlFor="compareRight">오른쪽 스냅샷</label>
+                        <select
+                          id="compareRight"
+                          name="compareRight"
+                          defaultValue={String(selectedCompareRight?.id ?? "")}
+                        >
+                          {filteredCompareCandidates.map((snapshot) => (
+                            <option key={snapshot.id} value={snapshot.id}>
+                              #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
+                              {formatSourceTypeLabel(snapshot.source_type)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <input type="hidden" name="rank" value={String(seriesRank)} />
+                      <input type="hidden" name="status" value={selectedStatus} />
+                      <input type="hidden" name="source" value={selectedSource} />
+                      <input
+                        type="hidden"
+                        name="collector"
+                        value={selectedCollector}
+                      />
+                      <input
+                        type="hidden"
+                        name="captureStopReason"
+                        value={selectedCaptureStopReason}
+                      />
+                      <input
+                        type="hidden"
+                        name="ocrStopReason"
+                        value={selectedOcrStopReason}
+                      />
+                      <input
+                        type="hidden"
+                        name="ignoredReason"
+                        value={selectedIgnoredReason}
+                      />
+                      <input
+                        type="hidden"
+                        name="ocrStopLevel"
+                        value={selectedOcrStopLevel}
+                      />
+                      <button type="submit" className={styles.button}>
+                        비교
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </section>
+
+              {seriesResult.error ? (
+                <ErrorBox
+                  message={`컷오프 시계열을 불러오지 못했습니다. ${seriesResult.error}`}
+                />
+              ) : seriesResult.data ? (
+                <CutoffSeriesPanel series={seriesResult.data} />
+              ) : (
+                <EmptyBox message="컷오프 시계열을 표시할 데이터가 없습니다." />
               )}
-            </section>
 
-            {seriesResult.error ? (
-              <ErrorBox
-                message={`컷오프 시계열을 불러오지 못했습니다. ${seriesResult.error}`}
-              />
-            ) : seriesResult.data ? (
-              <CutoffSeriesPanel series={seriesResult.data} />
-            ) : (
-              <EmptyBox message="컷오프 시계열을 표시할 데이터가 없습니다." />
-            )}
-
-            {filteredCompareCandidates.length < 2 ? null : !canCompareSnapshots ? (
-              <ErrorBox message="같은 스냅샷 두 개는 비교할 수 없습니다." />
-            ) : comparisonHasError || compareResults === null ? (
-              <ErrorBox message="스냅샷 비교 데이터를 불러오지 못했습니다." />
-            ) : (
-              <SnapshotComparisonPanel
-                leftSnapshot={selectedCompareLeft}
-                rightSnapshot={selectedCompareRight}
-                leftSummary={compareResults[0].data!}
-                rightSummary={compareResults[1].data!}
-                leftCutoffs={compareResults[2].data!}
-                rightCutoffs={compareResults[3].data!}
-                leftDistribution={compareResults[4].data!}
-                rightDistribution={compareResults[5].data!}
-                leftValidationReport={compareResults[6].data!}
-                rightValidationReport={compareResults[7].data!}
-              />
-            )}
-
-            <section className={styles.panel}>
-              <div className={styles.panelTitle}>
-                <h2>빠른 이동</h2>
-              </div>
-              <p className={styles.muted}>
-                스냅샷 카드를 클릭하면 상세 통계와 엔트리 목록 화면으로 이동합니다.
-              </p>
-              <div className={styles.paginationLinks}>
-                <Link href="/" className={styles.linkButton}>
-                  시즌 목록
-                </Link>
-              </div>
-            </section>
+              <section className={styles.panel}>
+                <div className={styles.panelTitle}>
+                  <h2>빠른 이동</h2>
+                </div>
+                <div className={styles.panelBody}>
+                  <p className={styles.muted}>
+                    스냅샷 카드를 클릭하면 상세 통계와 엔트리 목록 화면으로 이동합니다.
+                  </p>
+                  <div className={styles.paginationLinks}>
+                    <Link href="/" className={styles.linkButton}>
+                      시즌 목록
+                    </Link>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
+
+          {filteredCompareCandidates.length < 2 ? null : !canCompareSnapshots ? (
+            <ErrorBox message="같은 스냅샷 두 개는 비교할 수 없습니다." />
+          ) : comparisonHasError || compareResults === null ? (
+            <ErrorBox message="스냅샷 비교 데이터를 불러오지 못했습니다." />
+          ) : (
+            <SnapshotComparisonPanel
+              leftSnapshot={selectedCompareLeft}
+              rightSnapshot={selectedCompareRight}
+              leftSummary={compareResults[0].data!}
+              rightSummary={compareResults[1].data!}
+              leftCutoffs={compareResults[2].data!}
+              rightCutoffs={compareResults[3].data!}
+              leftDistribution={compareResults[4].data!}
+              rightDistribution={compareResults[5].data!}
+              leftValidationReport={compareResults[6].data!}
+              rightValidationReport={compareResults[7].data!}
+            />
+          )}
         </div>
       )}
     </PageShell>
