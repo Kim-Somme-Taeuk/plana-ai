@@ -11,10 +11,14 @@ import type {
   SeasonCutoffSeries,
 } from "./types";
 
-const API_BASE_URL =
-  process.env.BACKEND_INTERNAL_URL ||
-  process.env.API_BASE_URL ||
-  "http://backend:8000";
+const EXPLICIT_API_BASE_URL =
+  process.env.BACKEND_INTERNAL_URL || process.env.API_BASE_URL || null;
+const DEFAULT_API_BASE_URL_CANDIDATES = [
+  "http://localhost:8000",
+  "http://backend:8000",
+];
+
+let resolvedApiBaseUrl: string | null = EXPLICIT_API_BASE_URL;
 
 function normalizeError(detail: unknown, fallback: string): string {
   if (typeof detail === "string") {
@@ -32,35 +36,45 @@ function normalizeError(detail: unknown, fallback: string): string {
 }
 
 async function fetchApi<T>(path: string): Promise<ApiResult<T>> {
-  try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-      },
-    });
+  const candidateBaseUrls = resolvedApiBaseUrl
+    ? [resolvedApiBaseUrl]
+    : DEFAULT_API_BASE_URL_CANDIDATES;
 
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
+  for (const baseUrl of candidateBaseUrls) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      resolvedApiBaseUrl = baseUrl;
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        return {
+          data: null,
+          error: normalizeError(payload?.detail, "데이터를 불러오지 못했습니다."),
+          status: response.status,
+        };
+      }
+
       return {
-        data: null,
-        error: normalizeError(payload?.detail, "데이터를 불러오지 못했습니다."),
+        data: payload as T,
+        error: null,
         status: response.status,
       };
+    } catch {
+      continue;
     }
-
-    return {
-      data: payload as T,
-      error: null,
-      status: response.status,
-    };
-  } catch {
-    return {
-      data: null,
-      error: "서버에 연결하지 못했습니다.",
-      status: 500,
-    };
   }
+
+  return {
+    data: null,
+    error: "서버에 연결하지 못했습니다.",
+    status: 500,
+  };
 }
 
 export function getSeasons() {

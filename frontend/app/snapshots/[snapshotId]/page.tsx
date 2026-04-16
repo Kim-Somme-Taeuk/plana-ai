@@ -24,41 +24,12 @@ type SnapshotPageProps = {
   params: Promise<{ snapshotId: string }>;
   searchParams: Promise<{
     isValid?: string;
-    page?: string;
     sortBy?: string;
     order?: string;
   }>;
 };
 
 const PAGE_SIZE = 20;
-
-function buildSnapshotQuery(params: {
-  isValid: string;
-  page: number;
-  sortBy: string;
-  order: string;
-}) {
-  const query = new URLSearchParams();
-
-  if (params.isValid !== "all") {
-    query.set("isValid", params.isValid);
-  }
-
-  if (params.page > 1) {
-    query.set("page", String(params.page));
-  }
-
-  if (params.sortBy !== "rank") {
-    query.set("sortBy", params.sortBy);
-  }
-
-  if (params.order !== "asc") {
-    query.set("order", params.order);
-  }
-
-  const built = query.toString();
-  return built ? `?${built}` : "";
-}
 
 export default async function SnapshotDetailPage({
   params,
@@ -72,11 +43,6 @@ export default async function SnapshotDetailPage({
     resolvedSearchParams.isValid === "false"
       ? resolvedSearchParams.isValid
       : "all";
-  const page =
-    Number.isNaN(Number(resolvedSearchParams.page)) ||
-    Number(resolvedSearchParams.page) < 1
-      ? 1
-      : Number(resolvedSearchParams.page);
   const sortBy =
     resolvedSearchParams.sortBy === "score" ? "score" : "rank";
   const order = resolvedSearchParams.order === "desc" ? "desc" : "asc";
@@ -110,25 +76,11 @@ export default async function SnapshotDetailPage({
       getSnapshotEntries(snapshot.id, {
         isValid: isValid === "all" ? undefined : isValid,
         limit: PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
+        offset: 0,
         sortBy,
         order,
       }),
     ]);
-
-  const previousPageQuery = buildSnapshotQuery({
-    isValid,
-    page: Math.max(page - 1, 1),
-    sortBy,
-    order,
-  });
-  const nextPageQuery = buildSnapshotQuery({
-    isValid,
-    page: page + 1,
-    sortBy,
-    order,
-  });
-
   return (
     <PageShell
       eyebrow="Snapshot Detail"
@@ -217,40 +169,9 @@ export default async function SnapshotDetailPage({
               <SnapshotEntryTable entries={entriesResult.data} />
               <div className={styles.pagination}>
                 <span className={styles.muted}>
-                  페이지 {page} / 표시 수 {entriesResult.data.length}
+                  최대 {PAGE_SIZE}개의 entry를 표시합니다. 더 많은 entry 탐색은
+                  backend API의 `limit`/`offset`을 직접 사용하세요.
                 </span>
-                <div className={styles.paginationLinks}>
-                  {page <= 1 ? (
-                    <span
-                      className={`${styles.linkButton} ${styles.disabledLink}`}
-                      aria-disabled="true"
-                    >
-                      이전
-                    </span>
-                  ) : (
-                    <Link
-                      href={`/snapshots/${snapshot.id}${previousPageQuery}`}
-                      className={styles.linkButton}
-                    >
-                      이전
-                    </Link>
-                  )}
-                  {entriesResult.data.length < PAGE_SIZE ? (
-                    <span
-                      className={`${styles.linkButton} ${styles.disabledLink}`}
-                      aria-disabled="true"
-                    >
-                      다음
-                    </span>
-                  ) : (
-                    <Link
-                      href={`/snapshots/${snapshot.id}${nextPageQuery}`}
-                      className={styles.linkButton}
-                    >
-                      다음
-                    </Link>
-                  )}
-                </div>
               </div>
             </>
           ) : (
