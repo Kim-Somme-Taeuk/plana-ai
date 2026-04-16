@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
+import collector.capture_import as capture_import
 from collector.capture_import import (
     build_mock_payload_from_capture,
     import_capture_payload,
@@ -35,6 +37,29 @@ def test_load_capture_import_payload_reads_manifest_directory(tmp_path: Path) ->
     assert payload.snapshot["captured_at"] == "2026-04-16T10:00:00Z"
     assert payload.snapshot["source_type"] == "image_sidecar"
     assert payload.pages[0].image_path == "page-001.png"
+
+
+def test_load_capture_import_payload_sets_tesseract_defaults(tmp_path: Path) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tesseract-default-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "language": "kor", "psm": 6},
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+
+    assert payload.snapshot["source_type"] == "image_tesseract"
+    assert payload.ocr.provider == "tesseract"
+    assert payload.ocr.command == "tesseract"
+    assert payload.ocr.language == "kor"
+    assert payload.ocr.psm == 6
 
 
 def test_build_mock_payload_from_capture_parses_entries_and_keeps_invalid_candidate(
@@ -203,11 +228,88 @@ def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_confide
     assert mock_payload.entries[0]["ocr_confidence"] == 0.87
 
 
+def test_build_mock_payload_from_capture_runs_tesseract_ocr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "unused sidecar\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tesseract-build-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "language": "eng", "psm": 6},
+    )
+
+    def fake_run(args, capture_output, text, check):
+        assert args == [
+            "tesseract",
+            str((tmp_path / "page-001.png").resolve()),
+            "stdout",
+            "-l",
+            "eng",
+            "--psm",
+            "6",
+        ]
+        assert capture_output is True
+        assert text is True
+        assert check is False
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.97\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert len(mock_payload.entries) == 2
+    assert mock_payload.entries[1]["rank"] == 10
+    assert mock_payload.entries[1]["player_name"] == "Arona"
+
+
+def test_build_mock_payload_from_capture_fails_when_tesseract_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "unused sidecar\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tesseract-missing-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract"},
+    )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: None)
+
+    payload = load_capture_import_payload(tmp_path)
+
+    with pytest.raises(MockImportError) as exc_info:
+        build_mock_payload_from_capture(payload)
+
+    assert "tesseract 명령을 찾을 수 없습니다" in str(exc_info.value)
+
+
 def _write_capture_manifest(
     base_dir: Path,
     *,
     season_label: str,
     pages: list[dict[str, object]],
+    snapshot: dict[str, object] | None = None,
+    ocr: dict[str, object] | None = None,
 ) -> None:
     manifest = {
         "season": {
@@ -217,13 +319,16 @@ def _write_capture_manifest(
             "terrain": "outdoor",
             "season_label": season_label,
         },
-        "snapshot": {
+        "snapshot": snapshot
+        or {
             "captured_at": "2026-04-16T10:00:00Z",
             "source_type": "image_sidecar",
             "note": "capture import test fixture",
         },
         "pages": pages,
     }
+    if ocr is not None:
+        manifest["ocr"] = ocr
     (base_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False),
         encoding="utf-8",

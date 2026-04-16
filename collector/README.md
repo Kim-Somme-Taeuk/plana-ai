@@ -7,20 +7,26 @@
 1. `mock_import.py`
    JSON 기반 mock 데이터 주입기
 2. `capture_import.py`
-   이미지 파일 + OCR sidecar 텍스트 기반 1차 실제 collector
+   이미지 파일 + OCR 추출 기반 1차 실제 collector
 
 루트 개요 문서는 [README.md](../README.md)를 먼저 참고하세요.
 
 ## 1. image capture import
 
-실제 OCR 엔진을 아직 번들링하지 않은 상태에서, 이미지 파일 + OCR sidecar 텍스트를 입력으로
-`season -> snapshot -> entries -> completed` 흐름을 검증하는 1차 실제 collector입니다.
+이미지 파일을 입력으로 `season -> snapshot -> entries -> completed` 흐름을 검증하는 1차 실제 collector입니다.
+
+현재 OCR 입력 방식은 두 가지입니다.
+
+1. `sidecar`
+   이미지와 같은 basename의 `.txt` 파일을 읽음
+2. `tesseract`
+   로컬 `tesseract` 명령을 실행해 이미지에서 직접 텍스트를 추출
 
 ### 흐름
 
 1. capture manifest 로드
 2. page별 이미지 경로 확인
-3. page별 OCR sidecar `.txt` 읽기
+3. page별 OCR 텍스트 읽기 또는 OCR 엔진 실행
 4. OCR line을 `rank / player_name / score / ocr_confidence`로 파싱
 5. 기존 backend API로 season / snapshot / entries / completed 적재
 
@@ -40,8 +46,10 @@
   },
   "snapshot": {
     "captured_at": "2026-04-16T10:20:00Z",
-    "source_type": "image_sidecar",
     "note": "sample valid capture import"
+  },
+  "ocr": {
+    "provider": "sidecar"
   },
   "pages": [
     {
@@ -49,6 +57,47 @@
     }
   ]
 }
+```
+
+`snapshot.source_type`을 생략하면 OCR provider에 맞춰 자동으로 채워집니다.
+
+- `sidecar` -> `image_sidecar`
+- `tesseract` -> `image_tesseract`
+
+### OCR provider 설정
+
+기본값은 `sidecar` 입니다.
+
+```json
+{
+  "ocr": {
+    "provider": "sidecar"
+  }
+}
+```
+
+`tesseract`를 직접 쓰려면:
+
+```json
+{
+  "ocr": {
+    "provider": "tesseract",
+    "command": "tesseract",
+    "language": "eng",
+    "psm": 6
+  }
+}
+```
+
+CLI에서 manifest 설정을 override할 수도 있습니다.
+
+```bash
+backend/.venv/bin/python collector/capture_import.py \
+  --ocr-provider tesseract \
+  --ocr-command tesseract \
+  --ocr-language eng \
+  --ocr-psm 6 \
+  collector/capture_data/sample_valid_capture
 ```
 
 기본 OCR sidecar는 같은 basename의 `.txt` 파일입니다.
@@ -73,13 +122,21 @@ backend/.venv/bin/python collector/capture_import.py collector/capture_data/samp
 backend/.venv/bin/python collector/capture_import.py collector/capture_data/sample_invalid_capture
 ```
 
+로컬 `tesseract`가 설치돼 있다면:
+
+```bash
+backend/.venv/bin/python collector/capture_import.py \
+  --ocr-provider tesseract \
+  collector/capture_data/sample_valid_capture
+```
+
 성공 시 `season_id`, `snapshot_id`, `page_count`, `entry_count`, `entry_ids`, `status`, `total_rows_collected`를 JSON으로 출력합니다.
 
 ### 주의사항
 
-- 현재 1차 collector는 OCR 엔진 대신 sidecar `.txt`를 사용합니다.
-- 이미지 파일과 OCR sidecar 파일이 둘 다 있어야 합니다.
-- `source_type`을 생략하면 `image_sidecar`로 기록됩니다.
+- `sidecar` provider는 이미지 파일과 OCR sidecar 파일이 둘 다 있어야 합니다.
+- `tesseract` provider는 로컬에 `tesseract` 명령이 있어야 합니다.
+- `source_type`을 생략하면 OCR provider에 맞는 기본값으로 기록됩니다.
 - 같은 capture를 다시 넣으면 `season_label` 중복으로 실패합니다.
 - OCR line 파싱에 실패하면 import를 중단합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.

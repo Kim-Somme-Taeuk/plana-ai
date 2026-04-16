@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,7 +32,13 @@ from collector.mock_import import (
     import_mock_payload,
 )
 
-CAPTURE_SOURCE_TYPE = "image_sidecar"
+OCR_PROVIDER_SIDECAR = "sidecar"
+OCR_PROVIDER_TESSERACT = "tesseract"
+CAPTURE_SOURCE_TYPE_BY_PROVIDER = {
+    OCR_PROVIDER_SIDECAR: "image_sidecar",
+    OCR_PROVIDER_TESSERACT: "image_tesseract",
+}
+DEFAULT_TESSERACT_COMMAND = "tesseract"
 
 
 @dataclass(frozen=True)
@@ -41,14 +49,30 @@ class CapturePage:
 
 
 @dataclass(frozen=True)
+class OcrConfig:
+    provider: str
+    command: str | None
+    language: str | None
+    psm: int | None
+
+
+@dataclass(frozen=True)
 class CaptureImportPayload:
     base_dir: Path
     season: dict[str, Any]
     snapshot: dict[str, Any]
     pages: list[CapturePage]
+    ocr: OcrConfig
 
 
-def load_capture_import_payload(path: str | Path) -> CaptureImportPayload:
+def load_capture_import_payload(
+    path: str | Path,
+    *,
+    ocr_provider: str | None = None,
+    ocr_command: str | None = None,
+    ocr_language: str | None = None,
+    ocr_psm: int | None = None,
+) -> CaptureImportPayload:
     manifest_path = _resolve_manifest_path(path)
 
     try:
@@ -70,6 +94,14 @@ def load_capture_import_payload(path: str | Path) -> CaptureImportPayload:
     _require_fields(season, SEASON_REQUIRED_FIELDS, "season")
     _require_fields(snapshot, SNAPSHOT_REQUIRED_FIELDS, "snapshot")
 
+    ocr_config = _build_ocr_config(
+        root.get("ocr"),
+        provider_override=ocr_provider,
+        command_override=ocr_command,
+        language_override=ocr_language,
+        psm_override=ocr_psm,
+    )
+
     capture_pages = [
         _build_capture_page(page, index, manifest_path.parent)
         for index, page in enumerate(pages, start=1)
@@ -80,9 +112,13 @@ def load_capture_import_payload(path: str | Path) -> CaptureImportPayload:
         season=season,
         snapshot={
             **snapshot,
-            "source_type": snapshot.get("source_type", CAPTURE_SOURCE_TYPE),
+            "source_type": snapshot.get(
+                "source_type",
+                CAPTURE_SOURCE_TYPE_BY_PROVIDER[ocr_config.provider],
+            ),
         },
         pages=capture_pages,
+        ocr=ocr_config,
     )
 
 
@@ -93,8 +129,12 @@ def build_mock_payload_from_capture(
 
     for page_index, page in enumerate(payload.pages, start=1):
         image_path = _resolve_existing_path(payload.base_dir, page.image_path, "image_path")
-        text_path = _resolve_ocr_text_path(payload.base_dir, page)
-        ocr_text = text_path.read_text(encoding="utf-8")
+        ocr_text = _load_ocr_text(
+            base_dir=payload.base_dir,
+            page=page,
+            image_path=image_path,
+            ocr=payload.ocr,
+        )
 
         page_entries = _parse_page_entries(
             ocr_text=ocr_text,
@@ -182,6 +222,103 @@ def _resolve_ocr_text_path(base_dir: Path, page: CapturePage) -> Path:
             f"{inferred_path}"
         )
     return inferred_path
+
+
+def _load_ocr_text(
+    *,
+    base_dir: Path,
+    page: CapturePage,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> str:
+    if page.ocr_text_path is not None:
+        return _resolve_ocr_text_path(base_dir, page).read_text(encoding="utf-8")
+
+    if ocr.provider == OCR_PROVIDER_SIDECAR:
+        return _resolve_ocr_text_path(base_dir, page).read_text(encoding="utf-8")
+    if ocr.provider == OCR_PROVIDER_TESSERACT:
+        return _run_tesseract_ocr(image_path, ocr)
+
+    raise MockImportError(f"지원하지 않는 OCR provider입니다: {ocr.provider}")
+
+
+def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
+    command = ocr.command or DEFAULT_TESSERACT_COMMAND
+    if shutil.which(command) is None:
+        raise MockImportError(
+            "tesseract 명령을 찾을 수 없습니다. "
+            f"command={command!r}, image_path={image_path}"
+        )
+
+    args = [command, str(image_path), "stdout"]
+    if ocr.language:
+        args.extend(["-l", ocr.language])
+    if ocr.psm is not None:
+        args.extend(["--psm", str(ocr.psm)])
+
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise MockImportError(
+            f"tesseract 실행에 실패했습니다: command={command!r}, image_path={image_path}"
+        ) from exc
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip() or "unknown error"
+        raise MockImportError(
+            "tesseract OCR에 실패했습니다. "
+            f"image_path={image_path}, returncode={result.returncode}, stderr={stderr}"
+        )
+
+    ocr_text = result.stdout.strip()
+    if not ocr_text:
+        raise MockImportError(
+            f"tesseract OCR 결과가 비어 있습니다: image_path={image_path}"
+        )
+    return ocr_text
+
+
+def _build_ocr_config(
+    raw_ocr: Any,
+    *,
+    provider_override: str | None,
+    command_override: str | None,
+    language_override: str | None,
+    psm_override: int | None,
+) -> OcrConfig:
+    ocr_mapping = _require_optional_mapping(raw_ocr, "ocr")
+
+    provider = provider_override or ocr_mapping.get("provider") or OCR_PROVIDER_SIDECAR
+    if provider not in CAPTURE_SOURCE_TYPE_BY_PROVIDER:
+        supported = ", ".join(sorted(CAPTURE_SOURCE_TYPE_BY_PROVIDER))
+        raise MockImportError(
+            f"지원하지 않는 OCR provider입니다: {provider}. supported={supported}"
+        )
+
+    command = command_override or ocr_mapping.get("command")
+    language = language_override or ocr_mapping.get("language")
+    raw_psm = psm_override if psm_override is not None else ocr_mapping.get("psm")
+    psm = None
+    if raw_psm is not None:
+        try:
+            psm = int(raw_psm)
+        except (TypeError, ValueError) as exc:
+            raise MockImportError("ocr.psm은 정수여야 합니다.") from exc
+
+    if provider == OCR_PROVIDER_TESSERACT and command is None:
+        command = DEFAULT_TESSERACT_COMMAND
+
+    return OcrConfig(
+        provider=provider,
+        command=command,
+        language=language,
+        psm=psm,
+    )
 
 
 def _parse_page_entries(
@@ -371,6 +508,12 @@ def _require_mapping(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
+def _require_optional_mapping(value: Any, label: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    return _require_mapping(value, label)
+
+
 def _require_fields(
     value: dict[str, Any],
     required_fields: tuple[str, ...],
@@ -402,6 +545,24 @@ def build_parser() -> argparse.ArgumentParser:
             f"(default: {DEFAULT_API_BASE_URL}, env: PLANA_AI_API_BASE_URL)"
         ),
     )
+    parser.add_argument(
+        "--ocr-provider",
+        choices=sorted(CAPTURE_SOURCE_TYPE_BY_PROVIDER),
+        help="OCR provider override (default: manifest 설정 또는 sidecar)",
+    )
+    parser.add_argument(
+        "--ocr-command",
+        help="OCR 명령 경로 override. tesseract provider에서 사용합니다.",
+    )
+    parser.add_argument(
+        "--ocr-language",
+        help="OCR language override. tesseract provider에서 -l 옵션으로 전달합니다.",
+    )
+    parser.add_argument(
+        "--ocr-psm",
+        type=int,
+        help="OCR page segmentation mode override. tesseract provider에서 --psm으로 전달합니다.",
+    )
     return parser
 
 
@@ -410,7 +571,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        payload = load_capture_import_payload(args.capture_path)
+        payload = load_capture_import_payload(
+            args.capture_path,
+            ocr_provider=args.ocr_provider,
+            ocr_command=args.ocr_command,
+            ocr_language=args.ocr_language,
+            ocr_psm=args.ocr_psm,
+        )
         mock_payload = build_mock_payload_from_capture(payload)
         result = import_mock_payload(mock_payload, ApiClient(args.base_url))
     except MockImportError as exc:
