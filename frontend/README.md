@@ -26,6 +26,7 @@
 - season validation overview / issue 집계
 - snapshot 목록
 - snapshot status / source 필터
+- snapshot compare 패널
 - cutoff-series 표시
 - 로딩 / 에러 / 빈 상태 처리
 

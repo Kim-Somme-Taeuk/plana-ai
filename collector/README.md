@@ -135,7 +135,7 @@ backend/.venv/bin/python collector/capture_import.py \
 ```
 
 성공 시 `season_id`, `snapshot_id`, `page_count`, `entry_count`, `entry_ids`, `status`, `total_rows_collected`를 JSON으로 출력합니다.
-`ignored_line_count`와 `ignored_lines`도 함께 출력해서 OCR header/footer 잡음 줄을 확인할 수 있습니다.
+`ignored_line_count`, `ignored_line_reasons`, `ignored_lines`도 함께 출력해서 OCR header/footer/blank line 잡음 줄을 확인할 수 있습니다.
 
 ### 주의사항
 
@@ -149,6 +149,7 @@ backend/.venv/bin/python collector/capture_import.py \
 - whitespace fallback의 confidence token도 같은 보정 규칙을 적용합니다.
 - whitespace fallback에서는 `12 345 678`처럼 공백으로 분리된 score token도 보수적으로 합쳐서 파싱합니다.
 - rank로 시작하지 않는 OCR 잡음 줄은 import 전에 무시하고 결과에 `ignored_lines`로 남깁니다.
+- 빈 줄도 `blank_line` reason으로 집계합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
@@ -248,7 +249,8 @@ backend/.venv/bin/python collector/adb_capture.py \
 ```
 
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`,
-`requested_page_count`, `captured_page_count`, `stopped_reason`을 JSON으로 출력합니다.
+`requested_page_count`, `captured_page_count`, `stopped_reason`,
+`ignored_line_count`, `ignored_line_reasons`를 JSON으로 출력합니다.
 
 ### 주의사항
 
