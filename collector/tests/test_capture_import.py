@@ -235,11 +235,14 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "new_rank_ratio": 1.0,
         }
     ]
-    assert parsed_payload.mock_payload.snapshot["note"] == (
-        "capture import test fixture\n"
-        "collector: ignored=3(blank_line=1,header_line=1,metadata_line=1); "
+    note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
+    assert note_lines[0] == "capture import test fixture"
+    assert (
+        note_lines[1]
+        == "collector: ignored=3(blank_line=1,header_line=1,metadata_line=1); "
         "ocr_stop=noisy_last_page(hard)"
     )
+    assert note_lines[2].startswith("collector_json: ")
 
 
 def test_parse_capture_payload_classifies_separator_lines(
@@ -421,11 +424,14 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "new_rank_count": 0,
         "new_rank_ratio": 0.0,
     }
-    assert parsed_payload.mock_payload.snapshot["note"] == (
-        "capture import test fixture\n"
-        "collector: ignored=3(blank_line=1,metadata_line=1,separator_line=1); "
+    note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
+    assert note_lines[0] == "capture import test fixture"
+    assert (
+        note_lines[1]
+        == "collector: ignored=3(blank_line=1,metadata_line=1,separator_line=1); "
         "ocr_stop=empty_last_page(hard)"
     )
+    assert note_lines[2].startswith("collector_json: ")
 
 
 def test_parse_capture_payload_appends_capture_summary_to_snapshot_note(
@@ -450,11 +456,14 @@ def test_parse_capture_payload_appends_capture_summary_to_snapshot_note(
     payload = load_capture_import_payload(tmp_path)
     parsed_payload = parse_capture_payload(payload)
 
-    assert parsed_payload.mock_payload.snapshot["note"] == (
-        "capture import test fixture\n"
-        "collector: pages=2/3; capture_stop=noisy_last_page; "
+    note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
+    assert note_lines[0] == "capture import test fixture"
+    assert (
+        note_lines[1]
+        == "collector: pages=2/3; capture_stop=noisy_last_page; "
         "ignored=1(non_entry_line=1); ocr_stop=noisy_last_page(hard)"
     )
+    assert note_lines[2].startswith("collector_json: ")
 
 
 def test_parse_capture_payload_raises_when_all_pages_are_empty(

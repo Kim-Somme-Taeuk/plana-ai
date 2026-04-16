@@ -136,6 +136,7 @@ backend/.venv/bin/python collector/capture_import.py \
 
 성공 시 `season_id`, `snapshot_id`, `page_count`, `entry_count`, `entry_ids`, `status`, `total_rows_collected`를 JSON으로 출력합니다.
 `ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ocr_stop_hints`, `ocr_stop_recommendation`, `ignored_lines`도 함께 출력해서 OCR header/metadata/blank line 잡음 줄, 페이지별 파싱 상태, 마지막 페이지 종료 힌트를 확인할 수 있습니다.
+import 시 생성되는 snapshot `note`에는 요약용 `collector:` 라인과 상세용 `collector_json:` 라인이 함께 저장되어, 이후 backend API와 dashboard에서 page summary / stop recommendation을 다시 확인할 수 있습니다.
 
 ### 주의사항
 

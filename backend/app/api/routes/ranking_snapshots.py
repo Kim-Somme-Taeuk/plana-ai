@@ -14,7 +14,10 @@ from app.models.season import Season
 from app.schemas.ranking_statistics import (
     CollectorDiagnosticsRead,
     CollectorIgnoredReasonCountRead,
+    CollectorPageSummaryRead,
     CollectorReasonCountRead,
+    CollectorStopHintRead,
+    CollectorStopRecommendationRead,
     RankingSnapshotCutoffRead,
     RankingSnapshotCutoffsRead,
     RankingSnapshotDistributionRead,
@@ -171,6 +174,19 @@ def _build_collector_diagnostics_read(
         ],
         ocr_stop_reason=summary.ocr_stop_reason,
         ocr_stop_level=summary.ocr_stop_level,
+        page_summaries=[
+            CollectorPageSummaryRead(**page_summary)
+            for page_summary in summary.page_summaries
+        ],
+        ocr_stop_hints=[
+            CollectorStopHintRead(**hint)
+            for hint in summary.ocr_stop_hints
+        ],
+        ocr_stop_recommendation=(
+            CollectorStopRecommendationRead(**summary.ocr_stop_recommendation)
+            if summary.ocr_stop_recommendation is not None
+            else None
+        ),
     )
 
 

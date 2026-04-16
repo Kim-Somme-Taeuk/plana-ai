@@ -363,54 +363,144 @@ export function SnapshotValidationReportPanel({
         />
       </div>
       {collectorDiagnostics ? (
-        <div className={styles.twoColumnGrid}>
-          <div className={styles.subPanel}>
-            <div className={styles.panelTitle}>
-              <h3>Collector Stop Drilldown</h3>
+        <>
+          <div className={styles.threeColumnGrid}>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>Collector Stop Drilldown</h3>
+              </div>
+              <div className={styles.paginationLinks}>
+                {collectorDiagnostics.capture_stop_reason ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=capture_stop&captureStopReason=${encodeURIComponent(
+                      collectorDiagnostics.capture_stop_reason,
+                    )}`}
+                    className={styles.linkButton}
+                  >
+                    capture:{collectorDiagnostics.capture_stop_reason}
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.ocr_stop_reason ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&ocrStopReason=${encodeURIComponent(
+                      collectorDiagnostics.ocr_stop_reason,
+                    )}${
+                      collectorDiagnostics.ocr_stop_level
+                        ? `&ocrStopLevel=${encodeURIComponent(collectorDiagnostics.ocr_stop_level)}`
+                        : ""
+                    }`}
+                    className={styles.linkButton}
+                  >
+                    ocr:{collectorDiagnostics.ocr_stop_reason}
+                    {collectorDiagnostics.ocr_stop_level
+                      ? ` (${collectorDiagnostics.ocr_stop_level})`
+                      : ""}
+                  </Link>
+                ) : null}
+                {!collectorDiagnostics.capture_stop_reason &&
+                !collectorDiagnostics.ocr_stop_reason ? (
+                  <span className={styles.muted}>collector stop signal이 없습니다.</span>
+                ) : null}
+              </div>
             </div>
-            <div className={styles.paginationLinks}>
-              {collectorDiagnostics.capture_stop_reason ? (
-                <Link
-                  href={`/seasons/${seasonId}?collector=capture_stop&captureStopReason=${encodeURIComponent(
-                    collectorDiagnostics.capture_stop_reason,
-                  )}`}
-                  className={styles.linkButton}
-                >
-                  capture:{collectorDiagnostics.capture_stop_reason}
-                </Link>
-              ) : null}
-              {collectorDiagnostics.ocr_stop_reason ? (
-                <Link
-                  href={`/seasons/${seasonId}?collector=with_diagnostics&ocrStopReason=${encodeURIComponent(
-                    collectorDiagnostics.ocr_stop_reason,
-                  )}${
-                    collectorDiagnostics.ocr_stop_level
-                      ? `&ocrStopLevel=${encodeURIComponent(collectorDiagnostics.ocr_stop_level)}`
-                      : ""
-                  }`}
-                  className={styles.linkButton}
-                >
-                  ocr:{collectorDiagnostics.ocr_stop_reason}
-                  {collectorDiagnostics.ocr_stop_level
-                    ? ` (${collectorDiagnostics.ocr_stop_level})`
-                    : ""}
-                </Link>
-              ) : null}
-              {!collectorDiagnostics.capture_stop_reason &&
-              !collectorDiagnostics.ocr_stop_reason ? (
-                <span className={styles.muted}>collector stop signal이 없습니다.</span>
-              ) : null}
+            <ReasonSummaryPanel
+              title="Ignored OCR Reason Drilldown"
+              rows={collectorDiagnostics.ignored_reasons}
+              emptyMessage="ignored OCR reason이 없습니다."
+              getHref={(reason) =>
+                `/seasons/${seasonId}?collector=with_diagnostics&ignoredReason=${encodeURIComponent(reason)}`
+              }
+            />
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>OCR Stop Recommendation</h3>
+              </div>
+              {collectorDiagnostics.ocr_stop_recommendation ? (
+                <div className={styles.keyValueList}>
+                  <div className={styles.keyValueRow}>
+                    <span>Should Stop</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation.should_stop
+                        ? "yes"
+                        : "no"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>Level</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation.level ?? "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>Primary Reason</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation.primary_reason ??
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>Reasons</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation.reasons.length > 0
+                        ? collectorDiagnostics.ocr_stop_recommendation.reasons.join(
+                            ", ",
+                          )
+                        : "-"}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                <EmptyBox message="저장된 OCR stop recommendation이 없습니다." />
+              )}
             </div>
           </div>
-          <ReasonSummaryPanel
-            title="Ignored OCR Reason Drilldown"
-            rows={collectorDiagnostics.ignored_reasons}
-            emptyMessage="ignored OCR reason이 없습니다."
-            getHref={(reason) =>
-              `/seasons/${seasonId}?collector=with_diagnostics&ignoredReason=${encodeURIComponent(reason)}`
-            }
-          />
-        </div>
+          {collectorDiagnostics.page_summaries.length > 0 ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Page</th>
+                    <th>Entries</th>
+                    <th>Ignored OCR</th>
+                    <th>Rank Range</th>
+                    <th>New Ranks</th>
+                    <th>Overlap</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {collectorDiagnostics.page_summaries.map((pageSummary) => (
+                    <tr key={pageSummary.page_index}>
+                      <td>#{pageSummary.page_index}</td>
+                      <td>{pageSummary.entry_count.toLocaleString()}</td>
+                      <td>
+                        {pageSummary.ignored_line_count.toLocaleString()}
+                        {pageSummary.ignored_line_reasons.length > 0
+                          ? ` (${pageSummary.ignored_line_reasons
+                              .map((row) => `${row.reason}=${row.count}`)
+                              .join(", ")})`
+                          : ""}
+                      </td>
+                      <td>
+                        {formatRankRange(
+                          pageSummary.first_rank,
+                          pageSummary.last_rank,
+                        )}
+                      </td>
+                      <td>
+                        {pageSummary.new_rank_count.toLocaleString()} (
+                        {formatPercent(pageSummary.new_rank_ratio)})
+                      </td>
+                      <td>
+                        {pageSummary.overlap_with_previous_count.toLocaleString()} (
+                        {formatPercent(pageSummary.overlap_with_previous_ratio)})
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
@@ -1428,6 +1518,18 @@ function formatPercent(value: number) {
     maximumFractionDigits: 1,
     minimumFractionDigits: value === 0 ? 0 : 1,
   }).format(value);
+}
+
+function formatRankRange(firstRank: number | null, lastRank: number | null) {
+  if (firstRank === null && lastRank === null) {
+    return "-";
+  }
+  if (firstRank === lastRank) {
+    return firstRank?.toLocaleString() ?? "-";
+  }
+  return `${firstRank?.toLocaleString() ?? "?"} - ${
+    lastRank?.toLocaleString() ?? "?"
+  }`;
 }
 
 function getTopValidationIssue(

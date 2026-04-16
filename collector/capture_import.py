@@ -58,6 +58,8 @@ PAGINATION_RE = re.compile(
     r"^(?:page\s*)?\d+\s*(?:/|of)\s*\d+$",
     re.IGNORECASE,
 )
+COLLECTOR_SUMMARY_PREFIX = "collector: "
+COLLECTOR_JSON_PREFIX = "collector_json: "
 
 
 @dataclass(frozen=True)
@@ -433,10 +435,49 @@ def _build_snapshot_note_with_collector_summary(
     if not summary_parts:
         return existing_note_text or None
 
-    collector_summary = "collector: " + "; ".join(summary_parts)
+    collector_summary = COLLECTOR_SUMMARY_PREFIX + "; ".join(summary_parts)
+    collector_details = _build_collector_details_line(page_summaries)
     if existing_note_text:
-        return f"{existing_note_text}\n{collector_summary}"
-    return collector_summary
+        return "\n".join(
+            line
+            for line in (existing_note_text, collector_summary, collector_details)
+            if line
+        )
+    return "\n".join(line for line in (collector_summary, collector_details) if line)
+
+
+def _build_collector_details_line(page_summaries: list[dict[str, Any]]) -> str | None:
+    if not page_summaries:
+        return None
+
+    payload = {
+        "page_summaries": [
+            {
+                "page_index": summary["page_index"],
+                "image_path": summary["image_path"],
+                "entry_count": summary["entry_count"],
+                "ignored_line_count": summary["ignored_line_count"],
+                "ignored_line_reasons": summary["ignored_line_reasons"],
+                "first_rank": summary["first_rank"],
+                "last_rank": summary["last_rank"],
+                "overlap_with_previous_count": summary["overlap_with_previous_count"],
+                "overlap_with_previous_ratio": summary["overlap_with_previous_ratio"],
+                "new_rank_count": summary["new_rank_count"],
+                "new_rank_ratio": summary["new_rank_ratio"],
+            }
+            for summary in page_summaries
+        ],
+        "ocr_stop_hints": build_ocr_stop_hints(page_summaries),
+        "ocr_stop_recommendation": build_ocr_stop_recommendation(
+            build_ocr_stop_hints(page_summaries)
+        ),
+    }
+    return COLLECTOR_JSON_PREFIX + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
 
 
 def _resolve_manifest_path(path: str | Path) -> Path:

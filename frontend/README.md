@@ -54,6 +54,7 @@ snapshot 상세 페이지입니다.
 - `GET /ranking-snapshots/{snapshot_id}`
 - `GET /ranking-snapshots/{snapshot_id}/summary`
 - `GET /ranking-snapshots/{snapshot_id}/validation-report`
+  - snapshot 상세에서 collector page summary, ignored OCR breakdown, OCR stop recommendation까지 함께 표시합니다.
 - `GET /ranking-snapshots/{snapshot_id}/cutoffs`
 - `GET /ranking-snapshots/{snapshot_id}/distribution`
 - `GET /ranking-snapshots/{snapshot_id}/entries`

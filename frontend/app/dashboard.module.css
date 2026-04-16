@@ -361,6 +361,26 @@
   gap: 10px;
 }
 
+.keyValueList {
+  display: grid;
+  gap: 10px;
+}
+
+.keyValueRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(89, 110, 82, 0.12);
+  font-size: 14px;
+}
+
+.keyValueRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
 .linkButton {
   display: inline-flex;
   align-items: center;

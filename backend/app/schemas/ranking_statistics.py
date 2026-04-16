@@ -18,6 +18,38 @@ class CollectorReasonCountRead(BaseModel):
     count: int
 
 
+class CollectorPageSummaryRead(BaseModel):
+    page_index: int
+    image_path: str
+    entry_count: int
+    ignored_line_count: int
+    ignored_line_reasons: list[CollectorIgnoredReasonCountRead]
+    first_rank: int | None = None
+    last_rank: int | None = None
+    overlap_with_previous_count: int
+    overlap_with_previous_ratio: float
+    new_rank_count: int
+    new_rank_ratio: float
+
+
+class CollectorStopHintRead(BaseModel):
+    reason: str
+    page_index: int | None = None
+    entry_count: int | None = None
+    ignored_line_count: int | None = None
+    overlap_with_previous_count: int | None = None
+    overlap_with_previous_ratio: float | None = None
+    new_rank_count: int | None = None
+    new_rank_ratio: float | None = None
+
+
+class CollectorStopRecommendationRead(BaseModel):
+    should_stop: bool
+    level: str | None = None
+    primary_reason: str | None = None
+    reasons: list[str]
+
+
 class CollectorDiagnosticsRead(BaseModel):
     raw_summary: str
     captured_page_count: int | None = None
@@ -27,6 +59,9 @@ class CollectorDiagnosticsRead(BaseModel):
     ignored_reasons: list[CollectorIgnoredReasonCountRead]
     ocr_stop_reason: str | None = None
     ocr_stop_level: str | None = None
+    page_summaries: list[CollectorPageSummaryRead]
+    ocr_stop_hints: list[CollectorStopHintRead]
+    ocr_stop_recommendation: CollectorStopRecommendationRead | None = None
 
 
 class ValidationTopIssueRead(BaseModel):

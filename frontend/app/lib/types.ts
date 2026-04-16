@@ -56,6 +56,38 @@ export type CollectorReasonCount = {
   count: number;
 };
 
+export type CollectorPageSummary = {
+  page_index: number;
+  image_path: string;
+  entry_count: number;
+  ignored_line_count: number;
+  ignored_line_reasons: CollectorIgnoredReasonCount[];
+  first_rank: number | null;
+  last_rank: number | null;
+  overlap_with_previous_count: number;
+  overlap_with_previous_ratio: number;
+  new_rank_count: number;
+  new_rank_ratio: number;
+};
+
+export type CollectorStopHint = {
+  reason: string;
+  page_index: number | null;
+  entry_count: number | null;
+  ignored_line_count: number | null;
+  overlap_with_previous_count: number | null;
+  overlap_with_previous_ratio: number | null;
+  new_rank_count: number | null;
+  new_rank_ratio: number | null;
+};
+
+export type CollectorStopRecommendation = {
+  should_stop: boolean;
+  level: string | null;
+  primary_reason: string | null;
+  reasons: string[];
+};
+
 export type CollectorDiagnostics = {
   raw_summary: string;
   captured_page_count: number | null;
@@ -65,6 +97,9 @@ export type CollectorDiagnostics = {
   ignored_reasons: CollectorIgnoredReasonCount[];
   ocr_stop_reason: string | null;
   ocr_stop_level: string | null;
+  page_summaries: CollectorPageSummary[];
+  ocr_stop_hints: CollectorStopHint[];
+  ocr_stop_recommendation: CollectorStopRecommendation | null;
 };
 
 export type ValidationTopIssue = {
