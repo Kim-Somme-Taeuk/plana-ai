@@ -253,7 +253,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`,
 `requested_page_count`, `captured_page_count`, `stopped_reason`,
 `ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ocr_stop_hints`,
-`ocr_stop_recommendation`을 JSON으로 출력합니다.
+`ocr_stop_recommendation`, `pipeline_stop_recommendation`을 JSON으로 출력합니다.
 
 ### 주의사항
 
@@ -261,6 +261,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 - 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
 - 마지막 페이지 판정 2차는 screenshot 바이트 동일 또는 과거 프레임 재등장 여부 기반입니다.
 - OCR import 이후에는 `ocr_stop_hints`로 `sparse_last_page`, `noisy_last_page` 같은 후속 종료 힌트를 남깁니다.
+- `pipeline_stop_recommendation`은 capture 종료 사유와 OCR 종료 힌트를 합쳐 후속 자동화가 바로 쓸 수 있는 최종 stop 판단입니다.
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
 
