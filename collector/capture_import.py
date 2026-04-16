@@ -187,9 +187,12 @@ def parse_capture_payload(
         overlap_count = 0
         overlap_ratio = 0.0
         if previous_page_ranks:
-            overlap_count = len(previous_page_ranks & current_page_ranks)
+            overlap_ranks = sorted(previous_page_ranks & current_page_ranks)
+            overlap_count = len(overlap_ranks)
             if current_page_ranks:
                 overlap_ratio = overlap_count / len(current_page_ranks)
+        else:
+            overlap_ranks = []
         page_summaries.append(
             {
                 "page_index": page_index,
@@ -201,11 +204,12 @@ def parse_capture_payload(
                 "last_rank": max(current_page_ranks),
                 "overlap_with_previous_count": overlap_count,
                 "overlap_with_previous_ratio": round(overlap_ratio, 4),
+                "overlap_with_previous_ranks": overlap_ranks,
             }
         )
         previous_page_ranks = current_page_ranks
 
-    _validate_snapshot_entries(entries)
+    _validate_snapshot_entries(entries, page_summaries)
 
     return ParsedCapturePayload(
         mock_payload=MockImportPayload(
@@ -696,15 +700,28 @@ def _normalize_player_name(value: str) -> str:
     return " ".join(value.split())
 
 
-def _validate_snapshot_entries(entries: list[dict[str, Any]]) -> None:
+def _validate_snapshot_entries(
+    entries: list[dict[str, Any]],
+    page_summaries: list[dict[str, Any]],
+) -> None:
     summary = summarize_snapshot_entries(entries)
 
     if summary.duplicate_ranks:
         joined_ranks = ", ".join(str(rank) for rank in summary.duplicate_ranks)
+        overlap_hints = [
+            f"{page_summaries[index - 1]['page_index']}-{page_summary['page_index']}"
+            for index, page_summary in enumerate(page_summaries)
+            if index > 0 and page_summary["overlap_with_previous_count"] > 0
+        ]
+        overlap_hint_suffix = ""
+        if overlap_hints:
+            overlap_hint_suffix = (
+                ", overlapping_page_pairs=" + ", ".join(overlap_hints)
+            )
         raise MockImportError(
             "capture entries 사전 검증에 실패했습니다. "
             f"validation_issue={ValidationIssueCode.DUPLICATE_RANK.value}, "
-            f"duplicate_ranks={joined_ranks}"
+            f"duplicate_ranks={joined_ranks}{overlap_hint_suffix}"
         )
 
     if summary.has_rank_order_violation:

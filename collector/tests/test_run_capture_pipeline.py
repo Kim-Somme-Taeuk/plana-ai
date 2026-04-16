@@ -384,6 +384,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
             "last_rank": 1,
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
+            "overlap_with_previous_ranks": [],
         }
     ]
 

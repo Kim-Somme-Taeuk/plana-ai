@@ -182,6 +182,7 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "last_rank": 1,
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
+            "overlap_with_previous_ranks": [],
         }
     ]
 
@@ -247,6 +248,7 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "last_rank": 2,
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
+            "overlap_with_previous_ranks": [],
         },
         {
             "page_index": 2,
@@ -260,8 +262,40 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "last_rank": 4,
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
+            "overlap_with_previous_ranks": [],
         },
     ]
+
+
+def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_duplicate_rank(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12345678\t0.99\n2\tArona\t12000000\t0.97\n",
+    )
+    _write_capture_page(
+        tmp_path,
+        "page-002.png",
+        "2\tArona\t12000000\t0.97\n3\tSensei\t11000000\t0.95\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-page-overlap-duplicate-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+        ],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+
+    with pytest.raises(MockImportError) as exc_info:
+        build_mock_payload_from_capture(payload)
+
+    assert "duplicate_rank" in str(exc_info.value)
+    assert "overlapping_page_pairs=1-2" in str(exc_info.value)
 
 
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
