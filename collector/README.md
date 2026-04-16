@@ -255,7 +255,8 @@ backend/.venv/bin/python collector/adb_capture.py \
 ```
 
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`,
-`requested_page_count`, `captured_page_count`, `stopped_reason`,
+`requested_page_count`, `captured_page_count`, `stopped_reason`, `stopped_source`,
+`stopped_level`,
 `ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ocr_stop_hints`,
 `ocr_stop_recommendation`, `pipeline_stop_recommendation`을 JSON으로 출력합니다.
 
@@ -265,6 +266,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 - 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
 - 마지막 페이지 판정 2차는 screenshot 바이트 동일 또는 과거 프레임 재등장 여부 기반입니다.
 - OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page` 같은 후속 종료 힌트를 남깁니다.
+- `ocr_stop_recommendation`은 `hard` / `soft` level과 `primary_reason`을 함께 반환합니다.
 - `pipeline_stop_recommendation`은 capture 종료 사유와 OCR 종료 힌트를 합쳐 후속 자동화가 바로 쓸 수 있는 최종 stop 판단입니다.
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
@@ -293,6 +295,7 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
   --ocr-provider tesseract \
   --ocr-language eng \
   --ocr-psm 6 \
+  --stop-capture-on-soft-recommendation \
   --stop-on-recommendation \
   --output-dir /tmp/plana-pipeline-run \
   collector/adb_data/sample_request.json
@@ -300,7 +303,8 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `season_id`, `snapshot_id`,
 `entry_count`, `entry_ids`, `status`, `total_rows_collected`, `ocr_provider`,
-`requested_page_count`, `captured_page_count`, `stopped_reason`, `ignored_line_count`를 JSON으로 출력합니다.
+`requested_page_count`, `captured_page_count`, `stopped_reason`, `ignored_line_count`,
+`ocr_stop_recommendation`, `pipeline_stop_recommendation`를 JSON으로 출력합니다.
 
 ### 주의사항
 
@@ -308,6 +312,8 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 - 요청 파일에 `ocr.provider`를 생략하면 통합 파이프라인에서는 `tesseract`를 기본값으로 사용합니다.
 - 요청 또는 CLI에서 `stop_on_recommendation`을 켜면 `hard` recommendation(`empty_last_page`, `noisy_last_page`, capture stop 사유)이 있을 때 backend import를 건너뜁니다.
 - `pipeline.stop_on_recommendation: "any"` 또는 `--stop-on-soft-recommendation`을 쓰면 `soft` recommendation(`sparse_last_page`, `overlapping_last_page`)까지 포함해서 import를 건너뜁니다.
+- 요청 또는 CLI에서 `stop_capture_on_recommendation`을 켜면 `hard` recommendation 시점에 남은 캡처를 조기 종료합니다.
+- `pipeline.stop_capture_on_recommendation: "any"` 또는 `--stop-capture-on-soft-recommendation`을 쓰면 `soft` recommendation까지 포함해서 남은 캡처를 조기 종료합니다.
 - capture 자체가 성공해도 import 단계에서 실패할 수 있으며, 이 경우 생성된 capture 디렉터리는 디버깅용으로 그대로 남습니다.
 - 운영용 안정화가 끝난 collector가 아니라 개발/검증용 실제 입력 파이프라인 1차입니다.
 

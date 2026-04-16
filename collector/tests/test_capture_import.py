@@ -386,6 +386,7 @@ def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
     ) == {
         "should_stop": True,
         "level": "hard",
+        "primary_reason": "noisy_last_page",
         "reasons": ["sparse_last_page", "noisy_last_page"],
     }
 
@@ -457,6 +458,7 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
     ) == {
         "should_stop": True,
         "level": "soft",
+        "primary_reason": "overlapping_last_page",
         "reasons": ["overlapping_last_page"],
     }
 

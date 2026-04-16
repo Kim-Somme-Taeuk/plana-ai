@@ -8,6 +8,7 @@ import pytest
 
 import collector.adb_capture as adb_capture
 from collector.adb_capture import (
+    AdbCaptureStopDecision,
     AdbClient,
     capture_adb_screenshot,
     load_adb_capture_request,
@@ -132,6 +133,8 @@ def test_capture_adb_screenshot_supports_multi_page_scroll(
     assert sleep_calls == [0.05, 0.05]
     assert result.requested_page_count == 3
     assert result.stopped_reason is None
+    assert result.stopped_source is None
+    assert result.stopped_level is None
 
 
 def test_capture_adb_screenshot_stops_on_duplicate_frame(
@@ -178,11 +181,15 @@ def test_capture_adb_screenshot_stops_on_duplicate_frame(
         "requested_page_count": 3,
         "captured_page_count": 1,
         "stopped_reason": "duplicate_frame",
+        "stopped_source": "capture",
+        "stopped_level": "hard",
     }
     assert [path.read_bytes() for path in result.image_paths] == [b"PNG-1"]
     assert len(client.swipes) == 1
     assert sleep_calls == [0.05]
     assert result.stopped_reason == "duplicate_frame"
+    assert result.stopped_source == "capture"
+    assert result.stopped_level == "hard"
 
 
 def test_capture_adb_screenshot_can_keep_duplicate_frames_when_disabled(
@@ -223,6 +230,8 @@ def test_capture_adb_screenshot_can_keep_duplicate_frames_when_disabled(
 
     assert len(result.image_paths) == 2
     assert result.stopped_reason is None
+    assert result.stopped_source is None
+    assert result.stopped_level is None
     assert len(client.swipes) == 1
 
 
@@ -272,9 +281,86 @@ def test_capture_adb_screenshot_stops_on_repeated_non_consecutive_frame(
         "requested_page_count": 4,
         "captured_page_count": 2,
         "stopped_reason": "repeated_frame",
+        "stopped_source": "capture",
+        "stopped_level": "hard",
     }
     assert result.stopped_reason == "repeated_frame"
+    assert result.stopped_source == "capture"
+    assert result.stopped_level == "hard"
     assert len(client.swipes) == 2
+
+
+def test_capture_adb_screenshot_can_stop_from_after_capture_page_callback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        adb={
+            "page_count": 3,
+            "swipe": {
+                "start_x": 500,
+                "start_y": 1600,
+                "end_x": 500,
+                "end_y": 600,
+                "duration_ms": 200,
+                "settle_delay_ms": 50,
+            },
+        },
+    )
+    request = load_adb_capture_request(request_path)
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+            self.swipes: list[tuple[str | None, object]] = []
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2", b"PNG-3"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            self.swipes.append((device_serial, swipe))
+
+    monkeypatch.setattr(adb_capture.time, "sleep", lambda seconds: None)
+
+    callback_calls: list[list[str]] = []
+
+    def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
+        callback_calls.append([path.name for path in image_paths])
+        if len(image_paths) == 2:
+            return AdbCaptureStopDecision(
+                should_continue=False,
+                reason="sparse_last_page",
+                source="ocr",
+                level="soft",
+            )
+        return AdbCaptureStopDecision(should_continue=True)
+
+    client = FakeAdbClient()
+    result = capture_adb_screenshot(
+        request,
+        client,
+        after_capture_page=after_capture_page,
+    )
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert callback_calls == [["page-001.png"], ["page-001.png", "page-002.png"]]
+    assert [page["image_path"] for page in manifest["pages"]] == [
+        "page-001.png",
+        "page-002.png",
+    ]
+    assert manifest["capture"] == {
+        "requested_page_count": 3,
+        "captured_page_count": 2,
+        "stopped_reason": "sparse_last_page",
+        "stopped_source": "ocr",
+        "stopped_level": "soft",
+    }
+    assert result.stopped_reason == "sparse_last_page"
+    assert result.stopped_source == "ocr"
+    assert result.stopped_level == "soft"
+    assert len(client.swipes) == 1
 
 
 def test_capture_adb_screenshot_rejects_non_empty_output_dir(tmp_path: Path) -> None:

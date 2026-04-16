@@ -327,10 +327,22 @@ def build_ocr_stop_recommendation(
     else:
         level = "soft"
 
+    reasons = [hint["reason"] for hint in ocr_stop_hints]
+    primary_reason = None
+    if reasons:
+        if level == "hard":
+            for hint in ocr_stop_hints:
+                if reason_levels.get(hint["reason"], "soft") == "hard":
+                    primary_reason = hint["reason"]
+                    break
+        else:
+            primary_reason = reasons[0]
+
     return {
         "should_stop": len(ocr_stop_hints) > 0,
         "level": level,
-        "reasons": [hint["reason"] for hint in ocr_stop_hints],
+        "primary_reason": primary_reason,
+        "reasons": reasons,
     }
 
 

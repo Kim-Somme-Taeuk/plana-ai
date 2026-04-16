@@ -10,7 +10,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -69,6 +69,16 @@ class AdbCaptureResult:
     image_paths: list[Path]
     requested_page_count: int
     stopped_reason: str | None
+    stopped_source: str | None
+    stopped_level: str | None
+
+
+@dataclass(frozen=True)
+class AdbCaptureStopDecision:
+    should_continue: bool
+    reason: str | None = None
+    source: str | None = None
+    level: str | None = None
 
 
 class AdbClient:
@@ -233,6 +243,8 @@ def load_adb_capture_request(
 def capture_adb_screenshot(
     request: AdbCaptureRequest,
     client: AdbClient,
+    *,
+    after_capture_page: Callable[[list[Path]], AdbCaptureStopDecision] | None = None,
 ) -> AdbCaptureResult:
     _ensure_capture_output_dir_is_empty(request.adb.output_dir)
     request.adb.output_dir.mkdir(parents=True, exist_ok=True)
@@ -241,6 +253,8 @@ def capture_adb_screenshot(
     previous_image_bytes: bytes | None = None
     seen_frame_hashes: set[str] = set()
     stopped_reason: str | None = None
+    stopped_source: str | None = None
+    stopped_level: str | None = None
     for page_number in range(1, request.adb.page_count + 1):
         image_path = (
             request.adb.output_dir / f"{request.adb.page_prefix}-{page_number:03d}.png"
@@ -254,15 +268,27 @@ def capture_adb_screenshot(
             and image_bytes == previous_image_bytes
         ):
             stopped_reason = "duplicate_frame"
+            stopped_source = "capture"
+            stopped_level = "hard"
             break
         if request.adb.stop_on_duplicate_frame and image_hash in seen_frame_hashes:
             stopped_reason = "repeated_frame"
+            stopped_source = "capture"
+            stopped_level = "hard"
             break
 
         image_path.write_bytes(image_bytes)
         image_paths.append(image_path)
         previous_image_bytes = image_bytes
         seen_frame_hashes.add(image_hash)
+
+        if page_number < request.adb.page_count and after_capture_page is not None:
+            stop_decision = after_capture_page(list(image_paths))
+            if not stop_decision.should_continue:
+                stopped_reason = stop_decision.reason
+                stopped_source = stop_decision.source
+                stopped_level = stop_decision.level
+                break
 
         if page_number < request.adb.page_count:
             assert request.adb.swipe is not None  # guarded during request loading
@@ -284,6 +310,8 @@ def capture_adb_screenshot(
                     "requested_page_count": request.adb.page_count,
                     "captured_page_count": len(image_paths),
                     "stopped_reason": stopped_reason,
+                    "stopped_source": stopped_source,
+                    "stopped_level": stopped_level,
                 },
                 "pages": [
                     {
@@ -304,6 +332,8 @@ def capture_adb_screenshot(
         image_paths=image_paths,
         requested_page_count=request.adb.page_count,
         stopped_reason=stopped_reason,
+        stopped_source=stopped_source,
+        stopped_level=stopped_level,
     )
 
 

@@ -17,13 +17,18 @@ if str(BACKEND_DIR) not in sys.path:
 
 from collector.adb_capture import (
     DEFAULT_ADB_COMMAND,
+    AdbCaptureRequest,
     AdbCaptureResult,
+    AdbCaptureStopDecision,
     AdbClient,
     capture_adb_screenshot,
     load_adb_capture_request,
 )
 from collector.capture_import import (
     CAPTURE_SOURCE_TYPE_BY_PROVIDER,
+    CaptureImportPayload,
+    CapturePage,
+    OcrConfig,
     build_ocr_stop_hints,
     build_ocr_stop_recommendation,
     import_parsed_capture_payload,
@@ -70,6 +75,7 @@ def run_capture_pipeline(
     ocr_language: str | None = None,
     ocr_psm: int | None = None,
     stop_on_recommendation: str | None = None,
+    stop_capture_on_recommendation: str | None = None,
     adb_client: AdbClient | None = None,
     api_client: ApiClient | None = None,
 ) -> CapturePipelineResult:
@@ -79,15 +85,27 @@ def run_capture_pipeline(
         adb_command=adb_command,
         device_serial=device_serial,
     )
+    effective_ocr_provider = _resolve_pipeline_ocr_provider(
+        requested_provider=ocr_provider,
+        request=request,
+    )
+    stop_capture_on_recommendation_mode = _resolve_stop_on_recommendation(
+        requested_stop_on_recommendation=stop_capture_on_recommendation,
+        request=request,
+        key="stop_capture_on_recommendation",
+    )
 
     capture_result = capture_adb_screenshot(
         request,
         adb_client or AdbClient(request.adb.adb_command),
-    )
-    effective_ocr_provider = _resolve_pipeline_ocr_provider(
-        requested_provider=ocr_provider,
-        request=request,
-        capture_result=capture_result,
+        after_capture_page=_build_after_capture_page_callback(
+            request=request,
+            effective_ocr_provider=effective_ocr_provider,
+            ocr_command=ocr_command,
+            ocr_language=ocr_language,
+            ocr_psm=ocr_psm,
+            stop_capture_on_recommendation_mode=stop_capture_on_recommendation_mode,
+        ),
     )
     capture_payload = load_capture_import_payload(
         capture_result.output_dir,
@@ -101,11 +119,14 @@ def run_capture_pipeline(
     ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
     pipeline_stop_recommendation = _build_pipeline_stop_recommendation(
         capture_stopped_reason=capture_result.stopped_reason,
+        capture_stopped_source=capture_result.stopped_source,
+        capture_stopped_level=capture_result.stopped_level,
         ocr_stop_recommendation=ocr_stop_recommendation,
     )
     stop_on_recommendation_mode = _resolve_stop_on_recommendation(
         requested_stop_on_recommendation=stop_on_recommendation,
         request=request,
+        key="stop_on_recommendation",
     )
     should_skip_import = _should_skip_import_on_recommendation(
         mode=stop_on_recommendation_mode,
@@ -161,7 +182,6 @@ def _resolve_pipeline_ocr_provider(
     *,
     requested_provider: str | None,
     request,
-    capture_result: AdbCaptureResult,
 ) -> str | None:
     if requested_provider is not None:
         return requested_provider
@@ -172,10 +192,6 @@ def _resolve_pipeline_ocr_provider(
     if request.ocr.get("provider") != "sidecar":
         return None
 
-    sidecar_exists = any(image_path.with_suffix(".txt").exists() for image_path in capture_result.image_paths)
-    if sidecar_exists:
-        return None
-
     return "tesseract"
 
 
@@ -183,11 +199,12 @@ def _resolve_stop_on_recommendation(
     *,
     requested_stop_on_recommendation: str | None,
     request,
+    key: str,
 ) -> str:
     if requested_stop_on_recommendation is not None:
         return requested_stop_on_recommendation
 
-    raw_value = request.pipeline.get("stop_on_recommendation", False)
+    raw_value = request.pipeline.get(key, False)
     if isinstance(raw_value, bool):
         return "hard" if raw_value else "off"
     if isinstance(raw_value, str):
@@ -218,13 +235,15 @@ def _should_skip_import_on_recommendation(
 def _build_pipeline_stop_recommendation(
     *,
     capture_stopped_reason: str | None,
+    capture_stopped_source: str | None,
+    capture_stopped_level: str | None,
     ocr_stop_recommendation: dict[str, Any],
 ) -> dict[str, Any]:
     if capture_stopped_reason is not None:
         return {
             "should_stop": True,
-            "level": "hard",
-            "source": "capture",
+            "level": capture_stopped_level,
+            "source": capture_stopped_source,
             "primary_reason": capture_stopped_reason,
             "reasons": [capture_stopped_reason],
         }
@@ -235,7 +254,7 @@ def _build_pipeline_stop_recommendation(
             "should_stop": True,
             "level": ocr_stop_recommendation["level"],
             "source": "ocr",
-            "primary_reason": reasons[0],
+            "primary_reason": ocr_stop_recommendation["primary_reason"],
             "reasons": reasons,
         }
 
@@ -246,6 +265,82 @@ def _build_pipeline_stop_recommendation(
         "primary_reason": None,
         "reasons": [],
     }
+
+
+def _build_after_capture_page_callback(
+    *,
+    request: AdbCaptureRequest,
+    effective_ocr_provider: str | None,
+    ocr_command: str | None,
+    ocr_language: str | None,
+    ocr_psm: int | None,
+    stop_capture_on_recommendation_mode: str,
+):
+    if stop_capture_on_recommendation_mode == "off":
+        return None
+
+    def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
+        parsed_payload = parse_capture_payload(
+            CaptureImportPayload(
+                base_dir=request.adb.output_dir,
+                season=request.season,
+                snapshot={
+                    **request.snapshot,
+                    "source_type": CAPTURE_SOURCE_TYPE_BY_PROVIDER[
+                        effective_ocr_provider or request.ocr["provider"]
+                    ],
+                },
+                pages=[
+                    CapturePage(
+                        image_path=image_path.name,
+                        ocr_text_path=None,
+                        default_ocr_confidence=None,
+                    )
+                    for image_path in image_paths
+                ],
+                ocr=_build_runtime_ocr_config(
+                    request=request,
+                    effective_ocr_provider=effective_ocr_provider,
+                    ocr_command=ocr_command,
+                    ocr_language=ocr_language,
+                    ocr_psm=ocr_psm,
+                ),
+            )
+        )
+        ocr_stop_recommendation = build_ocr_stop_recommendation(
+            build_ocr_stop_hints(parsed_payload.page_summaries)
+        )
+        if not _should_skip_import_on_recommendation(
+            mode=stop_capture_on_recommendation_mode,
+            pipeline_stop_recommendation=ocr_stop_recommendation,
+        ):
+            return AdbCaptureStopDecision(should_continue=True)
+
+        return AdbCaptureStopDecision(
+            should_continue=False,
+            reason=ocr_stop_recommendation["primary_reason"],
+            source="ocr",
+            level=ocr_stop_recommendation["level"],
+        )
+
+    return after_capture_page
+
+
+def _build_runtime_ocr_config(
+    *,
+    request: AdbCaptureRequest,
+    effective_ocr_provider: str | None,
+    ocr_command: str | None,
+    ocr_language: str | None,
+    ocr_psm: int | None,
+) -> OcrConfig:
+    provider = effective_ocr_provider or request.ocr["provider"]
+    return OcrConfig(
+        provider=provider,
+        command=ocr_command or request.ocr.get("command"),
+        language=ocr_language or request.ocr.get("language"),
+        psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -305,6 +400,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="soft/hard stop recommendation이 있으면 backend import를 건너뜁니다.",
     )
+    parser.add_argument(
+        "--stop-capture-on-recommendation",
+        action="store_true",
+        help="hard stop recommendation이 있으면 남은 캡처를 생략합니다.",
+    )
+    parser.add_argument(
+        "--stop-capture-on-soft-recommendation",
+        action="store_true",
+        help="soft/hard stop recommendation이 있으면 남은 캡처를 생략합니다.",
+    )
     return parser
 
 
@@ -314,12 +419,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.stop_on_recommendation and args.stop_on_soft_recommendation:
         parser.error("--stop-on-recommendation과 --stop-on-soft-recommendation은 함께 사용할 수 없습니다.")
+    if args.stop_capture_on_recommendation and args.stop_capture_on_soft_recommendation:
+        parser.error(
+            "--stop-capture-on-recommendation과 --stop-capture-on-soft-recommendation은 함께 사용할 수 없습니다."
+        )
 
     stop_on_recommendation: str | None = None
     if args.stop_on_soft_recommendation:
         stop_on_recommendation = "any"
     elif args.stop_on_recommendation:
         stop_on_recommendation = "hard"
+
+    stop_capture_on_recommendation: str | None = None
+    if args.stop_capture_on_soft_recommendation:
+        stop_capture_on_recommendation = "any"
+    elif args.stop_capture_on_recommendation:
+        stop_capture_on_recommendation = "hard"
 
     try:
         result = run_capture_pipeline(
@@ -333,6 +448,7 @@ def main(argv: list[str] | None = None) -> int:
             ocr_language=args.ocr_language,
             ocr_psm=args.ocr_psm,
             stop_on_recommendation=stop_on_recommendation,
+            stop_capture_on_recommendation=stop_capture_on_recommendation,
         )
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
