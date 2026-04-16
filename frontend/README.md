@@ -32,11 +32,13 @@ snapshot 상세 페이지입니다.
 
 - `GET /ranking-snapshots/{snapshot_id}`
 - `GET /ranking-snapshots/{snapshot_id}/summary`
+- `GET /ranking-snapshots/{snapshot_id}/validation-report`
 - `GET /ranking-snapshots/{snapshot_id}/cutoffs`
 - `GET /ranking-snapshots/{snapshot_id}/distribution`
 - `GET /ranking-snapshots/{snapshot_id}/entries`
 - summary / cutoffs / distribution / entries 표시
-- `is_valid`, `validation_issue`, `sort_by`, `order` 기반 entry 조회 제어
+- validation report 표시
+- `is_valid`, `validation_issue`, `sort_by`, `order`, `limit`, `offset` 기반 entry 조회 제어
 - validation issue 집계 패널 표시
 - 로딩 / 에러 / 빈 상태 처리
 

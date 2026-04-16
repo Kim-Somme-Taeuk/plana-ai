@@ -283,7 +283,8 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 ```
 
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `season_id`, `snapshot_id`,
-`entry_count`, `entry_ids`, `status`, `total_rows_collected`, `ocr_provider`를 JSON으로 출력합니다.
+`entry_count`, `entry_ids`, `status`, `total_rows_collected`, `ocr_provider`,
+`requested_page_count`, `captured_page_count`, `stopped_reason`을 JSON으로 출력합니다.
 
 ### 주의사항
 
