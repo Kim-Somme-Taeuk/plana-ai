@@ -303,6 +303,7 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 
 - 이 파이프라인은 기존 `adb_capture.py`와 `capture_import.py`를 조합하는 얇은 orchestration 레이어입니다.
 - 요청 파일에 `ocr.provider`를 생략하면 통합 파이프라인에서는 `tesseract`를 기본값으로 사용합니다.
+- 요청 또는 CLI에서 `stop_on_recommendation`을 켜면 `pipeline_stop_recommendation.should_stop=true`인 경우 backend import를 건너뜁니다.
 - capture 자체가 성공해도 import 단계에서 실패할 수 있으며, 이 경우 생성된 capture 디렉터리는 디버깅용으로 그대로 남습니다.
 - 운영용 안정화가 끝난 collector가 아니라 개발/검증용 실제 입력 파이프라인 1차입니다.
 
@@ -368,6 +369,12 @@ backend까지 포함한 최소 회귀:
 
 ```bash
 backend/.venv/bin/pytest backend/tests collector/tests -q
+```
+
+collector 전용 smoke:
+
+```bash
+bash scripts/collector_smoke.sh
 ```
 
 ## 다음 세션에서 먼저 볼 파일

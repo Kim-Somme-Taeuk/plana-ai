@@ -392,8 +392,14 @@ export function SeasonValidationOverviewPanel({
 
 export function SeasonValidationSeriesPanel({
   series,
+  selectedCompareLeftId,
+  selectedCompareRightId,
+  compareRank,
 }: {
   series: SeasonValidationSeries;
+  selectedCompareLeftId?: number | null;
+  selectedCompareRightId?: number | null;
+  compareRank?: number;
 }) {
   const maxInvalidRatio =
     series.points.reduce((currentMax, point) => {
@@ -446,25 +452,52 @@ export function SeasonValidationSeriesPanel({
                   <th>Invalid Ratio</th>
                   <th>Invalid Entries</th>
                   <th>Top Issue</th>
+                  <th>Compare</th>
                 </tr>
               </thead>
               <tbody>
-                {series.points.map((point) => (
-                  <tr key={point.snapshot_id}>
-                    <td>
-                      <Link href={`/snapshots/${point.snapshot_id}`}>
-                        #{point.snapshot_id}
-                      </Link>
-                    </td>
-                    <td>
-                      <StatusBadge status={point.status} />
-                    </td>
-                    <td>{formatDate(point.captured_at)}</td>
-                    <td>{formatPercent(point.invalid_ratio)}</td>
-                    <td>{point.invalid_entry_count.toLocaleString()}</td>
-                    <td>{point.top_validation_issue?.code ?? "-"}</td>
-                  </tr>
-                ))}
+                {series.points.map((point, index) => {
+                  const previousPoint = index > 0 ? series.points[index - 1] : null;
+                  const isCurrentCompare =
+                    selectedCompareLeftId === previousPoint?.snapshot_id &&
+                    selectedCompareRightId === point.snapshot_id;
+
+                  return (
+                    <tr key={point.snapshot_id}>
+                      <td>
+                        <Link href={`/snapshots/${point.snapshot_id}`}>
+                          #{point.snapshot_id}
+                        </Link>
+                      </td>
+                      <td>
+                        <StatusBadge status={point.status} />
+                      </td>
+                      <td>{formatDate(point.captured_at)}</td>
+                      <td>{formatPercent(point.invalid_ratio)}</td>
+                      <td>{point.invalid_entry_count.toLocaleString()}</td>
+                      <td>{point.top_validation_issue?.code ?? "-"}</td>
+                      <td>
+                        {previousPoint ? (
+                          <div className={styles.compareTableActions}>
+                            <Link
+                              href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
+                                compareRank ? `&rank=${compareRank}` : ""
+                              }`}
+                              className={styles.linkButton}
+                            >
+                              이전과 비교
+                            </Link>
+                            {isCurrentCompare ? (
+                              <span className={styles.inlineChip}>현재 비교</span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className={styles.muted}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

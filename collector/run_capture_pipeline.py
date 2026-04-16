@@ -6,6 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -30,7 +31,7 @@ from collector.capture_import import (
     parse_capture_payload,
     summarize_ignored_lines,
 )
-from collector.mock_import import ApiClient, DEFAULT_API_BASE_URL, ImportResult, MockImportError
+from collector.mock_import import ApiClient, DEFAULT_API_BASE_URL, MockImportError
 
 
 @dataclass(frozen=True)
@@ -41,10 +42,12 @@ class CapturePipelineResult:
     requested_page_count: int
     captured_page_count: int
     stopped_reason: str | None
-    season_id: int
-    snapshot_id: int
+    import_skipped: bool
+    skip_reason: str | None
+    season_id: int | None
+    snapshot_id: int | None
     entry_ids: list[int]
-    status: str
+    status: str | None
     total_rows_collected: int | None
     ocr_provider: str
     ignored_line_count: int
@@ -66,6 +69,7 @@ def run_capture_pipeline(
     ocr_command: str | None = None,
     ocr_language: str | None = None,
     ocr_psm: int | None = None,
+    stop_on_recommendation: bool | None = None,
     adb_client: AdbClient | None = None,
     api_client: ApiClient | None = None,
 ) -> CapturePipelineResult:
@@ -99,10 +103,31 @@ def run_capture_pipeline(
         capture_stopped_reason=capture_result.stopped_reason,
         ocr_stop_recommendation=ocr_stop_recommendation,
     )
-    import_result = import_parsed_capture_payload(
-        parsed_payload,
-        api_client or ApiClient(base_url),
-    )
+    should_skip_import = _resolve_stop_on_recommendation(
+        requested_stop_on_recommendation=stop_on_recommendation,
+        request=request,
+    ) and pipeline_stop_recommendation["should_stop"]
+
+    if should_skip_import:
+        import_skipped = True
+        skip_reason = pipeline_stop_recommendation["primary_reason"]
+        season_id = None
+        snapshot_id = None
+        entry_ids: list[int] = []
+        status = None
+        total_rows_collected = None
+    else:
+        import_result = import_parsed_capture_payload(
+            parsed_payload,
+            api_client or ApiClient(base_url),
+        )
+        import_skipped = False
+        skip_reason = None
+        season_id = import_result.season_id
+        snapshot_id = import_result.snapshot_id
+        entry_ids = import_result.entry_ids
+        status = import_result.status
+        total_rows_collected = import_result.total_rows_collected
 
     return CapturePipelineResult(
         output_dir=capture_result.output_dir,
@@ -111,11 +136,13 @@ def run_capture_pipeline(
         requested_page_count=capture_result.requested_page_count,
         captured_page_count=len(capture_result.image_paths),
         stopped_reason=capture_result.stopped_reason,
-        season_id=import_result.season_id,
-        snapshot_id=import_result.snapshot_id,
-        entry_ids=import_result.entry_ids,
-        status=import_result.status,
-        total_rows_collected=import_result.total_rows_collected,
+        import_skipped=import_skipped,
+        skip_reason=skip_reason,
+        season_id=season_id,
+        snapshot_id=snapshot_id,
+        entry_ids=entry_ids,
+        status=status,
+        total_rows_collected=total_rows_collected,
         ocr_provider=capture_payload.ocr.provider,
         ignored_line_count=len(parsed_payload.ignored_lines),
         ignored_line_reasons=summarize_ignored_lines(parsed_payload.ignored_lines),
@@ -146,6 +173,26 @@ def _resolve_pipeline_ocr_provider(
         return None
 
     return "tesseract"
+
+
+def _resolve_stop_on_recommendation(
+    *,
+    requested_stop_on_recommendation: bool | None,
+    request,
+) -> bool:
+    if requested_stop_on_recommendation is not None:
+        return requested_stop_on_recommendation
+
+    raw_value = request.pipeline.get("stop_on_recommendation", False)
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", ""}:
+            return False
+    return bool(raw_value)
 
 
 def _build_pipeline_stop_recommendation(
@@ -225,6 +272,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="OCR page segmentation mode override. tesseract provider에서 --psm으로 전달합니다.",
     )
+    parser.add_argument(
+        "--stop-on-recommendation",
+        action="store_true",
+        help="pipeline stop recommendation이 있으면 backend import를 건너뜁니다.",
+    )
     return parser
 
 
@@ -243,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
             ocr_command=args.ocr_command,
             ocr_language=args.ocr_language,
             ocr_psm=args.ocr_psm,
+            stop_on_recommendation=args.stop_on_recommendation,
         )
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
@@ -257,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
                 "requested_page_count": result.requested_page_count,
                 "captured_page_count": result.captured_page_count,
                 "stopped_reason": result.stopped_reason,
+                "import_skipped": result.import_skipped,
+                "skip_reason": result.skip_reason,
                 "season_id": result.season_id,
                 "snapshot_id": result.snapshot_id,
                 "entry_count": len(result.entry_ids),

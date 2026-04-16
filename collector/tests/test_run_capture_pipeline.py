@@ -337,6 +337,7 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
         "primary_reason": "repeated_frame",
         "reasons": ["repeated_frame"],
     }
+    assert result.import_skipped is False
 
 
 def test_run_capture_pipeline_tracks_ignored_lines(
@@ -417,6 +418,98 @@ def test_run_capture_pipeline_tracks_ignored_lines(
             "overlap_with_previous_ranks": [],
         }
     ]
+
+
+def test_run_capture_pipeline_skips_import_when_stop_recommendation_is_enabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-stop-recommendation-season",
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"stop_on_recommendation": True}
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class UnusedApiClient:
+        def create_season(self, payload):
+            raise AssertionError("import는 건너뛰어야 합니다")
+
+    def fake_run(args, capture_output, text, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="RANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=UnusedApiClient(),
+    )
+
+    assert result.import_skipped is True
+    assert result.skip_reason == "noisy_last_page"
+    assert result.season_id is None
+    assert result.snapshot_id is None
+    assert result.entry_ids == []
+    assert result.status is None
+    assert result.total_rows_collected is None
+
+
+def test_run_capture_pipeline_cli_flag_skips_import_on_recommendation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-cli-stop-recommendation-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class UnusedApiClient:
+        def create_season(self, payload):
+            raise AssertionError("import는 건너뛰어야 합니다")
+
+    def fake_run(args, capture_output, text, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="RANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=UnusedApiClient(),
+        stop_on_recommendation=True,
+    )
+
+    assert result.import_skipped is True
+    assert result.skip_reason == "noisy_last_page"
 
 
 def _write_request(

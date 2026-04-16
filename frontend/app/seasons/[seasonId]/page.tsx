@@ -165,6 +165,9 @@ export default async function SeasonDetailPage({
                 ) : (
                   <SeasonValidationSeriesPanel
                     series={validationSeriesResult.data}
+                    selectedCompareLeftId={selectedCompareLeft?.id ?? null}
+                    selectedCompareRightId={selectedCompareRight?.id ?? null}
+                    compareRank={seriesRank}
                   />
                 )}
                 <ValidationIssuesPanel

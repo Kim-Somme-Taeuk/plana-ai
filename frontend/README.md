@@ -29,6 +29,7 @@
 - snapshot status / source 필터
 - snapshot compare 패널
 - snapshot compare에서 validation issue delta 비교
+- validation series에서 바로 이전 snapshot과 compare 링크 제공
 - cutoff-series 표시
 - 로딩 / 에러 / 빈 상태 처리
 

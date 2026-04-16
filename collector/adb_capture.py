@@ -58,6 +58,7 @@ class AdbCaptureRequest:
     snapshot: dict[str, Any]
     ocr: dict[str, Any]
     adb: AdbOptions
+    pipeline: dict[str, Any]
     ocr_provider_explicit: bool
 
 
@@ -173,6 +174,7 @@ def load_adb_capture_request(
     snapshot = _require_mapping(root.get("snapshot"), "snapshot")
     ocr = _require_optional_mapping(root.get("ocr"), "ocr")
     adb = _require_optional_mapping(root.get("adb"), "adb")
+    pipeline = _require_optional_mapping(root.get("pipeline"), "pipeline")
     ocr_provider_explicit = "provider" in ocr
 
     _require_fields(season, SEASON_REQUIRED_FIELDS, "season")
@@ -223,6 +225,7 @@ def load_adb_capture_request(
             stop_on_duplicate_frame=stop_on_duplicate_frame,
             swipe=swipe,
         ),
+        pipeline=pipeline,
         ocr_provider_explicit=ocr_provider_explicit,
     )
 
