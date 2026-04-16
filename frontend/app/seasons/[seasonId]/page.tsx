@@ -37,6 +37,7 @@ type SeasonPageProps = {
     captureStopReason?: string;
     ocrStopReason?: string;
     ignoredReason?: string;
+    ignoredGroup?: string;
     ocrStopLevel?: string;
     compareLeft?: string;
     compareRight?: string;
@@ -84,6 +85,10 @@ export default async function SeasonDetailPage({
     resolvedSearchParams.ignoredReason && resolvedSearchParams.ignoredReason.trim()
       ? resolvedSearchParams.ignoredReason
       : "all";
+  const selectedIgnoredGroup =
+    resolvedSearchParams.ignoredGroup && resolvedSearchParams.ignoredGroup.trim()
+      ? resolvedSearchParams.ignoredGroup
+      : "all";
   const selectedOcrStopLevel =
     resolvedSearchParams.ocrStopLevel && resolvedSearchParams.ocrStopLevel.trim()
       ? resolvedSearchParams.ocrStopLevel
@@ -126,6 +131,10 @@ export default async function SeasonDetailPage({
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
         ignoredReason:
           selectedIgnoredReason === "all" ? undefined : selectedIgnoredReason,
+        ignoredGroup:
+          selectedIgnoredGroup === "all"
+            ? undefined
+            : (selectedIgnoredGroup as "overlay" | "header" | "malformed"),
         ocrStopLevel:
           selectedOcrStopLevel === "all"
             ? undefined
@@ -143,6 +152,10 @@ export default async function SeasonDetailPage({
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
         ignoredReason:
           selectedIgnoredReason === "all" ? undefined : selectedIgnoredReason,
+        ignoredGroup:
+          selectedIgnoredGroup === "all"
+            ? undefined
+            : (selectedIgnoredGroup as "overlay" | "header" | "malformed"),
         ocrStopLevel:
           selectedOcrStopLevel === "all"
             ? undefined
@@ -261,6 +274,7 @@ export default async function SeasonDetailPage({
                   selectedCaptureStopReason={selectedCaptureStopReason}
                   selectedOcrStopReason={selectedOcrStopReason}
                   selectedIgnoredReason={selectedIgnoredReason}
+                  selectedIgnoredGroup={selectedIgnoredGroup}
                   selectedOcrStopLevel={selectedOcrStopLevel}
                 />
                 {validationSeriesResult.error || !validationSeriesResult.data ? (
@@ -281,6 +295,7 @@ export default async function SeasonDetailPage({
                     captureStopReason={selectedCaptureStopReason}
                     ocrStopReason={selectedOcrStopReason}
                     ignoredReason={selectedIgnoredReason}
+                    ignoredGroup={selectedIgnoredGroup}
                     ocrStopLevel={selectedOcrStopLevel}
                   />
                 )}
@@ -386,6 +401,19 @@ export default async function SeasonDetailPage({
                     </select>
                   </div>
                   <div className={styles.field}>
+                    <label htmlFor="ignoredGroup">무시된 OCR 그룹</label>
+                    <select
+                      id="ignoredGroup"
+                      name="ignoredGroup"
+                      defaultValue={selectedIgnoredGroup}
+                    >
+                      <option value="all">전체</option>
+                      <option value="overlay">오버레이</option>
+                      <option value="header">헤더/페이지</option>
+                      <option value="malformed">비정상 엔트리</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
                     <label htmlFor="ocrStopLevel">OCR 중단 레벨</label>
                     <select
                       id="ocrStopLevel"
@@ -470,6 +498,11 @@ export default async function SeasonDetailPage({
                       type="hidden"
                       name="ignoredReason"
                       value={selectedIgnoredReason}
+                    />
+                    <input
+                      type="hidden"
+                      name="ignoredGroup"
+                      value={selectedIgnoredGroup}
                     />
                     <input
                       type="hidden"
@@ -564,6 +597,11 @@ export default async function SeasonDetailPage({
                         type="hidden"
                         name="ignoredReason"
                         value={selectedIgnoredReason}
+                      />
+                      <input
+                        type="hidden"
+                        name="ignoredGroup"
+                        value={selectedIgnoredGroup}
                       />
                       <input
                         type="hidden"

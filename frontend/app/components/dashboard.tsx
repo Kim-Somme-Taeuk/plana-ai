@@ -384,6 +384,32 @@ export function SnapshotValidationReportPanel({
                 <h3>수집 중단 드릴다운</h3>
               </div>
               <div className={styles.paginationLinks}>
+                {collectorDiagnostics.overlay_ignored_line_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&ignoredGroup=overlay`}
+                    className={styles.linkButton}
+                  >
+                    오버레이 OCR
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.header_ignored_line_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&ignoredGroup=header`}
+                    className={styles.linkButton}
+                  >
+                    헤더 OCR
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.malformed_entry_line_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&ignoredGroup=malformed`}
+                    className={styles.linkButton}
+                  >
+                    비정상 엔트리 OCR
+                  </Link>
+                ) : null}
+              </div>
+              <div className={styles.paginationLinks}>
                 {collectorDiagnostics.capture_stop_reason ? (
                   <Link
                     href={`/seasons/${seasonId}?collector=capture_stop&captureStopReason=${encodeURIComponent(
@@ -579,6 +605,7 @@ export function SeasonValidationOverviewPanel({
   selectedCaptureStopReason,
   selectedOcrStopReason,
   selectedIgnoredReason,
+  selectedIgnoredGroup,
   selectedOcrStopLevel,
 }: {
   overview: SeasonValidationOverview;
@@ -589,10 +616,11 @@ export function SeasonValidationOverviewPanel({
   selectedCaptureStopReason?: string;
   selectedOcrStopReason?: string;
   selectedIgnoredReason?: string;
+  selectedIgnoredGroup?: string;
   selectedOcrStopLevel?: string;
 }) {
   const buildSeasonReasonHref = (
-    reasonType: "capture" | "ocr" | "ignored",
+    reasonType: "capture" | "ocr" | "ignored" | "ignored-group",
     reason: string,
   ) => {
     const params = new URLSearchParams();
@@ -613,6 +641,9 @@ export function SeasonValidationOverviewPanel({
       if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
         params.set("ignoredReason", selectedIgnoredReason);
       }
+      if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
+        params.set("ignoredGroup", selectedIgnoredGroup);
+      }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
       }
@@ -626,6 +657,29 @@ export function SeasonValidationOverviewPanel({
       params.set("ocrStopReason", reason);
       if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
         params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
+        params.set("ignoredReason", selectedIgnoredReason);
+      }
+      if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
+        params.set("ignoredGroup", selectedIgnoredGroup);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
+    } else if (reasonType === "ignored-group") {
+      params.set(
+        "collector",
+        selectedCollector && selectedCollector !== "all"
+          ? selectedCollector
+          : "with_diagnostics",
+      );
+      params.set("ignoredGroup", reason);
+      if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
+        params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
+        params.set("ocrStopReason", selectedOcrStopReason);
       }
       if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
         params.set("ignoredReason", selectedIgnoredReason);
@@ -646,6 +700,9 @@ export function SeasonValidationOverviewPanel({
       }
       if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
         params.set("ocrStopReason", selectedOcrStopReason);
+      }
+      if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
+        params.set("ignoredGroup", selectedIgnoredGroup);
       }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
@@ -717,6 +774,32 @@ export function SeasonValidationOverviewPanel({
           value={String(overview.malformed_entry_line_count)}
         />
       </div>
+      <div className={styles.paginationLinks}>
+        {overview.overlay_ignored_line_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("ignored-group", "overlay")}
+            className={styles.linkButton}
+          >
+            오버레이 OCR 보기
+          </Link>
+        ) : null}
+        {overview.header_ignored_line_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("ignored-group", "header")}
+            className={styles.linkButton}
+          >
+            헤더 OCR 보기
+          </Link>
+        ) : null}
+        {overview.malformed_entry_line_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("ignored-group", "malformed")}
+            className={styles.linkButton}
+          >
+            비정상 엔트리 OCR 보기
+          </Link>
+        ) : null}
+      </div>
       <div className={styles.threeColumnGrid}>
         <ReasonSummaryPanel
           title="캡처 중단 사유"
@@ -752,6 +835,7 @@ export function SeasonValidationSeriesPanel({
   captureStopReason,
   ocrStopReason,
   ignoredReason,
+  ignoredGroup,
   ocrStopLevel,
 }: {
   series: SeasonValidationSeries;
@@ -764,6 +848,7 @@ export function SeasonValidationSeriesPanel({
   captureStopReason?: string;
   ocrStopReason?: string;
   ignoredReason?: string;
+  ignoredGroup?: string;
   ocrStopLevel?: string;
 }) {
   const maxInvalidRatio =
@@ -905,6 +990,10 @@ export function SeasonValidationSeriesPanel({
                                 }${
                                   ignoredReason && ignoredReason !== "all"
                                     ? `&ignoredReason=${encodeURIComponent(ignoredReason)}`
+                                    : ""
+                                }${
+                                  ignoredGroup && ignoredGroup !== "all"
+                                    ? `&ignoredGroup=${encodeURIComponent(ignoredGroup)}`
                                     : ""
                                 }${
                                   ocrStopLevel && ocrStopLevel !== "all"

@@ -1007,6 +1007,67 @@ def test_get_season_validation_overview_aggregates_derived_ignored_reason_counts
     assert body["malformed_entry_line_count"] == 2
 
 
+def test_get_season_validation_endpoints_support_ignored_group_filters(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "collector: pages=1/1; ignored=3(reward_line=1,status_line=1,"
+        "header_line=1); ocr_stop=overlay_last_page(hard)"
+    )
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) + timedelta(minutes=5),
+        source_type="image_tesseract",
+        status="completed",
+        total_rows_collected=1,
+        note=(
+            "collector: pages=1/1; ignored=2(pagination_line=1,"
+            "malformed_entry_line=1); ocr_stop=header_repeat_last_page(hard)"
+        ),
+    )
+    db_session.add(second_snapshot)
+    db_session.flush()
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=10000,
+            player_name="Valid",
+            ocr_confidence=0.99,
+            raw_text="1 Valid 10000",
+            image_path="/tmp/valid.png",
+            is_valid=True,
+            validation_issue=None,
+        )
+    )
+    db_session.commit()
+
+    overlay_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-overview?ignored_group=overlay"
+    )
+    malformed_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-series?ignored_group=malformed"
+    )
+
+    assert overlay_response.status_code == 200
+    assert overlay_response.json()["snapshot_count"] == 1
+    assert overlay_response.json()["overlay_ignored_line_count"] == 2
+    assert overlay_response.json()["header_ignored_line_count"] == 1
+
+    assert malformed_response.status_code == 200
+    assert [point["snapshot_id"] for point in malformed_response.json()["points"]] == [
+        second_snapshot.id
+    ]
+    assert (
+        malformed_response.json()["points"][0]["collector_diagnostics"][
+            "malformed_entry_line_count"
+        ]
+        == 1
+    )
+
+
 def test_get_season_validation_endpoints_support_collector_reason_filters(
     client,
     db_session: Session,

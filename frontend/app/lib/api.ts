@@ -190,6 +190,7 @@ export function getSeasonValidationOverview(
     captureStopReason?: string;
     ocrStopReason?: string;
     ignoredReason?: string;
+    ignoredGroup?: "overlay" | "header" | "malformed";
     ocrStopLevel?: "soft" | "hard";
   } = {},
 ) {
@@ -211,6 +212,9 @@ export function getSeasonValidationOverview(
   }
   if (options.ignoredReason) {
     params.set("ignored_reason", options.ignoredReason);
+  }
+  if (options.ignoredGroup) {
+    params.set("ignored_group", options.ignoredGroup);
   }
   if (options.ocrStopLevel) {
     params.set("ocr_stop_level", options.ocrStopLevel);
@@ -229,6 +233,7 @@ export function getSeasonValidationSeries(
     captureStopReason?: string;
     ocrStopReason?: string;
     ignoredReason?: string;
+    ignoredGroup?: "overlay" | "header" | "malformed";
     ocrStopLevel?: "soft" | "hard";
   } = {},
 ) {
@@ -250,6 +255,9 @@ export function getSeasonValidationSeries(
   }
   if (options.ignoredReason) {
     params.set("ignored_reason", options.ignoredReason);
+  }
+  if (options.ignoredGroup) {
+    params.set("ignored_group", options.ignoredGroup);
   }
   if (options.ocrStopLevel) {
     params.set("ocr_stop_level", options.ocrStopLevel);
