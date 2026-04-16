@@ -215,16 +215,10 @@ def test_run_capture_pipeline_propagates_import_error_after_capture(
             raise RuntimeError("unexpected import failure")
 
     def fake_run(args, capture_output, text, check):
-        image_path = Path(args[1]).name
-        stdout = (
-            "1\tPlana\t12345678\t0.99\n"
-            if image_path == "page-001.png"
-            else "2\tArona\t12000000\t0.98\n"
-        )
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
-            stdout=stdout,
+            stdout="1\tPlana\t12345678\t0.99\n",
             stderr="",
         )
 
