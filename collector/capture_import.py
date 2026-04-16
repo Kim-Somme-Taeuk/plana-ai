@@ -305,6 +305,13 @@ def build_ocr_stop_hints(
     last_page_overlap_ratio = float(last_page.get("overlap_with_previous_ratio", 0.0))
     last_page_new_rank_count = int(last_page.get("new_rank_count", 0))
     last_page_new_rank_ratio = float(last_page.get("new_rank_ratio", 0.0))
+    last_page_ignored_reason_counts = _build_ignored_reason_count_map(
+        last_page.get("ignored_line_reasons", [])
+    )
+    last_page_overlay_ignored_count = sum(
+        last_page_ignored_reason_counts.get(reason, 0)
+        for reason in ("reward_line", "ui_control_line", "status_line")
+    )
 
     if len(page_summaries) >= 2 and last_page_entry_count == 0:
         hints.append(
@@ -353,6 +360,20 @@ def build_ocr_stop_hints(
 
     if (
         len(page_summaries) >= 2
+        and last_page_entry_count <= 3
+        and last_page_overlay_ignored_count > 0
+    ):
+        hints.append(
+            {
+                "reason": "overlay_last_page",
+                "page_index": last_page["page_index"],
+                "ignored_overlay_count": last_page_overlay_ignored_count,
+                "entry_count": last_page_entry_count,
+            }
+        )
+
+    if (
+        len(page_summaries) >= 2
         and last_page_entry_count > 0
         and last_page_overlap_count == last_page_entry_count
     ):
@@ -388,6 +409,7 @@ def build_ocr_stop_recommendation(
         "empty_last_page": "hard",
         "noisy_last_page": "hard",
         "duplicate_last_page": "hard",
+        "overlay_last_page": "hard",
         "sparse_last_page": "soft",
         "overlapping_last_page": "soft",
         "stale_last_page": "soft",
@@ -471,6 +493,16 @@ def _build_snapshot_note_with_collector_summary(
             if line
         )
     return "\n".join(line for line in (collector_summary, collector_details) if line)
+
+
+def _build_ignored_reason_count_map(
+    ignored_line_reasons: list[dict[str, Any]],
+) -> dict[str, int]:
+    return {
+        str(row["reason"]): int(row["count"])
+        for row in ignored_line_reasons
+        if "reason" in row and "count" in row
+    }
 
 
 def _build_collector_details_line(page_summaries: list[dict[str, Any]]) -> str | None:

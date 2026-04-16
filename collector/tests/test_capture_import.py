@@ -969,6 +969,63 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
         "reasons": ["overlapping_last_page", "duplicate_last_page"],
     }
 
+    assert build_ocr_stop_hints(
+        [
+            {
+                "page_index": 1,
+                "entry_count": 20,
+                "ignored_line_count": 0,
+                "ignored_line_reasons": [],
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+            },
+            {
+                "page_index": 2,
+                "entry_count": 2,
+                "ignored_line_count": 2,
+                "ignored_line_reasons": [
+                    {"reason": "reward_line", "count": 1},
+                    {"reason": "status_line", "count": 1},
+                ],
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+                "new_rank_count": 2,
+                "new_rank_ratio": 1.0,
+            },
+        ]
+    ) == [
+        {"reason": "sparse_last_page", "page_index": 2, "entry_count": 2},
+        {
+            "reason": "overlay_last_page",
+            "page_index": 2,
+            "ignored_overlay_count": 2,
+            "entry_count": 2,
+        },
+        {
+            "reason": "noisy_last_page",
+            "page_index": 2,
+            "ignored_line_count": 2,
+            "entry_count": 2,
+        },
+    ]
+
+    assert build_ocr_stop_recommendation(
+        [
+            {"reason": "sparse_last_page", "page_index": 2, "entry_count": 2},
+            {
+                "reason": "overlay_last_page",
+                "page_index": 2,
+                "ignored_overlay_count": 2,
+                "entry_count": 2,
+            },
+        ]
+    ) == {
+        "should_stop": True,
+        "level": "hard",
+        "primary_reason": "overlay_last_page",
+        "reasons": ["sparse_last_page", "overlay_last_page"],
+    }
+
 
 def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_duplicate_rank(
     tmp_path: Path,
