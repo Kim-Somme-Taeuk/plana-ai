@@ -26,10 +26,13 @@
 - 시즌 요약
 - season validation overview / validation series / issue 집계
 - snapshot 목록
+- snapshot 목록에서 invalid ratio / top issue 표시
 - snapshot status / source 필터
 - snapshot compare 패널
 - snapshot compare에서 validation issue delta 비교
+- snapshot compare에서 left/right invalid, top issue drilldown 링크 제공
 - validation series에서 바로 이전 snapshot과 compare 링크 제공
+- validation series에서 invalid entry / top issue / snapshot 상세로 바로 drilldown
 - cutoff-series 표시
 - 로딩 / 에러 / 빈 상태 처리
 

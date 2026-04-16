@@ -12,6 +12,7 @@ import type {
   Season,
   SeasonCutoffSeries,
   SeasonValidationSeries,
+  SeasonValidationSeriesPoint,
   SeasonValidationOverview,
 } from "../lib/types";
 
@@ -122,34 +123,55 @@ export function SeasonSummary({ season }: { season: Season }) {
   );
 }
 
-export function SnapshotList({ snapshots }: { snapshots: RankingSnapshot[] }) {
+export function SnapshotList({
+  snapshots,
+  validationPoints,
+}: {
+  snapshots: RankingSnapshot[];
+  validationPoints?: Map<number, SeasonValidationSeriesPoint>;
+}) {
   return (
     <div className={styles.snapshotList}>
-      {snapshots.map((snapshot) => (
-        <Link
-          key={snapshot.id}
-          href={`/snapshots/${snapshot.id}`}
-          className={styles.snapshotCard}
-        >
-          <div className={styles.snapshotCardTop}>
-            <span className={styles.snapshotLink}>Snapshot #{snapshot.id}</span>
-            <StatusBadge status={snapshot.status} />
-          </div>
-          <div className={styles.metaGrid}>
-            <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
-            <MetaItem label="Source" value={snapshot.source_type} />
-            <MetaItem
-              label="Rows"
-              value={
-                snapshot.total_rows_collected !== null
-                  ? String(snapshot.total_rows_collected)
-                  : "-"
-              }
-            />
-            <MetaItem label="Note" value={snapshot.note ?? "-"} />
-          </div>
-        </Link>
-      ))}
+      {snapshots.map((snapshot) => {
+        const validationPoint = validationPoints?.get(snapshot.id);
+        return (
+          <Link
+            key={snapshot.id}
+            href={`/snapshots/${snapshot.id}`}
+            className={styles.snapshotCard}
+          >
+            <div className={styles.snapshotCardTop}>
+              <span className={styles.snapshotLink}>Snapshot #{snapshot.id}</span>
+              <StatusBadge status={snapshot.status} />
+            </div>
+            <div className={styles.metaGrid}>
+              <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
+              <MetaItem label="Source" value={snapshot.source_type} />
+              <MetaItem
+                label="Rows"
+                value={
+                  snapshot.total_rows_collected !== null
+                    ? String(snapshot.total_rows_collected)
+                    : "-"
+                }
+              />
+              <MetaItem
+                label="Invalid Ratio"
+                value={
+                  validationPoint
+                    ? formatPercent(validationPoint.invalid_ratio)
+                    : "-"
+                }
+              />
+              <MetaItem
+                label="Top Issue"
+                value={validationPoint?.top_validation_issue?.code ?? "-"}
+              />
+              <MetaItem label="Note" value={snapshot.note ?? "-"} />
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -485,26 +507,60 @@ export function SeasonValidationSeriesPanel({
                       </td>
                       <td>{formatDate(point.captured_at)}</td>
                       <td>{formatPercent(point.invalid_ratio)}</td>
-                      <td>{point.invalid_entry_count.toLocaleString()}</td>
-                      <td>{point.top_validation_issue?.code ?? "-"}</td>
                       <td>
-                        {previousPoint ? (
-                          <div className={styles.compareTableActions}>
-                            <Link
-                              href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
-                                compareRank ? `&rank=${compareRank}` : ""
-                              }`}
-                              className={styles.linkButton}
-                            >
-                              이전과 비교
-                            </Link>
-                            {isCurrentCompare ? (
-                              <span className={styles.inlineChip}>현재 비교</span>
-                            ) : null}
-                          </div>
+                        {point.invalid_entry_count > 0 ? (
+                          <Link
+                            href={`/snapshots/${point.snapshot_id}?isValid=false`}
+                            className={styles.linkButton}
+                          >
+                            {point.invalid_entry_count.toLocaleString()}
+                          </Link>
                         ) : (
-                          <span className={styles.muted}>-</span>
+                          "0"
                         )}
+                      </td>
+                      <td>
+                        {point.top_validation_issue ? (
+                          <Link
+                            href={`/snapshots/${point.snapshot_id}?validationIssue=${encodeURIComponent(
+                              point.top_validation_issue.code,
+                            )}&isValid=false`}
+                            className={styles.issueCodeLink}
+                          >
+                            <span className={styles.issueCode}>
+                              {point.top_validation_issue.code}
+                            </span>
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>
+                        <div className={styles.compareTableActions}>
+                          {previousPoint ? (
+                            <>
+                              <Link
+                                href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
+                                  compareRank ? `&rank=${compareRank}` : ""
+                                }`}
+                                className={styles.linkButton}
+                              >
+                                이전과 비교
+                              </Link>
+                              {isCurrentCompare ? (
+                                <span className={styles.inlineChip}>현재 비교</span>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className={styles.muted}>-</span>
+                          )}
+                          <Link
+                            href={`/snapshots/${point.snapshot_id}`}
+                            className={styles.linkButton}
+                          >
+                            상세
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -577,6 +633,38 @@ export function SnapshotComparisonPanel({
         <Link href={`/snapshots/${rightSnapshot.id}`} className={styles.linkButton}>
           Right 상세
         </Link>
+        <Link
+          href={`/snapshots/${leftSnapshot.id}?isValid=false`}
+          className={styles.linkButton}
+        >
+          Left invalid
+        </Link>
+        <Link
+          href={`/snapshots/${rightSnapshot.id}?isValid=false`}
+          className={styles.linkButton}
+        >
+          Right invalid
+        </Link>
+        {leftTopIssue ? (
+          <Link
+            href={`/snapshots/${leftSnapshot.id}?validationIssue=${encodeURIComponent(
+              leftTopIssue.code,
+            )}&isValid=false`}
+            className={styles.linkButton}
+          >
+            Left top issue
+          </Link>
+        ) : null}
+        {rightTopIssue ? (
+          <Link
+            href={`/snapshots/${rightSnapshot.id}?validationIssue=${encodeURIComponent(
+              rightTopIssue.code,
+            )}&isValid=false`}
+            className={styles.linkButton}
+          >
+            Right top issue
+          </Link>
+        ) : null}
       </div>
 
       <div className={styles.statsGrid}>
@@ -595,6 +683,14 @@ export function SnapshotComparisonPanel({
         <StatCard
           label="Right Top Issue"
           value={rightTopIssue?.code ?? "-"}
+        />
+        <StatCard
+          label="Left Invalid Ratio"
+          value={formatPercent(calculateInvalidRatio(leftSummary))}
+        />
+        <StatCard
+          label="Right Invalid Ratio"
+          value={formatPercent(calculateInvalidRatio(rightSummary))}
         />
       </div>
 
@@ -686,12 +782,38 @@ export function SnapshotComparisonPanel({
             </thead>
             <tbody>
               {issueCodes.map((code) => (
-                <CompareRow
-                  key={code}
-                  label={code}
-                  leftValue={leftIssueMap.get(code) ?? 0}
-                  rightValue={rightIssueMap.get(code) ?? 0}
-                />
+                <tr key={code}>
+                  <td>{code}</td>
+                  <td>
+                    {leftIssueMap.get(code) ? (
+                      <Link
+                        href={`/snapshots/${leftSnapshot.id}?validationIssue=${encodeURIComponent(code)}&isValid=false`}
+                        className={styles.linkButton}
+                      >
+                        {formatNullableNumber(leftIssueMap.get(code) ?? 0)}
+                      </Link>
+                    ) : (
+                      "0"
+                    )}
+                  </td>
+                  <td>
+                    {rightIssueMap.get(code) ? (
+                      <Link
+                        href={`/snapshots/${rightSnapshot.id}?validationIssue=${encodeURIComponent(code)}&isValid=false`}
+                        className={styles.linkButton}
+                      >
+                        {formatNullableNumber(rightIssueMap.get(code) ?? 0)}
+                      </Link>
+                    ) : (
+                      "0"
+                    )}
+                  </td>
+                  <td>
+                    {formatSignedNumber(
+                      (rightIssueMap.get(code) ?? 0) - (leftIssueMap.get(code) ?? 0),
+                    )}
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -958,4 +1080,14 @@ function getTopValidationIssue(
   }
 
   return [...issues].sort((left, right) => right.count - left.count)[0];
+}
+
+function calculateInvalidRatio(summary: RankingSnapshotSummary) {
+  const total =
+    summary.valid_entry_count + summary.invalid_entry_count;
+  if (total === 0) {
+    return 0;
+  }
+
+  return summary.invalid_entry_count / total;
 }

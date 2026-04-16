@@ -109,6 +109,12 @@ export default async function SeasonDetailPage({
     }
     return true;
   });
+  const validationPointsBySnapshotId = new Map(
+    (validationSeriesResult.data?.points ?? []).map((point) => [
+      point.snapshot_id,
+      point,
+    ]),
+  );
   const canCompareSnapshots =
     selectedCompareLeft !== null &&
     selectedCompareRight !== null &&
@@ -238,7 +244,10 @@ export default async function SeasonDetailPage({
                   message={`snapshot 목록을 불러오지 못했습니다. ${snapshotsResult.error}`}
                 />
               ) : filteredSnapshots.length > 0 ? (
-                <SnapshotList snapshots={filteredSnapshots} />
+                <SnapshotList
+                  snapshots={filteredSnapshots}
+                  validationPoints={validationPointsBySnapshotId}
+                />
               ) : (
                 <EmptyBox message="조건에 맞는 snapshot이 없습니다." />
               )}
