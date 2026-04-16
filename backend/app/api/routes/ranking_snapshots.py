@@ -6,11 +6,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.collector_diagnostics import parse_collector_diagnostics_summary
 from app.core.ranking_entry_validation import summarize_snapshot_entries
 from app.models.ranking_entry import RankingEntry
 from app.models.ranking_snapshot import RankingSnapshot
 from app.models.season import Season
 from app.schemas.ranking_statistics import (
+    CollectorDiagnosticsRead,
+    CollectorIgnoredReasonCountRead,
     RankingSnapshotCutoffRead,
     RankingSnapshotCutoffsRead,
     RankingSnapshotDistributionRead,
@@ -148,6 +151,28 @@ def _calculate_invalid_ratio(valid_entry_count: int, invalid_entry_count: int) -
     return invalid_entry_count / total_entry_count
 
 
+def _build_collector_diagnostics_read(
+    snapshot: RankingSnapshot,
+) -> CollectorDiagnosticsRead | None:
+    summary = parse_collector_diagnostics_summary(snapshot.note)
+    if summary is None:
+        return None
+
+    return CollectorDiagnosticsRead(
+        raw_summary=summary.raw_summary,
+        captured_page_count=summary.captured_page_count,
+        requested_page_count=summary.requested_page_count,
+        capture_stop_reason=summary.capture_stop_reason,
+        ignored_line_count=summary.ignored_line_count,
+        ignored_reasons=[
+            CollectorIgnoredReasonCountRead(reason=row.reason, count=row.count)
+            for row in summary.ignored_reasons
+        ],
+        ocr_stop_reason=summary.ocr_stop_reason,
+        ocr_stop_level=summary.ocr_stop_level,
+    )
+
+
 def _get_valid_scores(db: Session, snapshot_id: int) -> list[int]:
     return list(
         db.scalars(
@@ -211,6 +236,7 @@ def _build_snapshot_validation_report(
         has_rank_order_violation=validation_summary.has_rank_order_violation,
         top_validation_issue=_get_top_validation_issue(validation_issues),
         validation_issues=validation_issues,
+        collector_diagnostics=_build_collector_diagnostics_read(snapshot),
     )
 
 
@@ -323,15 +349,20 @@ def _build_season_validation_overview(
         status=status,
         source_type=source_type,
     )
-    status_rows = db.execute(
-        select(
-            RankingSnapshot.status,
-            func.count(RankingSnapshot.id),
-        )
-        .where(*snapshot_filters)
-        .group_by(RankingSnapshot.status)
-    ).all()
-    snapshot_counts = {status: count for status, count in status_rows}
+    snapshots = list(
+        db.scalars(
+            select(RankingSnapshot)
+            .where(*snapshot_filters)
+            .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
+        ).all()
+    )
+    snapshot_counts: dict[str, int] = {}
+    collector_diagnostics = []
+    for snapshot in snapshots:
+        snapshot_counts[snapshot.status] = snapshot_counts.get(snapshot.status, 0) + 1
+        diagnostics = _build_collector_diagnostics_read(snapshot)
+        if diagnostics is not None:
+            collector_diagnostics.append(diagnostics)
 
     valid_entry_count = db.scalar(
         select(func.count(RankingEntry.id))
@@ -374,7 +405,7 @@ def _build_season_validation_overview(
         .order_by(RankingEntry.validation_issue.asc())
     ).all()
 
-    snapshot_count = sum(snapshot_counts.values())
+    snapshot_count = len(snapshots)
 
     validation_issues = [
         RankingSnapshotValidationIssueCountRead(code=code, count=count)
@@ -394,6 +425,14 @@ def _build_season_validation_overview(
         invalid_ratio=_calculate_invalid_ratio(valid_entry_count, invalid_entry_count),
         top_validation_issue=_get_top_validation_issue(validation_issues),
         validation_issues=validation_issues,
+        snapshots_with_collector_diagnostics_count=len(collector_diagnostics),
+        snapshots_with_capture_stop_count=sum(
+            1 for row in collector_diagnostics if row.capture_stop_reason is not None
+        ),
+        snapshots_with_hard_ocr_stop_count=sum(
+            1 for row in collector_diagnostics if row.ocr_stop_level == "hard"
+        ),
+        total_ignored_line_count=sum(row.ignored_line_count for row in collector_diagnostics),
     )
 
 
@@ -433,6 +472,7 @@ def _build_season_validation_series(
                 invalid_entry_count=invalid_entry_count,
                 invalid_ratio=_calculate_invalid_ratio(valid_entry_count, invalid_entry_count),
                 top_validation_issue=_get_top_validation_issue(validation_issues),
+                collector_diagnostics=_build_collector_diagnostics_read(snapshot),
             )
         )
 

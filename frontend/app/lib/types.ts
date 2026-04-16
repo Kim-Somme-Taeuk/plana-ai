@@ -46,6 +46,22 @@ export type RankingSnapshotValidationIssueCount = {
   count: number;
 };
 
+export type CollectorIgnoredReasonCount = {
+  reason: string;
+  count: number;
+};
+
+export type CollectorDiagnostics = {
+  raw_summary: string;
+  captured_page_count: number | null;
+  requested_page_count: number | null;
+  capture_stop_reason: string | null;
+  ignored_line_count: number;
+  ignored_reasons: CollectorIgnoredReasonCount[];
+  ocr_stop_reason: string | null;
+  ocr_stop_level: string | null;
+};
+
 export type ValidationTopIssue = {
   code: string;
   count: number;
@@ -63,6 +79,7 @@ export type RankingSnapshotValidationReport = {
   has_rank_order_violation: boolean;
   top_validation_issue: ValidationTopIssue | null;
   validation_issues: RankingSnapshotValidationIssueCount[];
+  collector_diagnostics: CollectorDiagnostics | null;
 };
 
 export type SeasonValidationOverview = {
@@ -78,6 +95,10 @@ export type SeasonValidationOverview = {
   invalid_ratio: number;
   top_validation_issue: ValidationTopIssue | null;
   validation_issues: RankingSnapshotValidationIssueCount[];
+  snapshots_with_collector_diagnostics_count: number;
+  snapshots_with_capture_stop_count: number;
+  snapshots_with_hard_ocr_stop_count: number;
+  total_ignored_line_count: number;
 };
 
 export type SeasonValidationSeriesPoint = {
@@ -89,6 +110,7 @@ export type SeasonValidationSeriesPoint = {
   invalid_entry_count: number;
   invalid_ratio: number;
   top_validation_issue: ValidationTopIssue | null;
+  collector_diagnostics: CollectorDiagnostics | null;
 };
 
 export type SeasonValidationSeries = {

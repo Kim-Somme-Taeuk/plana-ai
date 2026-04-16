@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import styles from "../dashboard.module.css";
 import type {
+  CollectorDiagnostics,
   RankingEntry,
   RankingSnapshot,
   RankingSnapshotCutoffs,
@@ -293,6 +294,9 @@ export function SnapshotValidationReportPanel({
 }: {
   report: RankingSnapshotValidationReport;
 }) {
+  const collectorSummary = formatCollectorDiagnosticsSummary(
+    report.collector_diagnostics,
+  );
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
@@ -325,6 +329,26 @@ export function SnapshotValidationReportPanel({
         <StatCard
           label="Top Issue"
           value={report.top_validation_issue?.code ?? "-"}
+        />
+        <StatCard
+          label="Collector Pages"
+          value={
+            report.collector_diagnostics
+              ? formatCollectorPages(report.collector_diagnostics)
+              : "-"
+          }
+        />
+        <StatCard
+          label="Collector Stop"
+          value={collectorSummary.stop}
+        />
+        <StatCard
+          label="Ignored OCR Lines"
+          value={collectorSummary.ignored}
+        />
+        <StatCard
+          label="Collector Raw"
+          value={report.collector_diagnostics?.raw_summary ?? "-"}
         />
       </div>
     </section>
@@ -418,6 +442,22 @@ export function SeasonValidationOverviewPanel({
           label="Top Issue"
           value={overview.top_validation_issue?.code ?? "-"}
         />
+        <StatCard
+          label="Collector Snapshots"
+          value={String(overview.snapshots_with_collector_diagnostics_count)}
+        />
+        <StatCard
+          label="Capture Stops"
+          value={String(overview.snapshots_with_capture_stop_count)}
+        />
+        <StatCard
+          label="Hard OCR Stops"
+          value={String(overview.snapshots_with_hard_ocr_stop_count)}
+        />
+        <StatCard
+          label="Ignored OCR Lines"
+          value={String(overview.total_ignored_line_count)}
+        />
       </div>
     </section>
   );
@@ -485,6 +525,8 @@ export function SeasonValidationSeriesPanel({
                   <th>Invalid Ratio</th>
                   <th>Invalid Entries</th>
                   <th>Top Issue</th>
+                  <th>Collector Stop</th>
+                  <th>Ignored OCR</th>
                   <th>Compare</th>
                 </tr>
               </thead>
@@ -534,6 +576,12 @@ export function SeasonValidationSeriesPanel({
                         ) : (
                           "-"
                         )}
+                      </td>
+                      <td>{formatCollectorStop(point.collector_diagnostics)}</td>
+                      <td>
+                        {point.collector_diagnostics
+                          ? point.collector_diagnostics.ignored_line_count.toLocaleString()
+                          : "-"}
                       </td>
                       <td>
                         <div className={styles.compareTableActions}>
@@ -1090,4 +1138,57 @@ function calculateInvalidRatio(summary: RankingSnapshotSummary) {
   }
 
   return summary.invalid_entry_count / total;
+}
+
+function formatCollectorPages(diagnostics: CollectorDiagnostics) {
+  if (
+    diagnostics.captured_page_count === null ||
+    diagnostics.requested_page_count === null
+  ) {
+    return "-";
+  }
+
+  return `${diagnostics.captured_page_count}/${diagnostics.requested_page_count}`;
+}
+
+function formatCollectorStop(diagnostics: CollectorDiagnostics | null) {
+  if (!diagnostics) {
+    return "-";
+  }
+
+  if (diagnostics.capture_stop_reason) {
+    return `capture:${diagnostics.capture_stop_reason}`;
+  }
+
+  if (diagnostics.ocr_stop_reason) {
+    const level = diagnostics.ocr_stop_level
+      ? `(${diagnostics.ocr_stop_level})`
+      : "";
+    return `ocr:${diagnostics.ocr_stop_reason}${level}`;
+  }
+
+  return "-";
+}
+
+function formatCollectorDiagnosticsSummary(
+  diagnostics: CollectorDiagnostics | null,
+) {
+  if (!diagnostics) {
+    return {
+      stop: "-",
+      ignored: "-",
+    };
+  }
+
+  const ignoredReasons =
+    diagnostics.ignored_reasons.length > 0
+      ? ` (${diagnostics.ignored_reasons
+          .map((row) => `${row.reason}=${row.count}`)
+          .join(", ")})`
+      : "";
+
+  return {
+    stop: formatCollectorStop(diagnostics),
+    ignored: `${diagnostics.ignored_line_count.toLocaleString()}${ignoredReasons}`,
+  };
 }

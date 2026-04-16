@@ -92,10 +92,6 @@ export default async function SeasonDetailPage({
   const sourceOptions = Array.from(
     new Set(snapshots.map((snapshot) => snapshot.source_type)),
   ).sort();
-  const compareCandidates = [...snapshots].sort(
-    (left, right) =>
-      new Date(right.captured_at).getTime() - new Date(left.captured_at).getTime(),
-  );
   const filteredSnapshots = snapshots.filter((snapshot) => {
     if (selectedStatus !== "all" && snapshot.status !== selectedStatus) {
       return false;

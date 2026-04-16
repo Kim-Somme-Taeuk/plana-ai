@@ -216,6 +216,7 @@ def test_get_ranking_snapshot_validation_report_returns_expected_values(
             "count": 1,
         },
         "validation_issues": [{"code": "low_ocr_confidence", "count": 1}],
+        "collector_diagnostics": None,
     }
 
 
@@ -226,6 +227,56 @@ def test_get_ranking_snapshot_validation_report_returns_404_for_missing_snapshot
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Ranking snapshot not found"
+
+
+def test_get_ranking_snapshot_validation_report_includes_collector_diagnostics(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "capture import test fixture\n"
+        "collector: pages=2/3; capture_stop=noisy_last_page; "
+        "ignored=3(blank_line=1,non_entry_line=2); "
+        "ocr_stop=noisy_last_page(hard)"
+    )
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=10000,
+            player_name="Valid",
+            ocr_confidence=0.99,
+            raw_text="1 Valid 10000",
+            image_path="/tmp/valid.png",
+            is_valid=True,
+            validation_issue=None,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/validation-report"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["collector_diagnostics"] == {
+        "raw_summary": (
+            "pages=2/3; capture_stop=noisy_last_page; "
+            "ignored=3(blank_line=1,non_entry_line=2); "
+            "ocr_stop=noisy_last_page(hard)"
+        ),
+        "captured_page_count": 2,
+        "requested_page_count": 3,
+        "capture_stop_reason": "noisy_last_page",
+        "ignored_line_count": 3,
+        "ignored_reasons": [
+            {"reason": "blank_line", "count": 1},
+            {"reason": "non_entry_line", "count": 2},
+        ],
+        "ocr_stop_reason": "noisy_last_page",
+        "ocr_stop_level": "hard",
+    }
 
 
 def test_get_season_validation_overview_returns_expected_values(
@@ -312,6 +363,10 @@ def test_get_season_validation_overview_returns_expected_values(
             {"code": "low_ocr_confidence", "count": 1},
             {"code": "missing_player_name", "count": 1},
         ],
+        "snapshots_with_collector_diagnostics_count": 0,
+        "snapshots_with_capture_stop_count": 0,
+        "snapshots_with_hard_ocr_stop_count": 0,
+        "total_ignored_line_count": 0,
     }
 
 
@@ -410,6 +465,10 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "validation_issues": [
             {"code": "low_ocr_confidence", "count": 1},
         ],
+        "snapshots_with_collector_diagnostics_count": 0,
+        "snapshots_with_capture_stop_count": 0,
+        "snapshots_with_hard_ocr_stop_count": 0,
+        "total_ignored_line_count": 0,
     }
 
 
@@ -495,6 +554,7 @@ def test_get_season_validation_series_returns_expected_values(
                 "code": "low_ocr_confidence",
                 "count": 1,
             },
+            "collector_diagnostics": None,
         },
         {
             "snapshot_id": failed_snapshot.id,
@@ -510,6 +570,7 @@ def test_get_season_validation_series_returns_expected_values(
                 "code": "missing_player_name",
                 "count": 1,
             },
+            "collector_diagnostics": None,
         },
         {
             "snapshot_id": ranking_snapshot.id,
@@ -522,6 +583,7 @@ def test_get_season_validation_series_returns_expected_values(
             "invalid_entry_count": 0,
             "invalid_ratio": 0.0,
             "top_validation_issue": None,
+            "collector_diagnostics": None,
         },
     ]
 
@@ -620,9 +682,139 @@ def test_get_season_validation_series_supports_status_and_source_filters(
                     "code": "low_ocr_confidence",
                     "count": 1,
                 },
+                "collector_diagnostics": None,
             },
         ],
     }
+
+
+def test_get_season_validation_endpoints_include_collector_diagnostics_aggregates(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "baseline note\n"
+        "collector: pages=2/3; capture_stop=noisy_last_page; "
+        "ignored=4(blank_line=1,non_entry_line=3); "
+        "ocr_stop=noisy_last_page(hard)"
+    )
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) + timedelta(minutes=10),
+        source_type="image_tesseract",
+        status="completed",
+        total_rows_collected=1,
+        note=(
+            "collector: pages=1/1; ignored=1(separator_line=1); "
+            "ocr_stop=sparse_last_page(soft)"
+        ),
+    )
+    db_session.add(second_snapshot)
+    db_session.flush()
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1,
+                score=10000,
+                player_name="Valid",
+                ocr_confidence=0.99,
+                raw_text="1 Valid 10000",
+                image_path="/tmp/valid.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=second_snapshot.id,
+                rank=2,
+                score=9000,
+                player_name="Invalid OCR",
+                ocr_confidence=0.2,
+                raw_text="2 Invalid OCR 9000",
+                image_path="/tmp/invalid.png",
+                is_valid=False,
+                validation_issue="low_ocr_confidence",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    overview_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-overview"
+    )
+    series_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-series"
+    )
+
+    assert overview_response.status_code == 200
+    assert overview_response.json()["snapshots_with_collector_diagnostics_count"] == 2
+    assert overview_response.json()["snapshots_with_capture_stop_count"] == 1
+    assert overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
+    assert overview_response.json()["total_ignored_line_count"] == 5
+
+    assert series_response.status_code == 200
+    assert series_response.json()["points"] == [
+        {
+            "snapshot_id": ranking_snapshot.id,
+            "captured_at": ranking_snapshot.captured_at.isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "status": "collecting",
+            "total_entry_count": 1,
+            "valid_entry_count": 1,
+            "invalid_entry_count": 0,
+            "invalid_ratio": 0.0,
+            "top_validation_issue": None,
+            "collector_diagnostics": {
+                "raw_summary": (
+                    "pages=2/3; capture_stop=noisy_last_page; "
+                    "ignored=4(blank_line=1,non_entry_line=3); "
+                    "ocr_stop=noisy_last_page(hard)"
+                ),
+                "captured_page_count": 2,
+                "requested_page_count": 3,
+                "capture_stop_reason": "noisy_last_page",
+                "ignored_line_count": 4,
+                "ignored_reasons": [
+                    {"reason": "blank_line", "count": 1},
+                    {"reason": "non_entry_line", "count": 3},
+                ],
+                "ocr_stop_reason": "noisy_last_page",
+                "ocr_stop_level": "hard",
+            },
+        },
+        {
+            "snapshot_id": second_snapshot.id,
+            "captured_at": second_snapshot.captured_at.isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "status": "completed",
+            "total_entry_count": 1,
+            "valid_entry_count": 0,
+            "invalid_entry_count": 1,
+            "invalid_ratio": 1.0,
+            "top_validation_issue": {
+                "code": "low_ocr_confidence",
+                "count": 1,
+            },
+            "collector_diagnostics": {
+                "raw_summary": (
+                    "pages=1/1; ignored=1(separator_line=1); "
+                    "ocr_stop=sparse_last_page(soft)"
+                ),
+                "captured_page_count": 1,
+                "requested_page_count": 1,
+                "capture_stop_reason": None,
+                "ignored_line_count": 1,
+                "ignored_reasons": [
+                    {"reason": "separator_line", "count": 1},
+                ],
+                "ocr_stop_reason": "sparse_last_page",
+                "ocr_stop_level": "soft",
+            },
+        },
+    ]
 
 
 def test_get_ranking_snapshot_cutoffs_returns_scores_and_nulls(

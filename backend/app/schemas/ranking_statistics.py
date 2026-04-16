@@ -8,6 +8,22 @@ class RankingSnapshotValidationIssueCountRead(BaseModel):
     count: int
 
 
+class CollectorIgnoredReasonCountRead(BaseModel):
+    reason: str
+    count: int
+
+
+class CollectorDiagnosticsRead(BaseModel):
+    raw_summary: str
+    captured_page_count: int | None = None
+    requested_page_count: int | None = None
+    capture_stop_reason: str | None = None
+    ignored_line_count: int
+    ignored_reasons: list[CollectorIgnoredReasonCountRead]
+    ocr_stop_reason: str | None = None
+    ocr_stop_level: str | None = None
+
+
 class ValidationTopIssueRead(BaseModel):
     code: str
     count: int
@@ -38,6 +54,7 @@ class RankingSnapshotValidationReportRead(BaseModel):
     has_rank_order_violation: bool
     top_validation_issue: ValidationTopIssueRead | None = None
     validation_issues: list[RankingSnapshotValidationIssueCountRead]
+    collector_diagnostics: CollectorDiagnosticsRead | None = None
 
 
 class SeasonValidationOverviewRead(BaseModel):
@@ -53,6 +70,10 @@ class SeasonValidationOverviewRead(BaseModel):
     invalid_ratio: float
     top_validation_issue: ValidationTopIssueRead | None = None
     validation_issues: list[RankingSnapshotValidationIssueCountRead]
+    snapshots_with_collector_diagnostics_count: int
+    snapshots_with_capture_stop_count: int
+    snapshots_with_hard_ocr_stop_count: int
+    total_ignored_line_count: int
 
 
 class SeasonValidationSeriesPointRead(BaseModel):
@@ -64,6 +85,7 @@ class SeasonValidationSeriesPointRead(BaseModel):
     invalid_entry_count: int
     invalid_ratio: float
     top_validation_issue: ValidationTopIssueRead | None = None
+    collector_diagnostics: CollectorDiagnosticsRead | None = None
 
 
 class SeasonValidationSeriesRead(BaseModel):

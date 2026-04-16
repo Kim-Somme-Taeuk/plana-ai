@@ -25,6 +25,7 @@
 - `GET /seasons/{season_id}/validation-series`
 - 시즌 요약
 - season validation overview / validation series / issue 집계
+- season validation overview / validation series에서 collector 진단 집계와 stop 힌트 표시
 - snapshot 목록
 - snapshot 목록에서 invalid ratio / top issue 표시
 - snapshot status / source 필터
@@ -50,6 +51,7 @@ snapshot 상세 페이지입니다.
 - `GET /ranking-snapshots/{snapshot_id}/entries`
 - summary / cutoffs / distribution / entries 표시
 - validation report 표시
+- validation report에 collector 진단 요약 표시
 - `is_valid`, `validation_issue`, `sort_by`, `order`, `limit`, `offset` 기반 entry 조회 제어
 - validation issue 집계 패널 표시
 - snapshot 상세에서 issue code 클릭 시 해당 issue로 바로 필터링
