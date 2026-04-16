@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +14,10 @@ class RankingSnapshotBase(BaseModel):
 
 class RankingSnapshotCreate(RankingSnapshotBase):
     pass
+
+
+class RankingSnapshotStatusUpdate(BaseModel):
+    status: Literal["collecting", "completed", "failed"]
 
 
 class RankingSnapshotRead(RankingSnapshotBase):
