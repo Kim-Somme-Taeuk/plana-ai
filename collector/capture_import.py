@@ -39,6 +39,18 @@ CAPTURE_SOURCE_TYPE_BY_PROVIDER = {
     OCR_PROVIDER_TESSERACT: "image_tesseract",
 }
 DEFAULT_TESSERACT_COMMAND = "tesseract"
+OCR_NUMERIC_TRANSLATION = str.maketrans(
+    {
+        "O": "0",
+        "o": "0",
+        "Q": "0",
+        "D": "0",
+        "I": "1",
+        "l": "1",
+        "|": "1",
+        "B": "8",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -410,7 +422,7 @@ def _parse_int_token(
     page_index: int,
     line_index: int,
 ) -> int:
-    normalized = value.replace(",", "").strip()
+    normalized = _normalize_integer_ocr_token(value)
     try:
         return int(normalized)
     except ValueError as exc:
@@ -425,12 +437,23 @@ def _parse_float_token(
     page_index: int,
     line_index: int,
 ) -> float:
+    normalized = _normalize_float_ocr_token(value)
     try:
-        return float(value.strip())
+        return float(normalized)
     except ValueError as exc:
         raise MockImportError(
             f"{label} 파싱에 실패했습니다. page={page_index}, line={line_index}, value={value!r}"
         ) from exc
+
+
+def _normalize_integer_ocr_token(value: str) -> str:
+    normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
+    return normalized.strip(".:;")
+
+
+def _normalize_float_ocr_token(value: str) -> str:
+    normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
+    return normalized[:-1] if normalized.endswith(".") else normalized
 
 
 def _parse_whitespace_fallback_line(

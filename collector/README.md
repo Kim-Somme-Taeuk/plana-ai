@@ -143,6 +143,8 @@ backend/.venv/bin/python collector/capture_import.py \
 - `source_type`을 생략하면 OCR provider에 맞는 기본값으로 기록됩니다.
 - 같은 capture를 다시 넣으면 `season_label` 중복으로 실패합니다.
 - OCR line 파싱에 실패하면 import를 중단합니다.
+- 숫자 토큰은 흔한 OCR 오인식에 대해 보정합니다.
+  - 예: `O -> 0`, `l -> 1`, trailing `.` 제거
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
