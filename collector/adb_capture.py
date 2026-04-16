@@ -37,6 +37,7 @@ class AdbOptions:
     page_prefix: str
     adb_command: str
     page_count: int
+    stop_on_duplicate_frame: bool
     swipe: "AdbSwipeConfig | None"
 
 
@@ -64,6 +65,8 @@ class AdbCaptureResult:
     output_dir: Path
     manifest_path: Path
     image_paths: list[Path]
+    requested_page_count: int
+    stopped_reason: str | None
 
 
 class AdbClient:
@@ -189,6 +192,10 @@ def load_adb_capture_request(
         raise MockImportError("adb.page_count는 정수여야 합니다.") from exc
     if page_count <= 0:
         raise MockImportError("adb.page_count는 1 이상이어야 합니다.")
+    stop_on_duplicate_frame = _parse_boolean_option(
+        adb.get("stop_on_duplicate_frame", True),
+        "adb.stop_on_duplicate_frame",
+    )
 
     swipe = _build_swipe_config(adb.get("swipe"))
     if page_count > 1 and swipe is None:
@@ -212,6 +219,7 @@ def load_adb_capture_request(
             page_prefix=page_prefix,
             adb_command=adb_command or adb.get("command") or DEFAULT_ADB_COMMAND,
             page_count=page_count,
+            stop_on_duplicate_frame=stop_on_duplicate_frame,
             swipe=swipe,
         ),
         ocr_provider_explicit=ocr_provider_explicit,
@@ -226,13 +234,25 @@ def capture_adb_screenshot(
     request.adb.output_dir.mkdir(parents=True, exist_ok=True)
 
     image_paths: list[Path] = []
+    previous_image_bytes: bytes | None = None
+    stopped_reason: str | None = None
     for page_number in range(1, request.adb.page_count + 1):
         image_path = (
             request.adb.output_dir / f"{request.adb.page_prefix}-{page_number:03d}.png"
         )
         image_bytes = client.capture_screenshot(device_serial=request.adb.device_serial)
+
+        if (
+            request.adb.stop_on_duplicate_frame
+            and previous_image_bytes is not None
+            and image_bytes == previous_image_bytes
+        ):
+            stopped_reason = "duplicate_frame"
+            break
+
         image_path.write_bytes(image_bytes)
         image_paths.append(image_path)
+        previous_image_bytes = image_bytes
 
         if page_number < request.adb.page_count:
             assert request.adb.swipe is not None  # guarded during request loading
@@ -250,6 +270,11 @@ def capture_adb_screenshot(
                 "season": request.season,
                 "snapshot": request.snapshot,
                 "ocr": request.ocr,
+                "capture": {
+                    "requested_page_count": request.adb.page_count,
+                    "captured_page_count": len(image_paths),
+                    "stopped_reason": stopped_reason,
+                },
                 "pages": [
                     {
                         "image_path": image_path.name,
@@ -267,6 +292,8 @@ def capture_adb_screenshot(
         output_dir=request.adb.output_dir,
         manifest_path=manifest_path,
         image_paths=image_paths,
+        requested_page_count=request.adb.page_count,
+        stopped_reason=stopped_reason,
     )
 
 
@@ -349,6 +376,12 @@ def _build_swipe_config(value: Any) -> AdbSwipeConfig | None:
         raise MockImportError("adb.swipe 필드는 정수여야 합니다.") from exc
 
 
+def _parse_boolean_option(value: Any, label: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise MockImportError(f"{label}는 true 또는 false 여야 합니다.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="ADB로 screenshot을 캡처해 capture manifest 디렉터리를 생성합니다.",
@@ -400,6 +433,9 @@ def main(argv: list[str] | None = None) -> int:
                 "image_paths": [str(path) for path in result.image_paths],
                 "ocr_provider": request.ocr["provider"],
                 "device_serial": request.adb.device_serial,
+                "requested_page_count": result.requested_page_count,
+                "captured_page_count": len(result.image_paths),
+                "stopped_reason": result.stopped_reason,
             },
             ensure_ascii=False,
         )

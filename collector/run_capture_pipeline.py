@@ -34,6 +34,9 @@ class CapturePipelineResult:
     output_dir: Path
     manifest_path: Path
     image_paths: list[Path]
+    requested_page_count: int
+    captured_page_count: int
+    stopped_reason: str | None
     season_id: int
     snapshot_id: int
     entry_ids: list[int]
@@ -88,6 +91,9 @@ def run_capture_pipeline(
         output_dir=capture_result.output_dir,
         manifest_path=capture_result.manifest_path,
         image_paths=capture_result.image_paths,
+        requested_page_count=capture_result.requested_page_count,
+        captured_page_count=len(capture_result.image_paths),
+        stopped_reason=capture_result.stopped_reason,
         season_id=import_result.season_id,
         snapshot_id=import_result.snapshot_id,
         entry_ids=import_result.entry_ids,
@@ -195,6 +201,9 @@ def main(argv: list[str] | None = None) -> int:
                 "output_dir": str(result.output_dir),
                 "manifest_path": str(result.manifest_path),
                 "image_paths": [str(path) for path in result.image_paths],
+                "requested_page_count": result.requested_page_count,
+                "captured_page_count": result.captured_page_count,
+                "stopped_reason": result.stopped_reason,
                 "season_id": result.season_id,
                 "snapshot_id": result.snapshot_id,
                 "entry_count": len(result.entry_ids),

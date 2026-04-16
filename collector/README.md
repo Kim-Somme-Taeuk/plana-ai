@@ -203,6 +203,7 @@ backend/.venv/bin/python collector/capture_import.py \
   "adb": {
     "output_dir": "../capture_runs/sample_scroll_capture",
     "page_count": 3,
+    "stop_on_duplicate_frame": true,
     "swipe": {
       "start_x": 500,
       "start_y": 1600,
@@ -219,6 +220,7 @@ backend/.venv/bin/python collector/capture_import.py \
 
 - `page_count=1`이면 swipe 설정이 필요 없습니다.
 - `page_count>=2`이면 `adb.swipe`가 필수입니다.
+- `stop_on_duplicate_frame=true`면 이전 페이지와 screenshot 바이트가 동일할 때 조기 종료합니다.
 - 마지막 페이지 뒤에는 swipe를 실행하지 않습니다.
 - swipe 뒤에는 `settle_delay_ms`만큼 대기합니다.
 - `adb.output_dir`의 상대경로 기준은 요청 JSON 파일이 있는 디렉터리입니다.
@@ -241,12 +243,14 @@ backend/.venv/bin/python collector/adb_capture.py \
   collector/adb_data/sample_request.json
 ```
 
-성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`을 JSON으로 출력합니다.
+성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`,
+`requested_page_count`, `captured_page_count`, `stopped_reason`을 JSON으로 출력합니다.
 
 ### 주의사항
 
 - 로컬에 `adb` 명령이 있어야 합니다.
 - 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
+- 마지막 페이지 판정 1차는 screenshot 바이트 동일 여부 기반입니다.
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
 

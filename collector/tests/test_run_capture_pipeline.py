@@ -88,6 +88,9 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.status == "completed"
     assert result.total_rows_collected == 2
     assert result.ocr_provider == "tesseract"
+    assert result.requested_page_count == 1
+    assert result.captured_page_count == 1
+    assert result.stopped_reason is None
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
     assert [call[0] for call in api_client.calls] == [

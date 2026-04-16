@@ -19,6 +19,7 @@
   "adb": {
     "output_dir": "../capture_runs/sample_scroll_capture",
     "page_count": 3,
+    "stop_on_duplicate_frame": true,
     "swipe": {
       "start_x": 500,
       "start_y": 1600,
