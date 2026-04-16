@@ -371,6 +371,21 @@ def test_run_capture_pipeline_tracks_ignored_lines(
 
     assert result.ignored_line_count == 1
     assert result.ignored_line_reasons == [{"reason": "non_entry_line", "count": 1}]
+    assert result.page_summaries == [
+        {
+            "page_index": 1,
+            "image_path": capture_import._build_entry_image_path(
+                (tmp_path / "capture-output" / "page-001.png").resolve()
+            ),
+            "entry_count": 1,
+            "ignored_line_count": 1,
+            "ignored_line_reasons": [{"reason": "non_entry_line", "count": 1}],
+            "first_rank": 1,
+            "last_rank": 1,
+            "overlap_with_previous_count": 0,
+            "overlap_with_previous_ratio": 0.0,
+        }
+    ]
 
 
 def _write_request(

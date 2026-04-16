@@ -90,6 +90,7 @@ class IgnoredOcrLine:
 class ParsedCapturePayload:
     mock_payload: MockImportPayload
     ignored_lines: list[IgnoredOcrLine]
+    page_summaries: list[dict[str, Any]]
 
 
 def load_capture_import_payload(
@@ -162,6 +163,8 @@ def parse_capture_payload(
 ) -> ParsedCapturePayload:
     entries: list[dict[str, Any]] = []
     ignored_lines: list[IgnoredOcrLine] = []
+    page_summaries: list[dict[str, Any]] = []
+    previous_page_ranks: set[int] | None = None
 
     for page_index, page in enumerate(payload.pages, start=1):
         image_path = _resolve_existing_path(payload.base_dir, page.image_path, "image_path")
@@ -180,6 +183,27 @@ def parse_capture_payload(
         )
         entries.extend(page_entries)
         ignored_lines.extend(page_ignored_lines)
+        current_page_ranks = {entry["rank"] for entry in page_entries}
+        overlap_count = 0
+        overlap_ratio = 0.0
+        if previous_page_ranks:
+            overlap_count = len(previous_page_ranks & current_page_ranks)
+            if current_page_ranks:
+                overlap_ratio = overlap_count / len(current_page_ranks)
+        page_summaries.append(
+            {
+                "page_index": page_index,
+                "image_path": _build_entry_image_path(image_path),
+                "entry_count": len(page_entries),
+                "ignored_line_count": len(page_ignored_lines),
+                "ignored_line_reasons": summarize_ignored_lines(page_ignored_lines),
+                "first_rank": min(current_page_ranks),
+                "last_rank": max(current_page_ranks),
+                "overlap_with_previous_count": overlap_count,
+                "overlap_with_previous_ratio": round(overlap_ratio, 4),
+            }
+        )
+        previous_page_ranks = current_page_ranks
 
     _validate_snapshot_entries(entries)
 
@@ -190,6 +214,7 @@ def parse_capture_payload(
             entries=entries,
         ),
         ignored_lines=ignored_lines,
+        page_summaries=page_summaries,
     )
 
 
@@ -790,6 +815,7 @@ def main(argv: list[str] | None = None) -> int:
                 "entry_count": len(parsed_payload.mock_payload.entries),
                 "ignored_line_count": len(parsed_payload.ignored_lines),
                 "ignored_line_reasons": ignored_line_reasons,
+                "page_summaries": parsed_payload.page_summaries,
                 "ignored_lines": [
                     {
                         "page_index": line.page_index,

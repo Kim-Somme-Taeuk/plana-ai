@@ -47,6 +47,7 @@ class CapturePipelineResult:
     ocr_provider: str
     ignored_line_count: int
     ignored_line_reasons: list[dict[str, int | str]]
+    page_summaries: list[dict[str, Any]]
 
 
 def run_capture_pipeline(
@@ -107,6 +108,7 @@ def run_capture_pipeline(
         ocr_provider=capture_payload.ocr.provider,
         ignored_line_count=len(parsed_payload.ignored_lines),
         ignored_line_reasons=summarize_ignored_lines(parsed_payload.ignored_lines),
+        page_summaries=parsed_payload.page_summaries,
     )
 
 
@@ -220,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ocr_provider": result.ocr_provider,
                 "ignored_line_count": result.ignored_line_count,
                 "ignored_line_reasons": result.ignored_line_reasons,
+                "page_summaries": result.page_summaries,
             },
             ensure_ascii=False,
         )

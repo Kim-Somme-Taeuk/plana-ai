@@ -166,6 +166,24 @@ def test_parse_capture_payload_ignores_non_entry_lines(
         {"reason": "blank_line", "count": 1},
         {"reason": "non_entry_line", "count": 2},
     ]
+    assert parsed_payload.page_summaries == [
+        {
+            "page_index": 1,
+            "image_path": capture_import._build_entry_image_path(
+                (tmp_path / "page-001.png").resolve()
+            ),
+            "entry_count": 1,
+            "ignored_line_count": 3,
+            "ignored_line_reasons": [
+                {"reason": "blank_line", "count": 1},
+                {"reason": "non_entry_line", "count": 2},
+            ],
+            "first_rank": 1,
+            "last_rank": 1,
+            "overlap_with_previous_count": 0,
+            "overlap_with_previous_ratio": 0.0,
+        }
+    ]
 
 
 def test_parse_capture_payload_classifies_separator_lines(
@@ -189,6 +207,61 @@ def test_parse_capture_payload_classifies_separator_lines(
     assert len(parsed_payload.mock_payload.entries) == 1
     assert parsed_payload.ignored_lines[0].reason == "separator_line"
     assert ignored_summary == [{"reason": "separator_line", "count": 1}]
+
+
+def test_parse_capture_payload_reports_multi_page_summaries(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12345678\t0.99\n2\tArona\t12000000\t0.97\n",
+    )
+    _write_capture_page(
+        tmp_path,
+        "page-002.png",
+        "3\tSensei\t11000000\t0.95\n4\tMomoi\t10000000\t0.92\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-page-overlap-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+        ],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert parsed_payload.page_summaries == [
+        {
+            "page_index": 1,
+            "image_path": capture_import._build_entry_image_path(
+                (tmp_path / "page-001.png").resolve()
+            ),
+            "entry_count": 2,
+            "ignored_line_count": 0,
+            "ignored_line_reasons": [],
+            "first_rank": 1,
+            "last_rank": 2,
+            "overlap_with_previous_count": 0,
+            "overlap_with_previous_ratio": 0.0,
+        },
+        {
+            "page_index": 2,
+            "image_path": capture_import._build_entry_image_path(
+                (tmp_path / "page-002.png").resolve()
+            ),
+            "entry_count": 2,
+            "ignored_line_count": 0,
+            "ignored_line_reasons": [],
+            "first_rank": 3,
+            "last_rank": 4,
+            "overlap_with_previous_count": 0,
+            "overlap_with_previous_ratio": 0.0,
+        },
+    ]
 
 
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
