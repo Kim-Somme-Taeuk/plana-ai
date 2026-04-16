@@ -186,6 +186,7 @@ export function getSeasonValidationOverview(
   options: {
     status?: "completed" | "collecting" | "failed";
     sourceType?: string;
+    collectorFilter?: "with_diagnostics" | "capture_stop" | "hard_ocr_stop";
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -194,6 +195,9 @@ export function getSeasonValidationOverview(
   }
   if (options.sourceType) {
     params.set("source_type", options.sourceType);
+  }
+  if (options.collectorFilter) {
+    params.set("collector_filter", options.collectorFilter);
   }
   return fetchApi<SeasonValidationOverview>(
     `/seasons/${seasonId}/validation-overview${params.size ? `?${params.toString()}` : ""}`,
@@ -205,6 +209,7 @@ export function getSeasonValidationSeries(
   options: {
     status?: "completed" | "collecting" | "failed";
     sourceType?: string;
+    collectorFilter?: "with_diagnostics" | "capture_stop" | "hard_ocr_stop";
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -213,6 +218,9 @@ export function getSeasonValidationSeries(
   }
   if (options.sourceType) {
     params.set("source_type", options.sourceType);
+  }
+  if (options.collectorFilter) {
+    params.set("collector_filter", options.collectorFilter);
   }
   return fetchApi<SeasonValidationSeries>(
     `/seasons/${seasonId}/validation-series${params.size ? `?${params.toString()}` : ""}`,

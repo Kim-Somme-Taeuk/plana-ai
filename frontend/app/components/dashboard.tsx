@@ -468,11 +468,13 @@ export function SeasonValidationSeriesPanel({
   selectedCompareLeftId,
   selectedCompareRightId,
   compareRank,
+  collectorFilter,
 }: {
   series: SeasonValidationSeries;
   selectedCompareLeftId?: number | null;
   selectedCompareRightId?: number | null;
   compareRank?: number;
+  collectorFilter?: string;
 }) {
   const maxInvalidRatio =
     series.points.reduce((currentMax, point) => {
@@ -590,6 +592,10 @@ export function SeasonValidationSeriesPanel({
                               <Link
                                 href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
                                   compareRank ? `&rank=${compareRank}` : ""
+                                }${
+                                  collectorFilter && collectorFilter !== "all"
+                                    ? `&collector=${collectorFilter}`
+                                    : ""
                                 }`}
                                 className={styles.linkButton}
                               >

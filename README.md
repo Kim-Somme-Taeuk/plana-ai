@@ -183,6 +183,7 @@ entry 조회 사용성:
 - `cutoff-series`는 optional `source_type` 필터 지원
 - `validation-overview`, `validation-series`는 `status`, `source_type` 필터를 지원
 - collector가 snapshot `note`에 남긴 진단 요약은 `validation-report`, `validation-overview`, `validation-series`에도 구조화되어 노출됩니다.
+- `validation-overview`, `validation-series`는 추가로 `collector_filter=with_diagnostics|capture_stop|hard_ocr_stop`을 지원합니다.
 
 ### validation 1차
 

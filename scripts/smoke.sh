@@ -50,6 +50,9 @@ retry_curl "$FRONTEND_URL/"
 echo "[smoke] frontend season detail"
 retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID"
 
+echo "[smoke] frontend season collector filter"
+retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID?collector=with_diagnostics"
+
 echo "[smoke] frontend season compare"
 retry_curl "$FRONTEND_URL/seasons/$SMOKE_COMPARE_SEASON_ID?compareLeft=$SMOKE_COMPARE_LEFT_ID&compareRight=$SMOKE_COMPARE_RIGHT_ID"
 

@@ -33,6 +33,7 @@ type SeasonPageProps = {
     rank?: string;
     status?: string;
     source?: string;
+    collector?: string;
     compareLeft?: string;
     compareRight?: string;
   }>;
@@ -40,6 +41,11 @@ type SeasonPageProps = {
 
 const SERIES_RANK_OPTIONS = [1, 10, 100, 1000, 5000, 10000];
 const SEASON_STATUS_FILTERS = ["completed", "collecting", "failed"] as const;
+const SEASON_COLLECTOR_FILTERS = [
+  "with_diagnostics",
+  "capture_stop",
+  "hard_ocr_stop",
+] as const;
 
 export default async function SeasonDetailPage({
   params,
@@ -57,12 +63,21 @@ export default async function SeasonDetailPage({
     resolvedSearchParams.source && resolvedSearchParams.source.trim()
       ? resolvedSearchParams.source
       : "all";
+  const selectedCollector =
+    resolvedSearchParams.collector && resolvedSearchParams.collector.trim()
+      ? resolvedSearchParams.collector
+      : "all";
   const requestedCompareLeft = Number(resolvedSearchParams.compareLeft ?? "");
   const requestedCompareRight = Number(resolvedSearchParams.compareRight ?? "");
   const selectedStatusFilter = SEASON_STATUS_FILTERS.includes(
     selectedStatus as (typeof SEASON_STATUS_FILTERS)[number],
   )
     ? (selectedStatus as (typeof SEASON_STATUS_FILTERS)[number])
+    : undefined;
+  const selectedCollectorFilter = SEASON_COLLECTOR_FILTERS.includes(
+    selectedCollector as (typeof SEASON_COLLECTOR_FILTERS)[number],
+  )
+    ? (selectedCollector as (typeof SEASON_COLLECTOR_FILTERS)[number])
     : undefined;
 
   const [
@@ -81,10 +96,12 @@ export default async function SeasonDetailPage({
       getSeasonValidationOverview(numericSeasonId, {
         status: selectedStatusFilter,
         sourceType: selectedSource === "all" ? undefined : selectedSource,
+        collectorFilter: selectedCollectorFilter,
       }),
       getSeasonValidationSeries(numericSeasonId, {
         status: selectedStatusFilter,
         sourceType: selectedSource === "all" ? undefined : selectedSource,
+        collectorFilter: selectedCollectorFilter,
       }),
     ]);
 
@@ -98,6 +115,15 @@ export default async function SeasonDetailPage({
       return false;
     }
     if (selectedSource !== "all" && snapshot.source_type !== selectedSource) {
+      return false;
+    }
+    if (
+      selectedCollector !== "all" &&
+      validationSeriesResult.data &&
+      !validationSeriesResult.data.points.some(
+        (point) => point.snapshot_id === snapshot.id,
+      )
+    ) {
       return false;
     }
     return true;
@@ -191,6 +217,7 @@ export default async function SeasonDetailPage({
                     selectedCompareLeftId={selectedCompareLeft?.id ?? null}
                     selectedCompareRightId={selectedCompareRight?.id ?? null}
                     compareRank={seriesRank}
+                    collectorFilter={selectedCollector}
                   />
                 )}
                 <ValidationIssuesPanel
@@ -234,6 +261,19 @@ export default async function SeasonDetailPage({
                           {sourceType}
                         </option>
                       ))}
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="collector">Collector</label>
+                    <select
+                      id="collector"
+                      name="collector"
+                      defaultValue={selectedCollector}
+                    >
+                      <option value="all">all</option>
+                      <option value="with_diagnostics">with_diagnostics</option>
+                      <option value="capture_stop">capture_stop</option>
+                      <option value="hard_ocr_stop">hard_ocr_stop</option>
                     </select>
                   </div>
                   <input type="hidden" name="rank" value={String(seriesRank)} />

@@ -173,6 +173,53 @@ def _build_collector_diagnostics_read(
     )
 
 
+def _matches_collector_filter(
+    diagnostics: CollectorDiagnosticsRead | None,
+    collector_filter: str | None,
+) -> bool:
+    if collector_filter is None:
+        return True
+    if collector_filter == "with_diagnostics":
+        return diagnostics is not None
+    if diagnostics is None:
+        return False
+    if collector_filter == "capture_stop":
+        return diagnostics.capture_stop_reason is not None
+    if collector_filter == "hard_ocr_stop":
+        return diagnostics.ocr_stop_level == "hard"
+    return True
+
+
+def _get_filtered_season_snapshots(
+    db: Session,
+    *,
+    season_id: int,
+    status: str | None,
+    source_type: str | None,
+    collector_filter: str | None,
+) -> list[tuple[RankingSnapshot, CollectorDiagnosticsRead | None]]:
+    snapshots = list(
+        db.scalars(
+            select(RankingSnapshot)
+            .where(
+                *_build_season_snapshot_filters(
+                    season_id=season_id,
+                    status=status,
+                    source_type=source_type,
+                )
+            )
+            .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
+        ).all()
+    )
+
+    rows: list[tuple[RankingSnapshot, CollectorDiagnosticsRead | None]] = []
+    for snapshot in snapshots:
+        diagnostics = _build_collector_diagnostics_read(snapshot)
+        if _matches_collector_filter(diagnostics, collector_filter):
+            rows.append((snapshot, diagnostics))
+    return rows
+
+
 def _get_valid_scores(db: Session, snapshot_id: int) -> list[int]:
     return list(
         db.scalars(
@@ -343,67 +390,55 @@ def _build_season_validation_overview(
     *,
     status: str | None = None,
     source_type: str | None = None,
+    collector_filter: str | None = None,
 ) -> SeasonValidationOverviewRead:
-    snapshot_filters = _build_season_snapshot_filters(
+    snapshot_rows = _get_filtered_season_snapshots(
+        db,
         season_id=season.id,
         status=status,
         source_type=source_type,
+        collector_filter=collector_filter,
     )
-    snapshots = list(
-        db.scalars(
-            select(RankingSnapshot)
-            .where(*snapshot_filters)
-            .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
-        ).all()
-    )
+    snapshots = [snapshot for snapshot, _ in snapshot_rows]
     snapshot_counts: dict[str, int] = {}
     collector_diagnostics = []
-    for snapshot in snapshots:
+    for snapshot, diagnostics in snapshot_rows:
         snapshot_counts[snapshot.status] = snapshot_counts.get(snapshot.status, 0) + 1
-        diagnostics = _build_collector_diagnostics_read(snapshot)
         if diagnostics is not None:
             collector_diagnostics.append(diagnostics)
 
-    valid_entry_count = db.scalar(
-        select(func.count(RankingEntry.id))
-        .join(
-            RankingSnapshot,
-            RankingSnapshot.id == RankingEntry.ranking_snapshot_id,
-        )
-        .where(
-            *snapshot_filters,
-            RankingEntry.is_valid.is_(True),
-        )
-    ) or 0
-    invalid_entry_count = db.scalar(
-        select(func.count(RankingEntry.id))
-        .join(
-            RankingSnapshot,
-            RankingSnapshot.id == RankingEntry.ranking_snapshot_id,
-        )
-        .where(
-            *snapshot_filters,
-            RankingEntry.is_valid.is_(False),
-        )
-    ) or 0
+    snapshot_ids = [snapshot.id for snapshot in snapshots]
 
-    issue_rows = db.execute(
-        select(
-            RankingEntry.validation_issue,
-            func.count(RankingEntry.id),
-        )
-        .join(
-            RankingSnapshot,
-            RankingSnapshot.id == RankingEntry.ranking_snapshot_id,
-        )
-        .where(
-            *snapshot_filters,
-            RankingEntry.is_valid.is_(False),
-            RankingEntry.validation_issue.is_not(None),
-        )
-        .group_by(RankingEntry.validation_issue)
-        .order_by(RankingEntry.validation_issue.asc())
-    ).all()
+    if snapshot_ids:
+        valid_entry_count = db.scalar(
+            select(func.count(RankingEntry.id)).where(
+                RankingEntry.ranking_snapshot_id.in_(snapshot_ids),
+                RankingEntry.is_valid.is_(True),
+            )
+        ) or 0
+        invalid_entry_count = db.scalar(
+            select(func.count(RankingEntry.id)).where(
+                RankingEntry.ranking_snapshot_id.in_(snapshot_ids),
+                RankingEntry.is_valid.is_(False),
+            )
+        ) or 0
+        issue_rows = db.execute(
+            select(
+                RankingEntry.validation_issue,
+                func.count(RankingEntry.id),
+            )
+            .where(
+                RankingEntry.ranking_snapshot_id.in_(snapshot_ids),
+                RankingEntry.is_valid.is_(False),
+                RankingEntry.validation_issue.is_not(None),
+            )
+            .group_by(RankingEntry.validation_issue)
+            .order_by(RankingEntry.validation_issue.asc())
+        ).all()
+    else:
+        valid_entry_count = 0
+        invalid_entry_count = 0
+        issue_rows = []
 
     snapshot_count = len(snapshots)
 
@@ -442,23 +477,16 @@ def _build_season_validation_series(
     *,
     status: str | None = None,
     source_type: str | None = None,
+    collector_filter: str | None = None,
 ) -> SeasonValidationSeriesRead:
-    snapshots = list(
-        db.scalars(
-            select(RankingSnapshot)
-            .where(
-                *_build_season_snapshot_filters(
-                    season_id=season.id,
-                    status=status,
-                    source_type=source_type,
-                )
-            )
-            .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
-        ).all()
-    )
-
     points: list[SeasonValidationSeriesPointRead] = []
-    for snapshot in snapshots:
+    for snapshot, diagnostics in _get_filtered_season_snapshots(
+        db,
+        season_id=season.id,
+        status=status,
+        source_type=source_type,
+        collector_filter=collector_filter,
+    ):
         valid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, True)
         invalid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, False)
         validation_issues = _get_validation_issue_counts(db, snapshot.id)
@@ -472,7 +500,7 @@ def _build_season_validation_series(
                 invalid_entry_count=invalid_entry_count,
                 invalid_ratio=_calculate_invalid_ratio(valid_entry_count, invalid_entry_count),
                 top_validation_issue=_get_top_validation_issue(validation_issues),
-                collector_diagnostics=_build_collector_diagnostics_read(snapshot),
+                collector_diagnostics=diagnostics,
             )
         )
 
@@ -638,6 +666,7 @@ def get_season_validation_overview(
     season_id: int,
     status: Literal["collecting", "completed", "failed"] | None = Query(None),
     source_type: str | None = Query(None, min_length=1),
+    collector_filter: Literal["with_diagnostics", "capture_stop", "hard_ocr_stop"] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> SeasonValidationOverviewRead:
     season = _get_season_or_404(db, season_id)
@@ -646,6 +675,7 @@ def get_season_validation_overview(
         season,
         status=status,
         source_type=source_type,
+        collector_filter=collector_filter,
     )
 
 
@@ -657,6 +687,7 @@ def get_season_validation_series(
     season_id: int,
     status: Literal["collecting", "completed", "failed"] | None = Query(None),
     source_type: str | None = Query(None, min_length=1),
+    collector_filter: Literal["with_diagnostics", "capture_stop", "hard_ocr_stop"] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> SeasonValidationSeriesRead:
     season = _get_season_or_404(db, season_id)
@@ -665,4 +696,5 @@ def get_season_validation_series(
         season,
         status=status,
         source_type=source_type,
+        collector_filter=collector_filter,
     )

@@ -816,6 +816,26 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
         },
     ]
 
+    hard_overview_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-overview"
+        "?collector_filter=hard_ocr_stop"
+    )
+    capture_series_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-series"
+        "?collector_filter=capture_stop"
+    )
+
+    assert hard_overview_response.status_code == 200
+    assert hard_overview_response.json()["snapshot_count"] == 1
+    assert hard_overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
+    assert hard_overview_response.json()["snapshots_with_capture_stop_count"] == 1
+    assert hard_overview_response.json()["total_ignored_line_count"] == 4
+
+    assert capture_series_response.status_code == 200
+    assert [point["snapshot_id"] for point in capture_series_response.json()["points"]] == [
+        ranking_snapshot.id
+    ]
+
 
 def test_get_ranking_snapshot_cutoffs_returns_scores_and_nulls(
     client,
