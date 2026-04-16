@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,7 @@ OCR_NUMERIC_TRANSLATION = str.maketrans(
 OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
 OCR_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’"
 SCORE_SUFFIX_TOKENS = frozenset({"점", "pt", "pts"})
+ZERO_WIDTH_CHARACTERS_RE = re.compile(r"[\u200b\u200c\u200d\ufeff]")
 PAGINATION_RE = re.compile(
     r"^(?:page\s*)?\d+\s*(?:/|of)\s*\d+$",
     re.IGNORECASE,
@@ -804,15 +806,20 @@ def _get_ignored_line_reason(raw_line: str) -> str | None:
     if not stripped:
         return "blank_line"
 
-    if _looks_like_separator_line(stripped):
-        return "separator_line"
     normalized = _normalize_structured_ocr_line(stripped)
+
+    if _looks_like_separator_line(normalized):
+        return "separator_line"
     if _looks_like_header_line(normalized):
         return "header_line"
     if _looks_like_pagination_line(normalized):
         return "pagination_line"
     if _looks_like_footer_line(normalized):
         return "footer_line"
+    if _looks_like_reward_line(normalized):
+        return "reward_line"
+    if _looks_like_ui_control_line(normalized):
+        return "ui_control_line"
     if _looks_like_metadata_line(normalized):
         return "metadata_line"
 
@@ -874,6 +881,42 @@ def _looks_like_footer_line(value: str) -> bool:
     )
 
 
+def _looks_like_reward_line(value: str) -> bool:
+    lowered = value.lower()
+    reward_keywords = (
+        "reward",
+        "ranking reward",
+        "clear reward",
+        "획득",
+        "보상",
+        "청휘석",
+        "크레딧",
+        "엘리그마",
+    )
+    return any(keyword in lowered for keyword in reward_keywords) or any(
+        keyword in value for keyword in ("획득", "보상", "청휘석", "크레딧", "엘리그마")
+    )
+
+
+def _looks_like_ui_control_line(value: str) -> bool:
+    lowered = value.lower()
+    ui_keywords = (
+        "search",
+        "sort",
+        "filter",
+        "refresh",
+        "menu",
+        "검색",
+        "정렬",
+        "필터",
+        "새로고침",
+        "메뉴",
+    )
+    return any(keyword in lowered for keyword in ui_keywords) or any(
+        keyword in value for keyword in ("검색", "정렬", "필터", "새로고침", "메뉴")
+    )
+
+
 def _looks_like_metadata_line(value: str) -> bool:
     lowered = value.lower()
     if any(keyword in lowered for keyword in ("page", "captured", "server", "season", "boss", "total")):
@@ -917,7 +960,7 @@ def _parse_float_token(
 
 def _normalize_integer_ocr_token(value: str) -> str:
     normalized = (
-        value.strip()
+        _normalize_unicode_ocr_text(value).strip()
         .replace(",", "")
         .replace(".", "")
         .translate(OCR_NUMERIC_TRANSLATION)
@@ -926,7 +969,7 @@ def _normalize_integer_ocr_token(value: str) -> str:
 
 
 def _normalize_rank_ocr_token(value: str) -> str:
-    normalized = value.strip().rstrip(OCR_EDGE_PUNCTUATION)
+    normalized = _normalize_unicode_ocr_text(value).strip().rstrip(OCR_EDGE_PUNCTUATION)
     lowered = normalized.lower()
     if lowered.startswith("no."):
         normalized = normalized[3:]
@@ -941,7 +984,7 @@ def _normalize_rank_ocr_token(value: str) -> str:
 
 
 def _normalize_float_ocr_token(value: str) -> str:
-    normalized = value.strip().translate(OCR_NUMERIC_TRANSLATION)
+    normalized = _normalize_unicode_ocr_text(value).strip().translate(OCR_NUMERIC_TRANSLATION)
     normalized = normalized.replace(" ", "")
     if _looks_like_percent_token(normalized):
         normalized = normalized[:-1]
@@ -957,7 +1000,7 @@ def _normalize_float_ocr_token(value: str) -> str:
 
 
 def _normalize_score_ocr_token(value: str) -> str:
-    stripped = value.strip()
+    stripped = _normalize_unicode_ocr_text(value).strip()
     lowered = stripped.lower().rstrip(OCR_EDGE_PUNCTUATION)
     for suffix in ("pts", "pt"):
         if lowered.endswith(suffix):
@@ -969,7 +1012,12 @@ def _normalize_score_ocr_token(value: str) -> str:
 
 
 def _looks_like_percent_token(value: str) -> bool:
-    stripped = value.strip().translate(OCR_NUMERIC_TRANSLATION).rstrip(OCR_EDGE_PUNCTUATION)
+    stripped = (
+        _normalize_unicode_ocr_text(value)
+        .strip()
+        .translate(OCR_NUMERIC_TRANSLATION)
+        .rstrip(OCR_EDGE_PUNCTUATION)
+    )
     return stripped.endswith("%")
 
 
@@ -1025,6 +1073,7 @@ def _parse_whitespace_fallback_line(
 
 
 def _normalize_structured_ocr_line(raw_line: str) -> str:
+    raw_line = _normalize_unicode_ocr_text(raw_line)
     if not any(separator in raw_line for separator in ("|", "¦", "｜")):
         return raw_line
 
@@ -1135,7 +1184,12 @@ def _parse_score_text(
 
 
 def _normalize_player_name(value: str) -> str:
-    return " ".join(value.split())
+    return " ".join(_normalize_unicode_ocr_text(value).split())
+
+
+def _normalize_unicode_ocr_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    return ZERO_WIDTH_CHARACTERS_RE.sub("", normalized)
 
 
 def _normalize_trailing_percent_tokens(tokens: list[str]) -> list[str]:

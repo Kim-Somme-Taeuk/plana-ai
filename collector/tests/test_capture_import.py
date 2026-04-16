@@ -186,6 +186,29 @@ def test_build_mock_payload_from_capture_parses_decimal_comma_confidence(
     assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
 
 
+def test_build_mock_payload_from_capture_normalizes_unicode_rank_and_player_tokens(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "①　Player\u200b　2　１２３４５６７８　８７％\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-unicode-rank-player-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["rank"] == 1
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
+
+
 def test_build_mock_payload_from_capture_parses_percent_tokens_split_by_space(
     tmp_path: Path,
 ) -> None:
@@ -483,6 +506,52 @@ def test_parse_capture_payload_classifies_datetime_metadata_lines(
     assert len(parsed_payload.mock_payload.entries) == 1
     assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
         {"reason": "metadata_line", "count": 1}
+    ]
+
+
+def test_parse_capture_payload_classifies_reward_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "랭킹 보상 1200 청휘석\n1\tPlana\t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-reward-line-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
+        {"reason": "reward_line", "count": 1}
+    ]
+
+
+def test_parse_capture_payload_classifies_ui_control_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "정렬 | 점수 순\n1|Plana|12,345,678\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-ui-control-line-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
+        {"reason": "ui_control_line", "count": 1}
     ]
 
 
