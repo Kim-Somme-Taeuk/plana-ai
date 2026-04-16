@@ -13,6 +13,7 @@ from app.schemas.ranking_statistics import (
     RankingSnapshotCutoffsRead,
     RankingSnapshotDistributionRead,
     RankingSnapshotSummaryRead,
+    RankingSnapshotValidationIssueCountRead,
     SeasonCutoffSeriesPointRead,
     SeasonCutoffSeriesRead,
 )
@@ -98,6 +99,30 @@ def _get_valid_score_bounds(
     return row[0], row[1]
 
 
+def _get_validation_issue_counts(
+    db: Session,
+    snapshot_id: int,
+) -> list[RankingSnapshotValidationIssueCountRead]:
+    rows = db.execute(
+        select(
+            RankingEntry.validation_issue,
+            func.count(RankingEntry.id),
+        )
+        .where(
+            RankingEntry.ranking_snapshot_id == snapshot_id,
+            RankingEntry.is_valid.is_(False),
+            RankingEntry.validation_issue.is_not(None),
+        )
+        .group_by(RankingEntry.validation_issue)
+        .order_by(RankingEntry.validation_issue.asc())
+    ).all()
+
+    return [
+        RankingSnapshotValidationIssueCountRead(code=code, count=count)
+        for code, count in rows
+    ]
+
+
 def _get_valid_scores(db: Session, snapshot_id: int) -> list[int]:
     return list(
         db.scalars(
@@ -129,6 +154,7 @@ def _build_snapshot_summary(
         invalid_entry_count=invalid_entry_count,
         highest_score=highest_score,
         lowest_score=lowest_score,
+        validation_issues=_get_validation_issue_counts(db, snapshot.id),
     )
 
 

@@ -233,6 +233,50 @@ def test_list_ranking_entries_filters_by_is_valid(
     assert [entry["rank"] for entry in invalid_response.json()] == [20]
 
 
+def test_list_ranking_entries_filters_by_validation_issue(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    low_confidence_entry = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 1,
+            "score": 9000,
+            "player_name": "Low OCR",
+            "ocr_confidence": 0.1,
+            "raw_text": "1 Low OCR 9000",
+            "image_path": "/tmp/low-ocr.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+    missing_name_entry = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 8000,
+            "player_name": "   ",
+            "ocr_confidence": 0.9,
+            "raw_text": "2 ??? 8000",
+            "image_path": "/tmp/missing-name.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        params={"validation_issue": "low_ocr_confidence"},
+    )
+
+    assert low_confidence_entry.status_code == 201
+    assert missing_name_entry.status_code == 201
+    assert response.status_code == 200
+    assert [entry["id"] for entry in response.json()] == [
+        low_confidence_entry.json()["id"]
+    ]
+
+
 def test_list_ranking_entries_supports_limit_and_offset(
     client,
     db_session: Session,
@@ -368,6 +412,19 @@ def test_list_ranking_entries_returns_422_for_invalid_sorting_params(
     assert invalid_sort_response.json()["detail"]
     assert invalid_order_response.status_code == 422
     assert invalid_order_response.json()["detail"]
+
+
+def test_list_ranking_entries_returns_422_for_invalid_validation_issue(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        params={"validation_issue": "not_a_real_issue"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]
 
 
 def test_list_ranking_entries_returns_422_for_limit_above_maximum(

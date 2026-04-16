@@ -3,6 +3,11 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class RankingSnapshotValidationIssueCountRead(BaseModel):
+    code: str
+    count: int
+
+
 class RankingSnapshotSummaryRead(BaseModel):
     snapshot_id: int
     season_id: int
@@ -13,6 +18,7 @@ class RankingSnapshotSummaryRead(BaseModel):
     invalid_entry_count: int
     highest_score: int | None = None
     lowest_score: int | None = None
+    validation_issues: list[RankingSnapshotValidationIssueCountRead]
 
 
 class RankingSnapshotCutoffRead(BaseModel):

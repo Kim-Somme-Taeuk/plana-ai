@@ -63,6 +63,7 @@ def test_get_ranking_snapshot_summary_returns_expected_values(
         "invalid_entry_count": 1,
         "highest_score": 9000,
         "lowest_score": 7000,
+        "validation_issues": [{"code": "ocr mismatch", "count": 1}],
     }
 
 
@@ -93,6 +94,62 @@ def test_get_ranking_snapshot_summary_returns_null_scores_without_valid_entries(
     assert response.json()["invalid_entry_count"] == 1
     assert response.json()["highest_score"] is None
     assert response.json()["lowest_score"] is None
+    assert response.json()["validation_issues"] == [
+        {"code": "ocr mismatch", "count": 1}
+    ]
+
+
+def test_get_ranking_snapshot_summary_groups_validation_issue_counts_from_api_entries(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 1,
+            "score": 9000,
+            "player_name": "Low OCR",
+            "ocr_confidence": 0.1,
+            "raw_text": "1 Low OCR 9000",
+            "image_path": "/tmp/low-ocr.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+    client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 8000,
+            "player_name": "   ",
+            "ocr_confidence": 0.9,
+            "raw_text": "2 ??? 8000",
+            "image_path": "/tmp/missing-name.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+    client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 3,
+            "score": 7000,
+            "player_name": "Another Low OCR",
+            "ocr_confidence": 0.2,
+            "raw_text": "3 Another Low OCR 7000",
+            "image_path": "/tmp/low-ocr-2.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/summary")
+
+    assert response.status_code == 200
+    assert response.json()["validation_issues"] == [
+        {"code": "low_ocr_confidence", "count": 2},
+        {"code": "missing_player_name", "count": 1},
+    ]
 
 
 def test_get_ranking_snapshot_cutoffs_returns_scores_and_nulls(
