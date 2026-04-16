@@ -148,8 +148,10 @@ backend/.venv/bin/python collector/capture_import.py \
   - 예: `O -> 0`, `l -> 1`, trailing `.` 제거
 - whitespace fallback의 confidence token도 같은 보정 규칙을 적용합니다.
 - whitespace fallback에서는 `12 345 678`처럼 공백으로 분리된 score token도 보수적으로 합쳐서 파싱합니다.
+- `player_name`은 앞뒤 공백을 제거하고 내부 연속 공백을 한 칸으로 정리합니다.
 - rank로 시작하지 않는 OCR 잡음 줄은 import 전에 무시하고 결과에 `ignored_lines`로 남깁니다.
 - 빈 줄도 `blank_line` reason으로 집계합니다.
+- 구분선처럼 보이는 줄은 `separator_line` reason으로 집계합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
