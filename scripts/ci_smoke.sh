@@ -24,11 +24,47 @@ retry_curl() {
   return 1
 }
 
+retry_backend_ready() {
+  local url="$1"
+  local attempts="${2:-30}"
+  local delay="${3:-1}"
+
+  for ((i=1; i<=attempts; i++)); do
+    local body
+    body="$(curl -fsS "$url" 2>/dev/null || true)"
+    if [[ -n "$body" ]] && HEALTH_BODY="$body" python3 - <<'PY'
+import json
+import os
+import sys
+
+try:
+    body = json.loads(os.environ["HEALTH_BODY"])
+except Exception:
+    sys.exit(1)
+
+sys.exit(0 if body.get("database") is True else 1)
+PY
+    then
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  echo "[ci-smoke] backend database was not ready: $url" >&2
+  return 1
+}
+
 echo "[ci-smoke] docker compose up -d --build"
 docker compose up -d --build >/dev/null
 
 echo "[ci-smoke] backend health"
-retry_curl "$BACKEND_URL/health"
+retry_backend_ready "$BACKEND_URL/health"
+
+echo "[ci-smoke] apply migrations"
+docker compose exec -T backend alembic upgrade head >/dev/null
+
+echo "[ci-smoke] backend health after migrations"
+retry_backend_ready "$BACKEND_URL/health"
 
 echo "[ci-smoke] seed smoke data"
 SEED_JSON="$(python3 scripts/seed_smoke_data.py --base-url "$BACKEND_URL")"
