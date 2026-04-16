@@ -1186,6 +1186,69 @@ def test_get_season_validation_overview_aggregates_page_quality_counts(
     assert body["noisy_page_count"] == 1
 
 
+def test_get_season_validation_endpoints_support_page_signal_filters(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "collector: pages=2/2; ignored=1(blank_line=1); ocr_stop=stale_last_page(soft)\n"
+        'collector_json: {"page_summaries":['
+        '{"page_index":1,"image_path":"page-001.png","entry_count":3,"ignored_line_count":0,"ignored_line_reasons":[],"first_rank":1,"last_rank":3,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":3,"new_rank_ratio":1.0},'
+        '{"page_index":2,"image_path":"page-002.png","entry_count":4,"ignored_line_count":1,"ignored_line_reasons":[{"reason":"blank_line","count":1}],"first_rank":3,"last_rank":6,"overlap_with_previous_count":3,"overlap_with_previous_ratio":0.75,"new_rank_count":1,"new_rank_ratio":0.25}'
+        '],"ocr_stop_hints":[{"reason":"stale_last_page","page_index":2,"new_rank_count":1,"new_rank_ratio":0.25}],"ocr_stop_recommendation":{"should_stop":true,"level":"soft","primary_reason":"stale_last_page","reasons":["stale_last_page"]}}'
+    )
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) + timedelta(minutes=5),
+        source_type="image_tesseract",
+        status="completed",
+        total_rows_collected=1,
+        note=(
+            "collector: pages=1/1; ignored=2(header_line=1,malformed_entry_line=1); "
+            "ocr_stop=empty_last_page(hard)\n"
+            'collector_json: {"page_summaries":[{"page_index":1,"image_path":"page-003.png","entry_count":0,"ignored_line_count":2,"ignored_line_reasons":[{"reason":"header_line","count":1},{"reason":"malformed_entry_line","count":1}],"first_rank":null,"last_rank":null,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":0,"new_rank_ratio":0.0}],"ocr_stop_hints":[{"reason":"empty_last_page","page_index":1}],"ocr_stop_recommendation":{"should_stop":true,"level":"hard","primary_reason":"empty_last_page","reasons":["empty_last_page"]}}'
+        ),
+    )
+    db_session.add(second_snapshot)
+    db_session.flush()
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=10000,
+            player_name="Valid",
+            ocr_confidence=0.99,
+            raw_text="1 Valid 10000",
+            image_path="/tmp/valid.png",
+            is_valid=True,
+            validation_issue=None,
+        )
+    )
+    db_session.commit()
+
+    stale_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-overview?page_signal=stale"
+    )
+    empty_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-series?page_signal=empty"
+    )
+
+    assert stale_response.status_code == 200
+    assert stale_response.json()["snapshot_count"] == 1
+    assert stale_response.json()["stale_page_count"] == 1
+    assert stale_response.json()["empty_page_count"] == 0
+
+    assert empty_response.status_code == 200
+    assert [point["snapshot_id"] for point in empty_response.json()["points"]] == [
+        second_snapshot.id
+    ]
+    assert (
+        empty_response.json()["points"][0]["collector_diagnostics"]["empty_page_count"]
+        == 1
+    )
+
+
 def test_get_season_validation_endpoints_support_collector_reason_filters(
     client,
     db_session: Session,

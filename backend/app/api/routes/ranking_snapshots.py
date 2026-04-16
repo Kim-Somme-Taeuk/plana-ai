@@ -257,6 +257,7 @@ def _matches_collector_filter(
     ocr_stop_reason: str | None,
     ignored_reason: str | None,
     ignored_group: str | None,
+    page_signal: str | None,
     ocr_stop_level: str | None,
 ) -> bool:
     if collector_filter is None:
@@ -280,6 +281,7 @@ def _matches_collector_filter(
         and ocr_stop_reason is None
         and ignored_reason is None
         and ignored_group is None
+        and page_signal is None
         and ocr_stop_level is None
     ):
         return True
@@ -306,6 +308,16 @@ def _matches_collector_filter(
         return False
     if ignored_group == "malformed" and diagnostics.malformed_entry_line_count == 0:
         return False
+    if page_signal == "empty" and diagnostics.empty_page_count == 0:
+        return False
+    if page_signal == "sparse" and diagnostics.sparse_page_count == 0:
+        return False
+    if page_signal == "overlapping" and diagnostics.overlapping_page_count == 0:
+        return False
+    if page_signal == "stale" and diagnostics.stale_page_count == 0:
+        return False
+    if page_signal == "noisy" and diagnostics.noisy_page_count == 0:
+        return False
     return True
 
 
@@ -331,6 +343,7 @@ def _get_filtered_season_snapshots(
     ocr_stop_reason: str | None,
     ignored_reason: str | None,
     ignored_group: str | None,
+    page_signal: str | None,
     ocr_stop_level: str | None,
 ) -> list[tuple[RankingSnapshot, CollectorDiagnosticsRead | None]]:
     snapshots = list(
@@ -357,6 +370,7 @@ def _get_filtered_season_snapshots(
             ocr_stop_reason,
             ignored_reason,
             ignored_group,
+            page_signal,
             ocr_stop_level,
         ):
             rows.append((snapshot, diagnostics))
@@ -538,6 +552,7 @@ def _build_season_validation_overview(
     ocr_stop_reason: str | None = None,
     ignored_reason: str | None = None,
     ignored_group: str | None = None,
+    page_signal: str | None = None,
     ocr_stop_level: str | None = None,
 ) -> SeasonValidationOverviewRead:
     snapshot_rows = _get_filtered_season_snapshots(
@@ -550,6 +565,7 @@ def _build_season_validation_overview(
         ocr_stop_reason=ocr_stop_reason,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
+        page_signal=page_signal,
         ocr_stop_level=ocr_stop_level,
     )
     snapshots = [snapshot for snapshot, _ in snapshot_rows]
@@ -688,6 +704,7 @@ def _build_season_validation_series(
     ocr_stop_reason: str | None = None,
     ignored_reason: str | None = None,
     ignored_group: str | None = None,
+    page_signal: str | None = None,
     ocr_stop_level: str | None = None,
 ) -> SeasonValidationSeriesRead:
     points: list[SeasonValidationSeriesPointRead] = []
@@ -701,6 +718,7 @@ def _build_season_validation_series(
         ocr_stop_reason=ocr_stop_reason,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
+        page_signal=page_signal,
         ocr_stop_level=ocr_stop_level,
     ):
         valid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, True)
@@ -887,6 +905,7 @@ def get_season_validation_overview(
     ocr_stop_reason: str | None = Query(None, min_length=1),
     ignored_reason: str | None = Query(None, min_length=1),
     ignored_group: Literal["overlay", "header", "malformed"] | None = Query(None),
+    page_signal: Literal["empty", "sparse", "overlapping", "stale", "noisy"] | None = Query(None),
     ocr_stop_level: Literal["soft", "hard"] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> SeasonValidationOverviewRead:
@@ -901,6 +920,7 @@ def get_season_validation_overview(
         ocr_stop_reason=ocr_stop_reason,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
+        page_signal=page_signal,
         ocr_stop_level=ocr_stop_level,
     )
 
@@ -918,6 +938,7 @@ def get_season_validation_series(
     ocr_stop_reason: str | None = Query(None, min_length=1),
     ignored_reason: str | None = Query(None, min_length=1),
     ignored_group: Literal["overlay", "header", "malformed"] | None = Query(None),
+    page_signal: Literal["empty", "sparse", "overlapping", "stale", "noisy"] | None = Query(None),
     ocr_stop_level: Literal["soft", "hard"] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> SeasonValidationSeriesRead:
@@ -932,5 +953,6 @@ def get_season_validation_series(
         ocr_stop_reason=ocr_stop_reason,
         ignored_reason=ignored_reason,
         ignored_group=ignored_group,
+        page_signal=page_signal,
         ocr_stop_level=ocr_stop_level,
     )

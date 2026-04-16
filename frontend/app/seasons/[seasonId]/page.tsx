@@ -38,6 +38,7 @@ type SeasonPageProps = {
     ocrStopReason?: string;
     ignoredReason?: string;
     ignoredGroup?: string;
+    pageSignal?: string;
     ocrStopLevel?: string;
     compareLeft?: string;
     compareRight?: string;
@@ -89,6 +90,10 @@ export default async function SeasonDetailPage({
     resolvedSearchParams.ignoredGroup && resolvedSearchParams.ignoredGroup.trim()
       ? resolvedSearchParams.ignoredGroup
       : "all";
+  const selectedPageSignal =
+    resolvedSearchParams.pageSignal && resolvedSearchParams.pageSignal.trim()
+      ? resolvedSearchParams.pageSignal
+      : "all";
   const selectedOcrStopLevel =
     resolvedSearchParams.ocrStopLevel && resolvedSearchParams.ocrStopLevel.trim()
       ? resolvedSearchParams.ocrStopLevel
@@ -135,6 +140,15 @@ export default async function SeasonDetailPage({
           selectedIgnoredGroup === "all"
             ? undefined
             : (selectedIgnoredGroup as "overlay" | "header" | "malformed"),
+        pageSignal:
+          selectedPageSignal === "all"
+            ? undefined
+            : (selectedPageSignal as
+                | "empty"
+                | "sparse"
+                | "overlapping"
+                | "stale"
+                | "noisy"),
         ocrStopLevel:
           selectedOcrStopLevel === "all"
             ? undefined
@@ -156,6 +170,15 @@ export default async function SeasonDetailPage({
           selectedIgnoredGroup === "all"
             ? undefined
             : (selectedIgnoredGroup as "overlay" | "header" | "malformed"),
+        pageSignal:
+          selectedPageSignal === "all"
+            ? undefined
+            : (selectedPageSignal as
+                | "empty"
+                | "sparse"
+                | "overlapping"
+                | "stale"
+                | "noisy"),
         ocrStopLevel:
           selectedOcrStopLevel === "all"
             ? undefined
@@ -180,6 +203,7 @@ export default async function SeasonDetailPage({
         selectedCaptureStopReason !== "all" ||
         selectedOcrStopReason !== "all" ||
         selectedIgnoredReason !== "all" ||
+        selectedPageSignal !== "all" ||
         selectedOcrStopLevel !== "all") &&
       validationSeriesResult.data &&
       !validationSeriesResult.data.points.some(
@@ -275,6 +299,7 @@ export default async function SeasonDetailPage({
                   selectedOcrStopReason={selectedOcrStopReason}
                   selectedIgnoredReason={selectedIgnoredReason}
                   selectedIgnoredGroup={selectedIgnoredGroup}
+                  selectedPageSignal={selectedPageSignal}
                   selectedOcrStopLevel={selectedOcrStopLevel}
                 />
                 {validationSeriesResult.error || !validationSeriesResult.data ? (
@@ -296,6 +321,7 @@ export default async function SeasonDetailPage({
                     ocrStopReason={selectedOcrStopReason}
                     ignoredReason={selectedIgnoredReason}
                     ignoredGroup={selectedIgnoredGroup}
+                    pageSignal={selectedPageSignal}
                     ocrStopLevel={selectedOcrStopLevel}
                   />
                 )}
@@ -414,6 +440,21 @@ export default async function SeasonDetailPage({
                     </select>
                   </div>
                   <div className={styles.field}>
+                    <label htmlFor="pageSignal">페이지 품질 신호</label>
+                    <select
+                      id="pageSignal"
+                      name="pageSignal"
+                      defaultValue={selectedPageSignal}
+                    >
+                      <option value="all">전체</option>
+                      <option value="empty">빈 페이지</option>
+                      <option value="sparse">Sparse</option>
+                      <option value="overlapping">중복</option>
+                      <option value="stale">Stale</option>
+                      <option value="noisy">Noise</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
                     <label htmlFor="ocrStopLevel">OCR 중단 레벨</label>
                     <select
                       id="ocrStopLevel"
@@ -503,6 +544,11 @@ export default async function SeasonDetailPage({
                       type="hidden"
                       name="ignoredGroup"
                       value={selectedIgnoredGroup}
+                    />
+                    <input
+                      type="hidden"
+                      name="pageSignal"
+                      value={selectedPageSignal}
                     />
                     <input
                       type="hidden"
@@ -602,6 +648,11 @@ export default async function SeasonDetailPage({
                         type="hidden"
                         name="ignoredGroup"
                         value={selectedIgnoredGroup}
+                      />
+                      <input
+                        type="hidden"
+                        name="pageSignal"
+                        value={selectedPageSignal}
                       />
                       <input
                         type="hidden"

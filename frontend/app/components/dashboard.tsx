@@ -144,7 +144,7 @@ export function SnapshotList({
             className={styles.snapshotCard}
           >
             <div className={styles.snapshotCardTop}>
-              <span className={styles.snapshotLink}>Snapshot #{snapshot.id}</span>
+              <span className={styles.snapshotLink}>스냅샷 #{snapshot.id}</span>
               <StatusBadge status={snapshot.status} />
             </div>
             <div className={styles.metaGrid}>
@@ -243,7 +243,7 @@ export function CutoffTable({
         <h2>컷오프</h2>
         <span className={styles.muted}>유효 엔트리 기준</span>
       </div>
-      <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
+      <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -314,7 +314,9 @@ export function SnapshotValidationReportPanel({
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
         <h2>검증 리포트</h2>
-        <span className={styles.muted}>snapshot 정합성 보조 정보</span>
+        <span className={styles.muted}>
+          snapshot 품질 지표와 collector diagnostics를 함께 봅니다.
+        </span>
       </div>
       <div className={styles.statsGrid}>
         <StatCard label="전체 엔트리" value={String(report.total_entry_count)} />
@@ -371,11 +373,15 @@ export function SnapshotValidationReportPanel({
           label="비정상 엔트리 OCR"
           value={collectorDiagnostics?.malformed_entry_line_count.toLocaleString() ?? "-"}
         />
-        <StatCard
-          label="수집 요약 원문"
-          value={report.collector_diagnostics?.raw_summary ?? "-"}
-        />
       </div>
+      {collectorDiagnostics?.raw_summary ? (
+        <div className={styles.longformBlock}>
+          <div className={styles.panelTitle}>
+            <h3>수집 요약 원문</h3>
+          </div>
+          <p className={styles.longformText}>{collectorDiagnostics.raw_summary}</p>
+        </div>
+      ) : null}
       {collectorDiagnostics ? (
         <>
           <div className={styles.threeColumnGrid}>
@@ -384,6 +390,46 @@ export function SnapshotValidationReportPanel({
                 <h3>수집 중단 드릴다운</h3>
               </div>
               <div className={styles.paginationLinks}>
+                {collectorDiagnostics.empty_page_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pageSignal=empty`}
+                    className={styles.linkButton}
+                  >
+                    빈 페이지
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.sparse_page_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pageSignal=sparse`}
+                    className={styles.linkButton}
+                  >
+                    Sparse
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.overlapping_page_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pageSignal=overlapping`}
+                    className={styles.linkButton}
+                  >
+                    중복 페이지
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.stale_page_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pageSignal=stale`}
+                    className={styles.linkButton}
+                  >
+                    Stale
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.noisy_page_count > 0 ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pageSignal=noisy`}
+                    className={styles.linkButton}
+                  >
+                    Noise
+                  </Link>
+                ) : null}
                 {collectorDiagnostics.overlay_ignored_line_count > 0 ? (
                   <Link
                     href={`/seasons/${seasonId}?collector=with_diagnostics&ignoredGroup=overlay`}
@@ -417,7 +463,7 @@ export function SnapshotValidationReportPanel({
                     )}`}
                     className={styles.linkButton}
                   >
-                    캡처:{collectorDiagnostics.capture_stop_reason}
+                    캡처 중단: {collectorDiagnostics.capture_stop_reason}
                   </Link>
                 ) : null}
                 {collectorDiagnostics.ocr_stop_reason ? (
@@ -431,7 +477,7 @@ export function SnapshotValidationReportPanel({
                     }`}
                     className={styles.linkButton}
                   >
-                    OCR:{collectorDiagnostics.ocr_stop_reason}
+                    OCR 중단: {collectorDiagnostics.ocr_stop_reason}
                     {collectorDiagnostics.ocr_stop_level
                       ? ` (${collectorDiagnostics.ocr_stop_level})`
                       : ""}
@@ -539,7 +585,7 @@ export function SnapshotValidationReportPanel({
                     <tr key={pageSummary.page_index}>
                       <td>#{pageSummary.page_index}</td>
                       <td>{pageSummary.entry_count.toLocaleString()}</td>
-                      <td>
+                      <td className={styles.cellWrap}>
                         {pageSummary.ignored_line_count.toLocaleString()}
                         {pageSummary.ignored_line_reasons.length > 0
                           ? ` (${pageSummary.ignored_line_reasons
@@ -584,7 +630,11 @@ export function ValidationIssuesPanel({
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
         <h2>검증 이슈</h2>
-        <span className={styles.muted}>무효 엔트리 사유 집계</span>
+        <span className={styles.muted}>
+          {snapshotId
+            ? "코드를 누르면 동일 이슈가 있는 무효 엔트리만 바로 봅니다."
+            : "무효 엔트리 사유 집계"}
+        </span>
       </div>
       {issues.length === 0 ? (
         <EmptyBox message="현재 집계된 검증 이슈가 없습니다." />
@@ -633,6 +683,7 @@ export function SeasonValidationOverviewPanel({
   selectedOcrStopReason,
   selectedIgnoredReason,
   selectedIgnoredGroup,
+  selectedPageSignal,
   selectedOcrStopLevel,
 }: {
   overview: SeasonValidationOverview;
@@ -644,10 +695,11 @@ export function SeasonValidationOverviewPanel({
   selectedOcrStopReason?: string;
   selectedIgnoredReason?: string;
   selectedIgnoredGroup?: string;
+  selectedPageSignal?: string;
   selectedOcrStopLevel?: string;
 }) {
   const buildSeasonReasonHref = (
-    reasonType: "capture" | "ocr" | "ignored" | "ignored-group",
+    reasonType: "capture" | "ocr" | "ignored" | "ignored-group" | "page-signal",
     reason: string,
   ) => {
     const params = new URLSearchParams();
@@ -671,6 +723,9 @@ export function SeasonValidationOverviewPanel({
       if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
         params.set("ignoredGroup", selectedIgnoredGroup);
       }
+      if (selectedPageSignal && selectedPageSignal !== "all") {
+        params.set("pageSignal", selectedPageSignal);
+      }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
       }
@@ -690,6 +745,9 @@ export function SeasonValidationOverviewPanel({
       }
       if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
         params.set("ignoredGroup", selectedIgnoredGroup);
+      }
+      if (selectedPageSignal && selectedPageSignal !== "all") {
+        params.set("pageSignal", selectedPageSignal);
       }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
@@ -711,6 +769,32 @@ export function SeasonValidationOverviewPanel({
       if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
         params.set("ignoredReason", selectedIgnoredReason);
       }
+      if (selectedPageSignal && selectedPageSignal !== "all") {
+        params.set("pageSignal", selectedPageSignal);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
+    } else if (reasonType === "page-signal") {
+      params.set(
+        "collector",
+        selectedCollector && selectedCollector !== "all"
+          ? selectedCollector
+          : "with_diagnostics",
+      );
+      params.set("pageSignal", reason);
+      if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
+        params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
+        params.set("ocrStopReason", selectedOcrStopReason);
+      }
+      if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
+        params.set("ignoredReason", selectedIgnoredReason);
+      }
+      if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
+        params.set("ignoredGroup", selectedIgnoredGroup);
+      }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
       }
@@ -730,6 +814,9 @@ export function SeasonValidationOverviewPanel({
       }
       if (selectedIgnoredGroup && selectedIgnoredGroup !== "all") {
         params.set("ignoredGroup", selectedIgnoredGroup);
+      }
+      if (selectedPageSignal && selectedPageSignal !== "all") {
+        params.set("pageSignal", selectedPageSignal);
       }
       if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
         params.set("ocrStopLevel", selectedOcrStopLevel);
@@ -856,6 +943,48 @@ export function SeasonValidationOverviewPanel({
           </div>
         </div>
       </div>
+      <div className={styles.paginationLinks}>
+        {overview.empty_page_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("page-signal", "empty")}
+            className={styles.linkButton}
+          >
+            빈 페이지 보기
+          </Link>
+        ) : null}
+        {overview.sparse_page_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("page-signal", "sparse")}
+            className={styles.linkButton}
+          >
+            Sparse 보기
+          </Link>
+        ) : null}
+        {overview.overlapping_page_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("page-signal", "overlapping")}
+            className={styles.linkButton}
+          >
+            중복 페이지 보기
+          </Link>
+        ) : null}
+        {overview.stale_page_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("page-signal", "stale")}
+            className={styles.linkButton}
+          >
+            Stale 보기
+          </Link>
+        ) : null}
+        {overview.noisy_page_count > 0 ? (
+          <Link
+            href={buildSeasonReasonHref("page-signal", "noisy")}
+            className={styles.linkButton}
+          >
+            Noise 보기
+          </Link>
+        ) : null}
+      </div>
       <div className={styles.threeColumnGrid}>
         <ReasonSummaryPanel
           title="캡처 중단 사유"
@@ -892,6 +1021,7 @@ export function SeasonValidationSeriesPanel({
   ocrStopReason,
   ignoredReason,
   ignoredGroup,
+  pageSignal,
   ocrStopLevel,
 }: {
   series: SeasonValidationSeries;
@@ -905,6 +1035,7 @@ export function SeasonValidationSeriesPanel({
   ocrStopReason?: string;
   ignoredReason?: string;
   ignoredGroup?: string;
+  pageSignal?: string;
   ocrStopLevel?: string;
 }) {
   const maxInvalidRatio =
@@ -1050,6 +1181,10 @@ export function SeasonValidationSeriesPanel({
                                 }${
                                   ignoredGroup && ignoredGroup !== "all"
                                     ? `&ignoredGroup=${encodeURIComponent(ignoredGroup)}`
+                                    : ""
+                                }${
+                                  pageSignal && pageSignal !== "all"
+                                    ? `&pageSignal=${encodeURIComponent(pageSignal)}`
                                     : ""
                                 }${
                                   ocrStopLevel && ocrStopLevel !== "all"
@@ -1544,7 +1679,7 @@ export function SnapshotEntryTable({
             <tr key={entry.id}>
               <td>{entry.rank.toLocaleString()}</td>
               <td>{entry.score.toLocaleString()}</td>
-              <td>{entry.player_name ?? "-"}</td>
+              <td className={styles.cellWrap}>{entry.player_name ?? "-"}</td>
               <td className={entry.is_valid ? styles.entryValid : styles.entryInvalid}>
                 {entry.is_valid ? "유효" : "무효"}
               </td>
@@ -1553,7 +1688,13 @@ export function SnapshotEntryTable({
                   ? entry.ocr_confidence.toFixed(2)
                   : "-"}
               </td>
-              <td>{entry.validation_issue ?? "-"}</td>
+              <td className={styles.cellWrap}>
+                {entry.validation_issue ? (
+                  <span className={styles.issueCode}>{entry.validation_issue}</span>
+                ) : (
+                  "-"
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1689,8 +1830,8 @@ function CompareTextRow({
   return (
     <tr>
       <td>{label}</td>
-      <td>{leftValue}</td>
-      <td>{rightValue}</td>
+      <td className={styles.cellWrap}>{leftValue}</td>
+      <td className={styles.cellWrap}>{rightValue}</td>
       <td>{leftValue === rightValue ? "같음" : "-"}</td>
     </tr>
   );

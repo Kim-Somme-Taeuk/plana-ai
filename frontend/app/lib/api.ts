@@ -191,6 +191,7 @@ export function getSeasonValidationOverview(
     ocrStopReason?: string;
     ignoredReason?: string;
     ignoredGroup?: "overlay" | "header" | "malformed";
+    pageSignal?: "empty" | "sparse" | "overlapping" | "stale" | "noisy";
     ocrStopLevel?: "soft" | "hard";
   } = {},
 ) {
@@ -215,6 +216,9 @@ export function getSeasonValidationOverview(
   }
   if (options.ignoredGroup) {
     params.set("ignored_group", options.ignoredGroup);
+  }
+  if (options.pageSignal) {
+    params.set("page_signal", options.pageSignal);
   }
   if (options.ocrStopLevel) {
     params.set("ocr_stop_level", options.ocrStopLevel);
@@ -234,6 +238,7 @@ export function getSeasonValidationSeries(
     ocrStopReason?: string;
     ignoredReason?: string;
     ignoredGroup?: "overlay" | "header" | "malformed";
+    pageSignal?: "empty" | "sparse" | "overlapping" | "stale" | "noisy";
     ocrStopLevel?: "soft" | "hard";
   } = {},
 ) {
@@ -258,6 +263,9 @@ export function getSeasonValidationSeries(
   }
   if (options.ignoredGroup) {
     params.set("ignored_group", options.ignoredGroup);
+  }
+  if (options.pageSignal) {
+    params.set("page_signal", options.pageSignal);
   }
   if (options.ocrStopLevel) {
     params.set("ocr_stop_level", options.ocrStopLevel);
