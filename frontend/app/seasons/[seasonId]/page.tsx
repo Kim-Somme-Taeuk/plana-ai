@@ -8,11 +8,15 @@ import {
   PageShell,
   SeasonValidationOverviewPanel,
   SeasonSummary,
+  SnapshotComparisonPanel,
   SnapshotList,
   ValidationIssuesPanel,
 } from "../../components/dashboard";
 import {
   getSeason,
+  getSnapshotCutoffs,
+  getSnapshotDistribution,
+  getSnapshotSummary,
   getSeasonCutoffSeries,
   getSeasonSnapshots,
   getSeasonValidationOverview,
@@ -22,7 +26,13 @@ export const dynamic = "force-dynamic";
 
 type SeasonPageProps = {
   params: Promise<{ seasonId: string }>;
-  searchParams: Promise<{ rank?: string; status?: string; source?: string }>;
+  searchParams: Promise<{
+    rank?: string;
+    status?: string;
+    source?: string;
+    compareLeft?: string;
+    compareRight?: string;
+  }>;
 };
 
 const SERIES_RANK_OPTIONS = [1, 10, 100, 1000, 5000, 10000];
@@ -43,6 +53,8 @@ export default async function SeasonDetailPage({
     resolvedSearchParams.source && resolvedSearchParams.source.trim()
       ? resolvedSearchParams.source
       : "all";
+  const requestedCompareLeft = Number(resolvedSearchParams.compareLeft ?? "");
+  const requestedCompareRight = Number(resolvedSearchParams.compareRight ?? "");
 
   const [seasonResult, snapshotsResult, seriesResult, validationOverviewResult] =
     await Promise.all([
@@ -57,6 +69,28 @@ export default async function SeasonDetailPage({
   const sourceOptions = Array.from(
     new Set(snapshots.map((snapshot) => snapshot.source_type)),
   ).sort();
+  const compareCandidates = [...snapshots].sort(
+    (left, right) =>
+      new Date(right.captured_at).getTime() - new Date(left.captured_at).getTime(),
+  );
+  const completedCompareCandidates = compareCandidates.filter(
+    (snapshot) => snapshot.status === "completed",
+  );
+  const defaultCompareCandidates =
+    completedCompareCandidates.length >= 2
+      ? completedCompareCandidates
+      : compareCandidates;
+  const fallbackLeftSnapshot = defaultCompareCandidates[0] ?? null;
+  const fallbackRightSnapshot =
+    defaultCompareCandidates.find(
+      (snapshot) => snapshot.id !== fallbackLeftSnapshot?.id,
+    ) ?? null;
+  const selectedCompareLeft =
+    compareCandidates.find((snapshot) => snapshot.id === requestedCompareLeft) ??
+    fallbackLeftSnapshot;
+  const selectedCompareRight =
+    compareCandidates.find((snapshot) => snapshot.id === requestedCompareRight) ??
+    fallbackRightSnapshot;
   const filteredSnapshots = snapshots.filter((snapshot) => {
     if (selectedStatus !== "all" && snapshot.status !== selectedStatus) {
       return false;
@@ -66,6 +100,22 @@ export default async function SeasonDetailPage({
     }
     return true;
   });
+  const canCompareSnapshots =
+    selectedCompareLeft !== null &&
+    selectedCompareRight !== null &&
+    selectedCompareLeft.id !== selectedCompareRight.id;
+  const compareResults = canCompareSnapshots
+    ? await Promise.all([
+        getSnapshotSummary(selectedCompareLeft.id),
+        getSnapshotSummary(selectedCompareRight.id),
+        getSnapshotCutoffs(selectedCompareLeft.id),
+        getSnapshotCutoffs(selectedCompareRight.id),
+        getSnapshotDistribution(selectedCompareLeft.id),
+        getSnapshotDistribution(selectedCompareRight.id),
+      ])
+    : null;
+  const comparisonHasError =
+    compareResults !== null && compareResults.some((result) => result.error || !result.data);
 
   return (
     <PageShell
@@ -141,6 +191,20 @@ export default async function SeasonDetailPage({
                     </select>
                   </div>
                   <input type="hidden" name="rank" value={String(seriesRank)} />
+                  {selectedCompareLeft ? (
+                    <input
+                      type="hidden"
+                      name="compareLeft"
+                      value={String(selectedCompareLeft.id)}
+                    />
+                  ) : null}
+                  {selectedCompareRight ? (
+                    <input
+                      type="hidden"
+                      name="compareRight"
+                      value={String(selectedCompareRight.id)}
+                    />
+                  ) : null}
                   <button type="submit" className={styles.button}>
                     적용
                   </button>
@@ -175,6 +239,22 @@ export default async function SeasonDetailPage({
                       ))}
                     </select>
                   </div>
+                  <input type="hidden" name="status" value={selectedStatus} />
+                  <input type="hidden" name="source" value={selectedSource} />
+                  {selectedCompareLeft ? (
+                    <input
+                      type="hidden"
+                      name="compareLeft"
+                      value={String(selectedCompareLeft.id)}
+                    />
+                  ) : null}
+                  {selectedCompareRight ? (
+                    <input
+                      type="hidden"
+                      name="compareRight"
+                      value={String(selectedCompareRight.id)}
+                    />
+                  ) : null}
                   <button type="submit" className={styles.button}>
                     갱신
                   </button>
@@ -185,6 +265,57 @@ export default async function SeasonDetailPage({
               </p>
             </section>
 
+            <section className={styles.panel}>
+              <div className={styles.panelTitle}>
+                <h2>Snapshot Compare 설정</h2>
+                <span className={styles.muted}>
+                  최근 snapshot 두 개를 기본 비교 대상으로 잡습니다.
+                </span>
+              </div>
+              {compareCandidates.length < 2 ? (
+                <EmptyBox message="비교하려면 snapshot이 두 개 이상 필요합니다." />
+              ) : (
+                <form className={styles.controls}>
+                  <div className={styles.controlRow}>
+                    <div className={styles.field}>
+                      <label htmlFor="compareLeft">Left Snapshot</label>
+                      <select
+                        id="compareLeft"
+                        name="compareLeft"
+                        defaultValue={String(selectedCompareLeft?.id ?? "")}
+                      >
+                        {compareCandidates.map((snapshot) => (
+                          <option key={snapshot.id} value={snapshot.id}>
+                            #{snapshot.id} · {snapshot.status} · {snapshot.source_type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="compareRight">Right Snapshot</label>
+                      <select
+                        id="compareRight"
+                        name="compareRight"
+                        defaultValue={String(selectedCompareRight?.id ?? "")}
+                      >
+                        {compareCandidates.map((snapshot) => (
+                          <option key={snapshot.id} value={snapshot.id}>
+                            #{snapshot.id} · {snapshot.status} · {snapshot.source_type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <input type="hidden" name="rank" value={String(seriesRank)} />
+                    <input type="hidden" name="status" value={selectedStatus} />
+                    <input type="hidden" name="source" value={selectedSource} />
+                    <button type="submit" className={styles.button}>
+                      비교
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+
             {seriesResult.error ? (
               <ErrorBox
                 message={`cutoff-series를 불러오지 못했습니다. ${seriesResult.error}`}
@@ -193,6 +324,23 @@ export default async function SeasonDetailPage({
               <CutoffSeriesPanel series={seriesResult.data} />
             ) : (
               <EmptyBox message="cutoff-series를 표시할 데이터가 없습니다." />
+            )}
+
+            {compareCandidates.length < 2 ? null : !canCompareSnapshots ? (
+              <ErrorBox message="같은 snapshot 두 개는 비교할 수 없습니다." />
+            ) : comparisonHasError || compareResults === null ? (
+              <ErrorBox message="snapshot 비교 데이터를 불러오지 못했습니다." />
+            ) : (
+              <SnapshotComparisonPanel
+                leftSnapshot={selectedCompareLeft}
+                rightSnapshot={selectedCompareRight}
+                leftSummary={compareResults[0].data!}
+                rightSummary={compareResults[1].data!}
+                leftCutoffs={compareResults[2].data!}
+                rightCutoffs={compareResults[3].data!}
+                leftDistribution={compareResults[4].data!}
+                rightDistribution={compareResults[5].data!}
+              />
             )}
 
             <section className={styles.panel}>

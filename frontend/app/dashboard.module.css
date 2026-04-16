@@ -204,6 +204,20 @@
   gap: 12px;
 }
 
+.compareHeaderGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.compareHeaderCard {
+  padding: 16px;
+  border-radius: 16px;
+  background: #f8faf4;
+  border: 1px solid rgba(102, 128, 97, 0.12);
+}
+
 .statCard {
   padding: 14px;
   border-radius: 16px;
@@ -411,6 +425,10 @@
 
 @media (max-width: 900px) {
   .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .compareHeaderGrid {
     grid-template-columns: 1fr;
   }
 

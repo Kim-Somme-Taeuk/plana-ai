@@ -373,6 +373,123 @@ export function SeasonValidationOverviewPanel({
   );
 }
 
+export function SnapshotComparisonPanel({
+  leftSnapshot,
+  rightSnapshot,
+  leftSummary,
+  rightSummary,
+  leftCutoffs,
+  rightCutoffs,
+  leftDistribution,
+  rightDistribution,
+}: {
+  leftSnapshot: RankingSnapshot;
+  rightSnapshot: RankingSnapshot;
+  leftSummary: RankingSnapshotSummary;
+  rightSummary: RankingSnapshotSummary;
+  leftCutoffs: RankingSnapshotCutoffs;
+  rightCutoffs: RankingSnapshotCutoffs;
+  leftDistribution: RankingSnapshotDistribution;
+  rightDistribution: RankingSnapshotDistribution;
+}) {
+  const leftCutoffMap = new Map(
+    leftCutoffs.cutoffs.map((cutoff) => [cutoff.rank, cutoff.score]),
+  );
+  const rightCutoffMap = new Map(
+    rightCutoffs.cutoffs.map((cutoff) => [cutoff.rank, cutoff.score]),
+  );
+  const cutoffRanks = Array.from(
+    new Set([...leftCutoffMap.keys(), ...rightCutoffMap.keys()]),
+  ).sort((left, right) => left - right);
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelTitle}>
+        <h2>Snapshot Compare</h2>
+        <span className={styles.muted}>두 snapshot의 품질과 점수 차이를 나란히 봅니다.</span>
+      </div>
+
+      <div className={styles.compareHeaderGrid}>
+        <SnapshotCompareHeader snapshot={leftSnapshot} sideLabel="Left" />
+        <SnapshotCompareHeader snapshot={rightSnapshot} sideLabel="Right" />
+      </div>
+
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Left</th>
+              <th>Right</th>
+              <th>Delta</th>
+            </tr>
+          </thead>
+          <tbody>
+            <CompareRow
+              label="Rows Collected"
+              leftValue={leftSummary.total_rows_collected}
+              rightValue={rightSummary.total_rows_collected}
+            />
+            <CompareRow
+              label="Valid Entries"
+              leftValue={leftSummary.valid_entry_count}
+              rightValue={rightSummary.valid_entry_count}
+            />
+            <CompareRow
+              label="Invalid Entries"
+              leftValue={leftSummary.invalid_entry_count}
+              rightValue={rightSummary.invalid_entry_count}
+            />
+            <CompareRow
+              label="Highest Score"
+              leftValue={leftSummary.highest_score}
+              rightValue={rightSummary.highest_score}
+            />
+            <CompareRow
+              label="Lowest Score"
+              leftValue={leftSummary.lowest_score}
+              rightValue={rightSummary.lowest_score}
+            />
+            <CompareRow
+              label="Average Score"
+              leftValue={leftDistribution.avg_score}
+              rightValue={rightDistribution.avg_score}
+            />
+            <CompareRow
+              label="Median Score"
+              leftValue={leftDistribution.median_score}
+              rightValue={rightDistribution.median_score}
+            />
+          </tbody>
+        </table>
+      </div>
+
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Cutoff Rank</th>
+              <th>Left</th>
+              <th>Right</th>
+              <th>Delta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cutoffRanks.map((rank) => (
+              <CompareRow
+                key={rank}
+                label={`#${rank.toLocaleString()}`}
+                leftValue={leftCutoffMap.get(rank) ?? null}
+                rightValue={rightCutoffMap.get(rank) ?? null}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export function getValidationIssueOptions(
   issues: RankingSnapshotValidationIssueCount[],
   currentValue?: string,
@@ -540,6 +657,53 @@ function MetaItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SnapshotCompareHeader({
+  snapshot,
+  sideLabel,
+}: {
+  snapshot: RankingSnapshot;
+  sideLabel: string;
+}) {
+  return (
+    <div className={styles.compareHeaderCard}>
+      <div className={styles.panelTitle}>
+        <h3>
+          {sideLabel} #{snapshot.id}
+        </h3>
+        <StatusBadge status={snapshot.status} />
+      </div>
+      <div className={styles.metaGrid}>
+        <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
+        <MetaItem label="Source" value={snapshot.source_type} />
+        <MetaItem label="Rows" value={formatNullableNumber(snapshot.total_rows_collected)} />
+        <MetaItem label="Note" value={snapshot.note ?? "-"} />
+      </div>
+    </div>
+  );
+}
+
+function CompareRow({
+  label,
+  leftValue,
+  rightValue,
+}: {
+  label: string;
+  leftValue: number | null;
+  rightValue: number | null;
+}) {
+  const delta =
+    leftValue === null || rightValue === null ? null : rightValue - leftValue;
+
+  return (
+    <tr>
+      <td>{label}</td>
+      <td>{formatNullableNumber(leftValue)}</td>
+      <td>{formatNullableNumber(rightValue)}</td>
+      <td>{formatSignedNumber(delta)}</td>
+    </tr>
+  );
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     dateStyle: "medium",
@@ -553,4 +717,16 @@ function formatNullableNumber(value: number | null) {
   }
 
   return value.toLocaleString();
+}
+
+function formatSignedNumber(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+
+  if (value === 0) {
+    return "0";
+  }
+
+  return `${value > 0 ? "+" : ""}${value.toLocaleString()}`;
 }
