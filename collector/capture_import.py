@@ -112,9 +112,11 @@ def load_capture_import_payload(
         season=season,
         snapshot={
             **snapshot,
-            "source_type": snapshot.get(
-                "source_type",
-                CAPTURE_SOURCE_TYPE_BY_PROVIDER[ocr_config.provider],
+            "source_type": _resolve_snapshot_source_type(
+                snapshot=snapshot,
+                raw_ocr=root.get("ocr"),
+                ocr_provider=ocr_config.provider,
+                provider_override=ocr_provider,
             ),
         },
         pages=capture_pages,
@@ -231,9 +233,6 @@ def _load_ocr_text(
     image_path: Path,
     ocr: OcrConfig,
 ) -> str:
-    if page.ocr_text_path is not None:
-        return _resolve_ocr_text_path(base_dir, page).read_text(encoding="utf-8")
-
     if ocr.provider == OCR_PROVIDER_SIDECAR:
         return _resolve_ocr_text_path(base_dir, page).read_text(encoding="utf-8")
     if ocr.provider == OCR_PROVIDER_TESSERACT:
@@ -319,6 +318,24 @@ def _build_ocr_config(
         language=language,
         psm=psm,
     )
+
+
+def _resolve_snapshot_source_type(
+    *,
+    snapshot: dict[str, Any],
+    raw_ocr: Any,
+    ocr_provider: str,
+    provider_override: str | None,
+) -> str:
+    ocr_mapping = _require_optional_mapping(raw_ocr, "ocr")
+    if provider_override is not None or "provider" in ocr_mapping:
+        return CAPTURE_SOURCE_TYPE_BY_PROVIDER[ocr_provider]
+
+    snapshot_source_type = snapshot.get("source_type")
+    if isinstance(snapshot_source_type, str) and snapshot_source_type.strip():
+        return snapshot_source_type
+
+    return CAPTURE_SOURCE_TYPE_BY_PROVIDER[ocr_provider]
 
 
 def _parse_page_entries(
