@@ -58,6 +58,19 @@ export type RankingSnapshotValidationReport = {
   validation_issues: RankingSnapshotValidationIssueCount[];
 };
 
+export type SeasonValidationOverview = {
+  season_id: number;
+  snapshot_count: number;
+  completed_snapshot_count: number;
+  collecting_snapshot_count: number;
+  failed_snapshot_count: number;
+  total_entry_count: number;
+  valid_entry_count: number;
+  invalid_entry_count: number;
+  excluded_from_statistics_count: number;
+  validation_issues: RankingSnapshotValidationIssueCount[];
+};
+
 export type RankingSnapshotSummary = {
   snapshot_id: number;
   season_id: number;

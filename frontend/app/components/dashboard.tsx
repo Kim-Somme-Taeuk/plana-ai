@@ -11,6 +11,7 @@ import type {
   RankingSnapshotValidationReport,
   Season,
   SeasonCutoffSeries,
+  SeasonValidationOverview,
 } from "../lib/types";
 
 export function PageShell({
@@ -334,6 +335,40 @@ export function ValidationIssuesPanel({
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+export function SeasonValidationOverviewPanel({
+  overview,
+}: {
+  overview: SeasonValidationOverview;
+}) {
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelTitle}>
+        <h2>Season Validation Overview</h2>
+        <span className={styles.muted}>시즌 전체 품질 요약</span>
+      </div>
+      <div className={styles.statsGrid}>
+        <StatCard label="Snapshots" value={String(overview.snapshot_count)} />
+        <StatCard
+          label="Completed"
+          value={String(overview.completed_snapshot_count)}
+        />
+        <StatCard
+          label="Collecting"
+          value={String(overview.collecting_snapshot_count)}
+        />
+        <StatCard label="Failed" value={String(overview.failed_snapshot_count)} />
+        <StatCard label="Entries" value={String(overview.total_entry_count)} />
+        <StatCard label="Valid" value={String(overview.valid_entry_count)} />
+        <StatCard label="Invalid" value={String(overview.invalid_entry_count)} />
+        <StatCard
+          label="Excluded From Stats"
+          value={String(overview.excluded_from_statistics_count)}
+        />
+      </div>
     </section>
   );
 }

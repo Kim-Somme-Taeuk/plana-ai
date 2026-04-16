@@ -10,6 +10,7 @@ import type {
   RankingSnapshotValidationReport,
   Season,
   SeasonCutoffSeries,
+  SeasonValidationOverview,
   ValidationIssueFilter,
 } from "./types";
 
@@ -165,5 +166,11 @@ export function getSnapshotEntries(
 export function getSeasonCutoffSeries(seasonId: number, rank: number) {
   return fetchApi<SeasonCutoffSeries>(
     `/seasons/${seasonId}/cutoff-series?rank=${rank}`,
+  );
+}
+
+export function getSeasonValidationOverview(seasonId: number) {
+  return fetchApi<SeasonValidationOverview>(
+    `/seasons/${seasonId}/validation-overview`,
   );
 }

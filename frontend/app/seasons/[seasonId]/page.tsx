@@ -6,13 +6,16 @@ import {
   EmptyBox,
   ErrorBox,
   PageShell,
+  SeasonValidationOverviewPanel,
   SeasonSummary,
   SnapshotList,
+  ValidationIssuesPanel,
 } from "../../components/dashboard";
 import {
   getSeason,
   getSeasonCutoffSeries,
   getSeasonSnapshots,
+  getSeasonValidationOverview,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -33,11 +36,13 @@ export default async function SeasonDetailPage({
   const numericSeasonId = Number(seasonId);
   const seriesRank = Number(resolvedSearchParams.rank ?? "10");
 
-  const [seasonResult, snapshotsResult, seriesResult] = await Promise.all([
-    getSeason(numericSeasonId),
-    getSeasonSnapshots(numericSeasonId),
-    getSeasonCutoffSeries(numericSeasonId, Number.isNaN(seriesRank) ? 10 : seriesRank),
-  ]);
+  const [seasonResult, snapshotsResult, seriesResult, validationOverviewResult] =
+    await Promise.all([
+      getSeason(numericSeasonId),
+      getSeasonSnapshots(numericSeasonId),
+      getSeasonCutoffSeries(numericSeasonId, Number.isNaN(seriesRank) ? 10 : seriesRank),
+      getSeasonValidationOverview(numericSeasonId),
+    ]);
 
   const season = seasonResult.data;
 
@@ -59,6 +64,23 @@ export default async function SeasonDetailPage({
         <div className={`${styles.grid} ${styles.twoColumn}`}>
           <div className={styles.grid}>
             <SeasonSummary season={season} />
+
+            {validationOverviewResult.error || !validationOverviewResult.data ? (
+              <ErrorBox
+                message={`validation overview를 불러오지 못했습니다. ${
+                  validationOverviewResult.error ?? "알 수 없는 오류입니다."
+                }`}
+              />
+            ) : (
+              <>
+                <SeasonValidationOverviewPanel
+                  overview={validationOverviewResult.data}
+                />
+                <ValidationIssuesPanel
+                  issues={validationOverviewResult.data.validation_issues}
+                />
+              </>
+            )}
 
             <section className={styles.panel}>
               <div className={styles.panelTitle}>
