@@ -86,12 +86,19 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .panelTitle h2,
 .panelTitle h3 {
   font-size: 18px;
   font-weight: 700;
+  margin: 0;
+}
+
+.panelTitle .muted {
+  flex: 1 0 100%;
+  text-align: left;
 }
 
 .muted {
