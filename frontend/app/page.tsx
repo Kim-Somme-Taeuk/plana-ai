@@ -13,7 +13,7 @@ export default async function Home() {
 
   return (
     <PageShell
-      eyebrow="Season Dashboard"
+      eyebrow="시즌 대시보드"
       title="시즌 목록"
       subtitle="현재 저장된 시즌을 확인하고, 시즌별 snapshot과 통계를 탐색할 수 있습니다."
     >

@@ -226,8 +226,8 @@ export default async function SeasonDetailPage({
 
   return (
     <PageShell
-      eyebrow="Season Detail"
-      title={season?.season_label ?? `Season #${seasonId}`}
+      eyebrow="시즌 상세"
+      title={season?.season_label ?? `시즌 #${seasonId}`}
       subtitle="시즌 정보, snapshot 목록, 기본 cutoff 시계열을 함께 확인합니다."
       backHref="/"
       backLabel="시즌 목록으로"
@@ -245,7 +245,7 @@ export default async function SeasonDetailPage({
 
             {validationOverviewResult.error || !validationOverviewResult.data ? (
               <ErrorBox
-                message={`validation overview를 불러오지 못했습니다. ${
+                message={`검증 개요를 불러오지 못했습니다. ${
                   validationOverviewResult.error ?? "알 수 없는 오류입니다."
                 }`}
               />
@@ -264,7 +264,7 @@ export default async function SeasonDetailPage({
                 />
                 {validationSeriesResult.error || !validationSeriesResult.data ? (
                   <ErrorBox
-                    message={`validation series를 불러오지 못했습니다. ${
+                    message={`검증 시계열을 불러오지 못했습니다. ${
                       validationSeriesResult.error ?? "알 수 없는 오류입니다."
                     }`}
                   />
@@ -291,62 +291,62 @@ export default async function SeasonDetailPage({
 
             <section className={styles.panel}>
               <div className={styles.panelTitle}>
-                <h2>Snapshots</h2>
+                <h2>스냅샷</h2>
                 <span className={styles.muted}>
-                  수집 상태와 row 수를 빠르게 확인합니다.
+                  수집 상태와 행 수를 빠르게 확인합니다.
                 </span>
               </div>
               <form className={styles.controls}>
                 <div className={styles.controlRow}>
                   <div className={styles.field}>
-                    <label htmlFor="status">Status</label>
+                    <label htmlFor="status">상태</label>
                     <select
                       id="status"
                       name="status"
                       defaultValue={selectedStatus}
                     >
-                      <option value="all">all</option>
-                      <option value="completed">completed</option>
-                      <option value="collecting">collecting</option>
-                      <option value="failed">failed</option>
+                      <option value="all">전체</option>
+                      <option value="completed">완료</option>
+                      <option value="collecting">수집 중</option>
+                      <option value="failed">실패</option>
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="source">Source</label>
+                    <label htmlFor="source">입력 소스</label>
                     <select
                       id="source"
                       name="source"
                       defaultValue={selectedSource}
                     >
-                      <option value="all">all</option>
+                      <option value="all">전체</option>
                       {sourceOptions.map((sourceType) => (
                         <option key={sourceType} value={sourceType}>
-                          {sourceType}
+                          {formatSourceTypeLabel(sourceType)}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="collector">Collector</label>
+                    <label htmlFor="collector">수집 진단</label>
                     <select
                       id="collector"
                       name="collector"
                       defaultValue={selectedCollector}
                     >
-                      <option value="all">all</option>
-                      <option value="with_diagnostics">with_diagnostics</option>
-                      <option value="capture_stop">capture_stop</option>
-                      <option value="hard_ocr_stop">hard_ocr_stop</option>
+                      <option value="all">전체</option>
+                      <option value="with_diagnostics">진단 포함</option>
+                      <option value="capture_stop">캡처 중단</option>
+                      <option value="hard_ocr_stop">강한 OCR 중단</option>
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="captureStopReason">Capture Stop Reason</label>
+                    <label htmlFor="captureStopReason">캡처 중단 사유</label>
                     <select
                       id="captureStopReason"
                       name="captureStopReason"
                       defaultValue={selectedCaptureStopReason}
                     >
-                      <option value="all">all</option>
+                      <option value="all">전체</option>
                       {validationOverviewResult.data?.capture_stop_reasons.map((row) => (
                         <option key={row.reason} value={row.reason}>
                           {row.reason}
@@ -355,13 +355,13 @@ export default async function SeasonDetailPage({
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="ocrStopReason">OCR Stop Reason</label>
+                    <label htmlFor="ocrStopReason">OCR 중단 사유</label>
                     <select
                       id="ocrStopReason"
                       name="ocrStopReason"
                       defaultValue={selectedOcrStopReason}
                     >
-                      <option value="all">all</option>
+                      <option value="all">전체</option>
                       {validationOverviewResult.data?.ocr_stop_reasons.map((row) => (
                         <option key={row.reason} value={row.reason}>
                           {row.reason}
@@ -370,13 +370,13 @@ export default async function SeasonDetailPage({
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="ignoredReason">Ignored OCR Reason</label>
+                    <label htmlFor="ignoredReason">무시된 OCR 사유</label>
                     <select
                       id="ignoredReason"
                       name="ignoredReason"
                       defaultValue={selectedIgnoredReason}
                     >
-                      <option value="all">all</option>
+                      <option value="all">전체</option>
                       {validationOverviewResult.data?.ignored_reasons.map((row) => (
                         <option key={row.reason} value={row.reason}>
                           {row.reason}
@@ -385,15 +385,15 @@ export default async function SeasonDetailPage({
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="ocrStopLevel">OCR Stop Level</label>
+                    <label htmlFor="ocrStopLevel">OCR 중단 레벨</label>
                     <select
                       id="ocrStopLevel"
                       name="ocrStopLevel"
                       defaultValue={selectedOcrStopLevel}
                     >
-                      <option value="all">all</option>
-                      <option value="soft">soft</option>
-                      <option value="hard">hard</option>
+                      <option value="all">전체</option>
+                      <option value="soft">약함</option>
+                      <option value="hard">강함</option>
                     </select>
                   </div>
                   <input type="hidden" name="rank" value={String(seriesRank)} />
@@ -418,7 +418,7 @@ export default async function SeasonDetailPage({
               </form>
               {snapshotsResult.error ? (
                 <ErrorBox
-                  message={`snapshot 목록을 불러오지 못했습니다. ${snapshotsResult.error}`}
+                  message={`스냅샷 목록을 불러오지 못했습니다. ${snapshotsResult.error}`}
                 />
               ) : filteredSnapshots.length > 0 ? (
                 <SnapshotList
@@ -426,7 +426,7 @@ export default async function SeasonDetailPage({
                   validationPoints={validationPointsBySnapshotId}
                 />
               ) : (
-                <EmptyBox message="조건에 맞는 snapshot이 없습니다." />
+                <EmptyBox message="조건에 맞는 스냅샷이 없습니다." />
               )}
             </section>
           </div>
@@ -434,12 +434,12 @@ export default async function SeasonDetailPage({
           <div className={styles.grid}>
             <section className={styles.panel}>
               <div className={styles.panelTitle}>
-                <h2>Cutoff Series 설정</h2>
+                <h2>컷오프 시계열 설정</h2>
               </div>
               <form className={styles.controls}>
                 <div className={styles.controlRow}>
                   <div className={styles.field}>
-                    <label htmlFor="rank">Rank</label>
+                    <label htmlFor="rank">순위</label>
                     <select id="rank" name="rank" defaultValue={String(seriesRank)}>
                       {SERIES_RANK_OPTIONS.map((rank) => (
                         <option key={rank} value={rank}>
@@ -495,24 +495,24 @@ export default async function SeasonDetailPage({
                 </div>
               </form>
               <p className={styles.muted}>
-                completed 상태의 snapshot만 시계열에 포함됩니다.
+                완료된 스냅샷만 시계열에 포함됩니다.
               </p>
             </section>
 
             <section className={styles.panel}>
               <div className={styles.panelTitle}>
-                <h2>Snapshot Compare 설정</h2>
+                <h2>스냅샷 비교 설정</h2>
                 <span className={styles.muted}>
-                  최근 snapshot 두 개를 기본 비교 대상으로 잡습니다.
+                  최근 스냅샷 두 개를 기본 비교 대상으로 잡습니다.
                 </span>
               </div>
               {filteredCompareCandidates.length < 2 ? (
-                <EmptyBox message="비교하려면 snapshot이 두 개 이상 필요합니다." />
+                <EmptyBox message="비교하려면 스냅샷이 두 개 이상 필요합니다." />
               ) : (
                 <form className={styles.controls}>
                   <div className={styles.controlRow}>
                     <div className={styles.field}>
-                      <label htmlFor="compareLeft">Left Snapshot</label>
+                      <label htmlFor="compareLeft">왼쪽 스냅샷</label>
                       <select
                         id="compareLeft"
                         name="compareLeft"
@@ -520,13 +520,14 @@ export default async function SeasonDetailPage({
                       >
                         {filteredCompareCandidates.map((snapshot) => (
                           <option key={snapshot.id} value={snapshot.id}>
-                            #{snapshot.id} · {snapshot.status} · {snapshot.source_type}
+                            #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
+                            {formatSourceTypeLabel(snapshot.source_type)}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className={styles.field}>
-                      <label htmlFor="compareRight">Right Snapshot</label>
+                      <label htmlFor="compareRight">오른쪽 스냅샷</label>
                       <select
                         id="compareRight"
                         name="compareRight"
@@ -534,7 +535,8 @@ export default async function SeasonDetailPage({
                       >
                         {filteredCompareCandidates.map((snapshot) => (
                           <option key={snapshot.id} value={snapshot.id}>
-                            #{snapshot.id} · {snapshot.status} · {snapshot.source_type}
+                            #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
+                            {formatSourceTypeLabel(snapshot.source_type)}
                           </option>
                         ))}
                       </select>
@@ -577,18 +579,18 @@ export default async function SeasonDetailPage({
 
             {seriesResult.error ? (
               <ErrorBox
-                message={`cutoff-series를 불러오지 못했습니다. ${seriesResult.error}`}
+                message={`컷오프 시계열을 불러오지 못했습니다. ${seriesResult.error}`}
               />
             ) : seriesResult.data ? (
               <CutoffSeriesPanel series={seriesResult.data} />
             ) : (
-              <EmptyBox message="cutoff-series를 표시할 데이터가 없습니다." />
+              <EmptyBox message="컷오프 시계열을 표시할 데이터가 없습니다." />
             )}
 
             {filteredCompareCandidates.length < 2 ? null : !canCompareSnapshots ? (
-              <ErrorBox message="같은 snapshot 두 개는 비교할 수 없습니다." />
+              <ErrorBox message="같은 스냅샷 두 개는 비교할 수 없습니다." />
             ) : comparisonHasError || compareResults === null ? (
-              <ErrorBox message="snapshot 비교 데이터를 불러오지 못했습니다." />
+              <ErrorBox message="스냅샷 비교 데이터를 불러오지 못했습니다." />
             ) : (
               <SnapshotComparisonPanel
                 leftSnapshot={selectedCompareLeft}
@@ -609,7 +611,7 @@ export default async function SeasonDetailPage({
                 <h2>빠른 이동</h2>
               </div>
               <p className={styles.muted}>
-                snapshot 카드를 클릭하면 상세 통계와 entry 목록 화면으로 이동합니다.
+                스냅샷 카드를 클릭하면 상세 통계와 엔트리 목록 화면으로 이동합니다.
               </p>
               <div className={styles.paginationLinks}>
                 <Link href="/" className={styles.linkButton}>
@@ -622,4 +624,30 @@ export default async function SeasonDetailPage({
       )}
     </PageShell>
   );
+}
+
+function formatStatusLabel(status: string) {
+  switch (status) {
+    case "completed":
+      return "완료";
+    case "collecting":
+      return "수집 중";
+    case "failed":
+      return "실패";
+    default:
+      return status;
+  }
+}
+
+function formatSourceTypeLabel(sourceType: string) {
+  switch (sourceType) {
+    case "image_sidecar":
+      return "이미지 사이드카";
+    case "image_tesseract":
+      return "이미지 Tesseract";
+    case "mock_json":
+      return "목업 JSON";
+    default:
+      return sourceType;
+  }
 }

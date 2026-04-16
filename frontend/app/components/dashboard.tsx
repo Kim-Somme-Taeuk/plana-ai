@@ -76,7 +76,9 @@ export function StatusBadge({ status }: { status: string }) {
         : styles.statusCollecting;
 
   return (
-    <span className={`${styles.statusBadge} ${className}`}>{status}</span>
+    <span className={`${styles.statusBadge} ${className}`}>
+      {formatStatusText(status)}
+    </span>
   );
 }
 
@@ -94,11 +96,11 @@ export function SeasonList({ seasons }: { seasons: Season[] }) {
             <span className={styles.muted}>#{season.id}</span>
           </div>
           <div className={styles.metaGrid}>
-            <MetaItem label="Event Type" value={season.event_type} />
-            <MetaItem label="Server" value={season.server} />
-            <MetaItem label="Boss" value={season.boss_name} />
-            <MetaItem label="Armor" value={season.armor_type ?? "-"} />
-            <MetaItem label="Terrain" value={season.terrain} />
+            <MetaItem label="이벤트 유형" value={formatEventType(season.event_type)} />
+            <MetaItem label="서버" value={season.server} />
+            <MetaItem label="보스" value={season.boss_name} />
+            <MetaItem label="방어 타입" value={season.armor_type ?? "-"} />
+            <MetaItem label="지형" value={season.terrain} />
           </div>
         </Link>
       ))}
@@ -113,12 +115,12 @@ export function SeasonSummary({ season }: { season: Season }) {
         <h2>시즌 정보</h2>
       </div>
       <div className={styles.metaGrid}>
-        <MetaItem label="Season Label" value={season.season_label} />
-        <MetaItem label="Event Type" value={season.event_type} />
-        <MetaItem label="Server" value={season.server} />
-        <MetaItem label="Boss" value={season.boss_name} />
-        <MetaItem label="Armor" value={season.armor_type ?? "-"} />
-        <MetaItem label="Terrain" value={season.terrain} />
+        <MetaItem label="시즌 라벨" value={season.season_label} />
+        <MetaItem label="이벤트 유형" value={formatEventType(season.event_type)} />
+        <MetaItem label="서버" value={season.server} />
+        <MetaItem label="보스" value={season.boss_name} />
+        <MetaItem label="방어 타입" value={season.armor_type ?? "-"} />
+        <MetaItem label="지형" value={season.terrain} />
       </div>
     </section>
   );
@@ -146,10 +148,10 @@ export function SnapshotList({
               <StatusBadge status={snapshot.status} />
             </div>
             <div className={styles.metaGrid}>
-              <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
-              <MetaItem label="Source" value={snapshot.source_type} />
+              <MetaItem label="수집 시각" value={formatDate(snapshot.captured_at)} />
+              <MetaItem label="입력 소스" value={formatSourceType(snapshot.source_type)} />
               <MetaItem
-                label="Rows"
+                label="행 수"
                 value={
                   snapshot.total_rows_collected !== null
                     ? String(snapshot.total_rows_collected)
@@ -157,7 +159,7 @@ export function SnapshotList({
                 }
               />
               <MetaItem
-                label="Invalid Ratio"
+                label="무효 비율"
                 value={
                   validationPoint
                     ? formatPercent(validationPoint.invalid_ratio)
@@ -165,18 +167,18 @@ export function SnapshotList({
                 }
               />
               <MetaItem
-                label="Top Issue"
+                label="주요 이슈"
                 value={validationPoint?.top_validation_issue?.code ?? "-"}
               />
               <MetaItem
-                label="Collector Stop"
+                label="수집 중단"
                 value={formatCollectorStop(validationPoint?.collector_diagnostics ?? null)}
               />
               <MetaItem
-                label="Ignored OCR"
+                label="무시된 OCR"
                 value={formatCollectorIgnoredCount(validationPoint?.collector_diagnostics ?? null)}
               />
-              <MetaItem label="Note" value={formatSnapshotNote(snapshot.note)} />
+              <MetaItem label="메모" value={formatSnapshotNote(snapshot.note)} />
             </div>
           </Link>
         );
@@ -195,36 +197,36 @@ export function SummaryCards({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Snapshot Summary</h2>
+        <h2>스냅샷 요약</h2>
         <StatusBadge status={summary.status} />
       </div>
       <div className={styles.statsGrid}>
-        <StatCard label="Snapshot ID" value={String(summary.snapshot_id)} />
-        <StatCard label="Season ID" value={String(summary.season_id)} />
-        <StatCard label="Captured At" value={formatDate(summary.captured_at)} />
+        <StatCard label="스냅샷 ID" value={String(summary.snapshot_id)} />
+        <StatCard label="시즌 ID" value={String(summary.season_id)} />
+        <StatCard label="수집 시각" value={formatDate(summary.captured_at)} />
         <StatCard
-          label="Rows Collected"
+          label="수집 행 수"
           value={
             summary.total_rows_collected !== null
               ? String(summary.total_rows_collected)
               : "-"
           }
         />
-        <StatCard label="Valid Entries" value={String(summary.valid_entry_count)} />
+        <StatCard label="유효 엔트리" value={String(summary.valid_entry_count)} />
         <StatCard
-          label="Invalid Entries"
+          label="무효 엔트리"
           value={String(summary.invalid_entry_count)}
         />
         <StatCard
-          label="Highest Score"
+          label="최고 점수"
           value={formatNullableNumber(summary.highest_score)}
         />
         <StatCard
-          label="Lowest Score"
+          label="최저 점수"
           value={formatNullableNumber(summary.lowest_score)}
         />
-        <StatCard label="Source Type" value={snapshot.source_type} />
-        <StatCard label="Note" value={formatSnapshotNote(snapshot.note)} />
+        <StatCard label="입력 소스" value={formatSourceType(snapshot.source_type)} />
+        <StatCard label="메모" value={formatSnapshotNote(snapshot.note)} />
       </div>
     </section>
   );
@@ -238,15 +240,15 @@ export function CutoffTable({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Cutoffs</h2>
-        <span className={styles.muted}>유효한 entry 기준</span>
+        <h2>컷오프</h2>
+        <span className={styles.muted}>유효 엔트리 기준</span>
       </div>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Rank</th>
-              <th>Score</th>
+              <th>순위</th>
+              <th>점수</th>
             </tr>
           </thead>
           <tbody>
@@ -271,25 +273,25 @@ export function DistributionPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Distribution</h2>
-        <span className={styles.muted}>유효한 entry 기준 요약</span>
+        <h2>분포 요약</h2>
+        <span className={styles.muted}>유효 엔트리 기준 요약</span>
       </div>
       <div className={styles.statsGrid}>
-        <StatCard label="Count" value={String(distribution.count)} />
+        <StatCard label="개수" value={String(distribution.count)} />
         <StatCard
-          label="Min Score"
+          label="최소 점수"
           value={formatNullableNumber(distribution.min_score)}
         />
         <StatCard
-          label="Max Score"
+          label="최대 점수"
           value={formatNullableNumber(distribution.max_score)}
         />
         <StatCard
-          label="Average"
+          label="평균"
           value={formatNullableNumber(distribution.avg_score)}
         />
         <StatCard
-          label="Median"
+          label="중앙값"
           value={formatNullableNumber(distribution.median_score)}
         />
       </div>
@@ -311,38 +313,38 @@ export function SnapshotValidationReportPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Validation Report</h2>
+        <h2>검증 리포트</h2>
         <span className={styles.muted}>snapshot 정합성 보조 정보</span>
       </div>
       <div className={styles.statsGrid}>
-        <StatCard label="Total Entries" value={String(report.total_entry_count)} />
-        <StatCard label="Valid Entries" value={String(report.valid_entry_count)} />
+        <StatCard label="전체 엔트리" value={String(report.total_entry_count)} />
+        <StatCard label="유효 엔트리" value={String(report.valid_entry_count)} />
         <StatCard
-          label="Invalid Entries"
+          label="무효 엔트리"
           value={String(report.invalid_entry_count)}
         />
         <StatCard
-          label="Excluded From Stats"
+          label="통계 제외 수"
           value={String(report.excluded_from_statistics_count)}
         />
         <StatCard
-          label="Invalid Ratio"
+          label="무효 비율"
           value={formatPercent(report.invalid_ratio)}
         />
         <StatCard
-          label="Duplicate Ranks"
+          label="중복 순위"
           value={String(report.duplicate_rank_count)}
         />
         <StatCard
-          label="Rank Order"
-          value={report.has_rank_order_violation ? "violation" : "normal"}
+          label="순위 정렬"
+          value={report.has_rank_order_violation ? "이상" : "정상"}
         />
         <StatCard
-          label="Top Issue"
+          label="주요 이슈"
           value={report.top_validation_issue?.code ?? "-"}
         />
         <StatCard
-          label="Collector Pages"
+          label="수집 페이지"
           value={
             report.collector_diagnostics
               ? formatCollectorPages(report.collector_diagnostics)
@@ -350,15 +352,15 @@ export function SnapshotValidationReportPanel({
           }
         />
         <StatCard
-          label="Collector Stop"
+          label="수집 중단"
           value={collectorSummary.stop}
         />
         <StatCard
-          label="Ignored OCR Lines"
+          label="무시된 OCR 줄"
           value={collectorSummary.ignored}
         />
         <StatCard
-          label="Collector Raw"
+          label="수집 요약 원문"
           value={report.collector_diagnostics?.raw_summary ?? "-"}
         />
       </div>
@@ -367,7 +369,7 @@ export function SnapshotValidationReportPanel({
           <div className={styles.threeColumnGrid}>
             <div className={styles.subPanel}>
               <div className={styles.panelTitle}>
-                <h3>Collector Stop Drilldown</h3>
+                <h3>수집 중단 드릴다운</h3>
               </div>
               <div className={styles.paginationLinks}>
                 {collectorDiagnostics.capture_stop_reason ? (
@@ -377,7 +379,7 @@ export function SnapshotValidationReportPanel({
                     )}`}
                     className={styles.linkButton}
                   >
-                    capture:{collectorDiagnostics.capture_stop_reason}
+                    캡처:{collectorDiagnostics.capture_stop_reason}
                   </Link>
                 ) : null}
                 {collectorDiagnostics.ocr_stop_reason ? (
@@ -391,7 +393,7 @@ export function SnapshotValidationReportPanel({
                     }`}
                     className={styles.linkButton}
                   >
-                    ocr:{collectorDiagnostics.ocr_stop_reason}
+                    OCR:{collectorDiagnostics.ocr_stop_reason}
                     {collectorDiagnostics.ocr_stop_level
                       ? ` (${collectorDiagnostics.ocr_stop_level})`
                       : ""}
@@ -399,47 +401,47 @@ export function SnapshotValidationReportPanel({
                 ) : null}
                 {!collectorDiagnostics.capture_stop_reason &&
                 !collectorDiagnostics.ocr_stop_reason ? (
-                  <span className={styles.muted}>collector stop signal이 없습니다.</span>
+                  <span className={styles.muted}>수집 중단 신호가 없습니다.</span>
                 ) : null}
               </div>
             </div>
             <ReasonSummaryPanel
-              title="Ignored OCR Reason Drilldown"
+              title="무시된 OCR 사유 드릴다운"
               rows={collectorDiagnostics.ignored_reasons}
-              emptyMessage="ignored OCR reason이 없습니다."
+              emptyMessage="무시된 OCR 사유가 없습니다."
               getHref={(reason) =>
                 `/seasons/${seasonId}?collector=with_diagnostics&ignoredReason=${encodeURIComponent(reason)}`
               }
             />
             <div className={styles.subPanel}>
               <div className={styles.panelTitle}>
-                <h3>OCR Stop Recommendation</h3>
+                <h3>OCR 중단 권장</h3>
               </div>
               {collectorDiagnostics.ocr_stop_recommendation ? (
                 <div className={styles.keyValueList}>
                   <div className={styles.keyValueRow}>
-                    <span>Should Stop</span>
+                    <span>중단 권장</span>
                     <strong>
                       {collectorDiagnostics.ocr_stop_recommendation.should_stop
-                        ? "yes"
-                        : "no"}
+                        ? "예"
+                        : "아니오"}
                     </strong>
                   </div>
                   <div className={styles.keyValueRow}>
-                    <span>Level</span>
+                    <span>레벨</span>
                     <strong>
                       {collectorDiagnostics.ocr_stop_recommendation.level ?? "-"}
                     </strong>
                   </div>
                   <div className={styles.keyValueRow}>
-                    <span>Primary Reason</span>
+                    <span>주요 사유</span>
                     <strong>
                       {collectorDiagnostics.ocr_stop_recommendation.primary_reason ??
                         "-"}
                     </strong>
                   </div>
                   <div className={styles.keyValueRow}>
-                    <span>Reasons</span>
+                    <span>사유 목록</span>
                     <strong>
                       {collectorDiagnostics.ocr_stop_recommendation.reasons.length > 0
                         ? collectorDiagnostics.ocr_stop_recommendation.reasons.join(
@@ -450,7 +452,7 @@ export function SnapshotValidationReportPanel({
                   </div>
                 </div>
               ) : (
-                <EmptyBox message="저장된 OCR stop recommendation이 없습니다." />
+                <EmptyBox message="저장된 OCR 중단 권장 정보가 없습니다." />
               )}
             </div>
           </div>
@@ -459,12 +461,12 @@ export function SnapshotValidationReportPanel({
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Page</th>
-                    <th>Entries</th>
-                    <th>Ignored OCR</th>
-                    <th>Rank Range</th>
-                    <th>New Ranks</th>
-                    <th>Overlap</th>
+                    <th>페이지</th>
+                    <th>엔트리</th>
+                    <th>무시된 OCR</th>
+                    <th>순위 범위</th>
+                    <th>새 순위</th>
+                    <th>중복 비율</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -516,18 +518,18 @@ export function ValidationIssuesPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Validation Issues</h2>
-        <span className={styles.muted}>invalid entry 사유 집계</span>
+        <h2>검증 이슈</h2>
+        <span className={styles.muted}>무효 엔트리 사유 집계</span>
       </div>
       {issues.length === 0 ? (
-        <EmptyBox message="현재 집계된 validation issue가 없습니다." />
+        <EmptyBox message="현재 집계된 검증 이슈가 없습니다." />
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Issue Code</th>
-                <th>Count</th>
+                <th>이슈 코드</th>
+                <th>개수</th>
               </tr>
             </thead>
             <tbody>
@@ -645,69 +647,69 @@ export function SeasonValidationOverviewPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Season Validation Overview</h2>
+        <h2>시즌 검증 개요</h2>
         <span className={styles.muted}>시즌 전체 품질 요약</span>
       </div>
       <div className={styles.statsGrid}>
-        <StatCard label="Snapshots" value={String(overview.snapshot_count)} />
+        <StatCard label="스냅샷" value={String(overview.snapshot_count)} />
         <StatCard
-          label="Completed"
+          label="완료"
           value={String(overview.completed_snapshot_count)}
         />
         <StatCard
-          label="Collecting"
+          label="수집 중"
           value={String(overview.collecting_snapshot_count)}
         />
-        <StatCard label="Failed" value={String(overview.failed_snapshot_count)} />
-        <StatCard label="Entries" value={String(overview.total_entry_count)} />
-        <StatCard label="Valid" value={String(overview.valid_entry_count)} />
-        <StatCard label="Invalid" value={String(overview.invalid_entry_count)} />
+        <StatCard label="실패" value={String(overview.failed_snapshot_count)} />
+        <StatCard label="엔트리" value={String(overview.total_entry_count)} />
+        <StatCard label="유효" value={String(overview.valid_entry_count)} />
+        <StatCard label="무효" value={String(overview.invalid_entry_count)} />
         <StatCard
-          label="Excluded From Stats"
+          label="통계 제외 수"
           value={String(overview.excluded_from_statistics_count)}
         />
         <StatCard
-          label="Invalid Ratio"
+          label="무효 비율"
           value={formatPercent(overview.invalid_ratio)}
         />
         <StatCard
-          label="Top Issue"
+          label="주요 이슈"
           value={overview.top_validation_issue?.code ?? "-"}
         />
         <StatCard
-          label="Collector Snapshots"
+          label="진단 포함 스냅샷"
           value={String(overview.snapshots_with_collector_diagnostics_count)}
         />
         <StatCard
-          label="Capture Stops"
+          label="캡처 중단"
           value={String(overview.snapshots_with_capture_stop_count)}
         />
         <StatCard
-          label="Hard OCR Stops"
+          label="강한 OCR 중단"
           value={String(overview.snapshots_with_hard_ocr_stop_count)}
         />
         <StatCard
-          label="Ignored OCR Lines"
+          label="무시된 OCR 줄"
           value={String(overview.total_ignored_line_count)}
         />
       </div>
       <div className={styles.threeColumnGrid}>
         <ReasonSummaryPanel
-          title="Capture Stop Reasons"
+          title="캡처 중단 사유"
           rows={overview.capture_stop_reasons}
-          emptyMessage="집계된 capture stop reason이 없습니다."
+          emptyMessage="집계된 캡처 중단 사유가 없습니다."
           getHref={(reason) => buildSeasonReasonHref("capture", reason)}
         />
         <ReasonSummaryPanel
-          title="OCR Stop Reasons"
+          title="OCR 중단 사유"
           rows={overview.ocr_stop_reasons}
-          emptyMessage="집계된 OCR stop reason이 없습니다."
+          emptyMessage="집계된 OCR 중단 사유가 없습니다."
           getHref={(reason) => buildSeasonReasonHref("ocr", reason)}
         />
         <ReasonSummaryPanel
-          title="Ignored OCR Reasons"
+          title="무시된 OCR 사유"
           rows={overview.ignored_reasons}
-          emptyMessage="집계된 ignored OCR reason이 없습니다."
+          emptyMessage="집계된 무시된 OCR 사유가 없습니다."
           getHref={(reason) => buildSeasonReasonHref("ignored", reason)}
         />
       </div>
@@ -748,11 +750,11 @@ export function SeasonValidationSeriesPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Validation Series</h2>
-        <span className={styles.muted}>snapshot별 invalid 비율과 주요 issue</span>
+        <h2>검증 시계열</h2>
+        <span className={styles.muted}>스냅샷별 무효 비율과 주요 이슈</span>
       </div>
       {series.points.length === 0 ? (
-        <EmptyBox message="validation series를 표시할 snapshot이 없습니다." />
+        <EmptyBox message="검증 시계열을 표시할 스냅샷이 없습니다." />
       ) : (
         <>
           <div className={styles.seriesChart}>
@@ -785,15 +787,15 @@ export function SeasonValidationSeriesPanel({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Snapshot</th>
-                  <th>Status</th>
-                  <th>Captured At</th>
-                  <th>Invalid Ratio</th>
-                  <th>Invalid Entries</th>
-                  <th>Top Issue</th>
-                  <th>Collector Stop</th>
-                  <th>Ignored OCR</th>
-                  <th>Compare</th>
+                  <th>스냅샷</th>
+                  <th>상태</th>
+                  <th>수집 시각</th>
+                  <th>무효 비율</th>
+                  <th>무효 엔트리</th>
+                  <th>주요 이슈</th>
+                  <th>수집 중단</th>
+                  <th>무시된 OCR</th>
+                  <th>비교</th>
                 </tr>
               </thead>
               <tbody>
@@ -965,33 +967,33 @@ export function SnapshotComparisonPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Snapshot Compare</h2>
-        <span className={styles.muted}>두 snapshot의 품질과 점수 차이를 나란히 봅니다.</span>
+        <h2>스냅샷 비교</h2>
+        <span className={styles.muted}>두 스냅샷의 품질과 점수 차이를 나란히 봅니다.</span>
       </div>
 
       <div className={styles.compareHeaderGrid}>
-        <SnapshotCompareHeader snapshot={leftSnapshot} sideLabel="Left" />
-        <SnapshotCompareHeader snapshot={rightSnapshot} sideLabel="Right" />
+        <SnapshotCompareHeader snapshot={leftSnapshot} sideLabel="왼쪽" />
+        <SnapshotCompareHeader snapshot={rightSnapshot} sideLabel="오른쪽" />
       </div>
 
       <div className={styles.compareActions}>
         <Link href={`/snapshots/${leftSnapshot.id}`} className={styles.linkButton}>
-          Left 상세
+          왼쪽 상세
         </Link>
         <Link href={`/snapshots/${rightSnapshot.id}`} className={styles.linkButton}>
-          Right 상세
+          오른쪽 상세
         </Link>
         <Link
           href={`/snapshots/${leftSnapshot.id}?isValid=false`}
           className={styles.linkButton}
         >
-          Left invalid
+          왼쪽 무효
         </Link>
         <Link
           href={`/snapshots/${rightSnapshot.id}?isValid=false`}
           className={styles.linkButton}
         >
-          Right invalid
+          오른쪽 무효
         </Link>
         {leftTopIssue ? (
           <Link
@@ -1000,7 +1002,7 @@ export function SnapshotComparisonPanel({
             )}&isValid=false`}
             className={styles.linkButton}
           >
-            Left top issue
+            왼쪽 주요 이슈
           </Link>
         ) : null}
         {rightTopIssue ? (
@@ -1010,50 +1012,50 @@ export function SnapshotComparisonPanel({
             )}&isValid=false`}
             className={styles.linkButton}
           >
-            Right top issue
+            오른쪽 주요 이슈
           </Link>
         ) : null}
       </div>
 
       <div className={styles.statsGrid}>
         <StatCard
-          label="Left Issue Types"
+          label="왼쪽 이슈 유형"
           value={String(leftSummary.validation_issues.length)}
         />
         <StatCard
-          label="Right Issue Types"
+          label="오른쪽 이슈 유형"
           value={String(rightSummary.validation_issues.length)}
         />
         <StatCard
-          label="Left Top Issue"
+          label="왼쪽 주요 이슈"
           value={leftTopIssue?.code ?? "-"}
         />
         <StatCard
-          label="Right Top Issue"
+          label="오른쪽 주요 이슈"
           value={rightTopIssue?.code ?? "-"}
         />
         <StatCard
-          label="Left Invalid Ratio"
+          label="왼쪽 무효 비율"
           value={formatPercent(calculateInvalidRatio(leftSummary))}
         />
         <StatCard
-          label="Right Invalid Ratio"
+          label="오른쪽 무효 비율"
           value={formatPercent(calculateInvalidRatio(rightSummary))}
         />
         <StatCard
-          label="Left Collector Stop"
+          label="왼쪽 수집 중단"
           value={formatCollectorStop(leftCollectorDiagnostics)}
         />
         <StatCard
-          label="Right Collector Stop"
+          label="오른쪽 수집 중단"
           value={formatCollectorStop(rightCollectorDiagnostics)}
         />
         <StatCard
-          label="Left Ignored OCR"
+          label="왼쪽 무시된 OCR"
           value={formatCollectorIgnoredCount(leftCollectorDiagnostics)}
         />
         <StatCard
-          label="Right Ignored OCR"
+          label="오른쪽 무시된 OCR"
           value={formatCollectorIgnoredCount(rightCollectorDiagnostics)}
         />
       </div>
@@ -1062,60 +1064,60 @@ export function SnapshotComparisonPanel({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Metric</th>
-              <th>Left</th>
-              <th>Right</th>
-              <th>Delta</th>
+              <th>항목</th>
+              <th>왼쪽</th>
+              <th>오른쪽</th>
+              <th>차이</th>
             </tr>
           </thead>
           <tbody>
             <CompareRow
-              label="Rows Collected"
+              label="수집 행 수"
               leftValue={leftSummary.total_rows_collected}
               rightValue={rightSummary.total_rows_collected}
             />
             <CompareRow
-              label="Valid Entries"
+              label="유효 엔트리"
               leftValue={leftSummary.valid_entry_count}
               rightValue={rightSummary.valid_entry_count}
             />
             <CompareRow
-              label="Invalid Entries"
+              label="무효 엔트리"
               leftValue={leftSummary.invalid_entry_count}
               rightValue={rightSummary.invalid_entry_count}
             />
             <CompareRow
-              label="Highest Score"
+              label="최고 점수"
               leftValue={leftSummary.highest_score}
               rightValue={rightSummary.highest_score}
             />
             <CompareRow
-              label="Lowest Score"
+              label="최저 점수"
               leftValue={leftSummary.lowest_score}
               rightValue={rightSummary.lowest_score}
             />
             <CompareRow
-              label="Average Score"
+              label="평균 점수"
               leftValue={leftDistribution.avg_score}
               rightValue={rightDistribution.avg_score}
             />
             <CompareRow
-              label="Median Score"
+              label="중앙값"
               leftValue={leftDistribution.median_score}
               rightValue={rightDistribution.median_score}
             />
             <CompareRow
-              label="Ignored OCR Lines"
+              label="무시된 OCR 줄"
               leftValue={leftCollectorDiagnostics?.ignored_line_count ?? null}
               rightValue={rightCollectorDiagnostics?.ignored_line_count ?? null}
             />
             <CompareTextRow
-              label="Collector Pages"
+              label="수집 페이지"
               leftValue={leftCollectorDiagnostics ? formatCollectorPages(leftCollectorDiagnostics) : "-"}
               rightValue={rightCollectorDiagnostics ? formatCollectorPages(rightCollectorDiagnostics) : "-"}
             />
             <CompareTextRow
-              label="Collector Stop"
+              label="수집 중단"
               leftValue={formatCollectorStop(leftCollectorDiagnostics)}
               rightValue={formatCollectorStop(rightCollectorDiagnostics)}
             />
@@ -1127,10 +1129,10 @@ export function SnapshotComparisonPanel({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Cutoff Rank</th>
-              <th>Left</th>
-              <th>Right</th>
-              <th>Delta</th>
+              <th>컷오프 순위</th>
+              <th>왼쪽</th>
+              <th>오른쪽</th>
+              <th>차이</th>
             </tr>
           </thead>
           <tbody>
@@ -1147,16 +1149,16 @@ export function SnapshotComparisonPanel({
       </div>
 
       {issueCodes.length === 0 ? (
-        <EmptyBox message="두 snapshot 모두 집계된 validation issue가 없습니다." />
+        <EmptyBox message="두 스냅샷 모두 집계된 검증 이슈가 없습니다." />
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Validation Issue</th>
-                <th>Left</th>
-                <th>Right</th>
-                <th>Delta</th>
+                <th>검증 이슈</th>
+                <th>왼쪽</th>
+                <th>오른쪽</th>
+                <th>차이</th>
               </tr>
             </thead>
             <tbody>
@@ -1248,11 +1250,11 @@ export function CutoffSeriesPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
-        <h2>Rank {series.rank.toLocaleString()} Cutoff Series</h2>
-        <span className={styles.muted}>completed snapshot 기준</span>
+        <h2>순위 {series.rank.toLocaleString()} 컷오프 시계열</h2>
+        <span className={styles.muted}>완료된 스냅샷 기준</span>
       </div>
       {series.points.length === 0 ? (
-        <EmptyBox message="completed 상태의 snapshot이 아직 없습니다." />
+        <EmptyBox message="완료된 스냅샷이 아직 없습니다." />
       ) : (
         <>
           <div className={styles.seriesChart}>
@@ -1284,9 +1286,9 @@ export function CutoffSeriesPanel({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Snapshot</th>
-                  <th>Captured At</th>
-                  <th>Score</th>
+                  <th>스냅샷</th>
+                  <th>수집 시각</th>
+                  <th>점수</th>
                 </tr>
               </thead>
               <tbody>
@@ -1320,12 +1322,12 @@ export function SnapshotEntryTable({
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>Score</th>
-            <th>Player</th>
-            <th>Valid</th>
+            <th>순위</th>
+            <th>점수</th>
+            <th>플레이어</th>
+            <th>유효성</th>
             <th>OCR</th>
-            <th>Issue</th>
+            <th>이슈</th>
           </tr>
         </thead>
         <tbody>
@@ -1335,7 +1337,7 @@ export function SnapshotEntryTable({
               <td>{entry.score.toLocaleString()}</td>
               <td>{entry.player_name ?? "-"}</td>
               <td className={entry.is_valid ? styles.entryValid : styles.entryInvalid}>
-                {entry.is_valid ? "valid" : "invalid"}
+                {entry.is_valid ? "유효" : "무효"}
               </td>
               <td>
                 {entry.ocr_confidence !== null
@@ -1383,8 +1385,8 @@ function ReasonSummaryPanel({
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Reason</th>
-                <th>Count</th>
+                <th>사유</th>
+                <th>개수</th>
               </tr>
             </thead>
             <tbody>
@@ -1435,10 +1437,10 @@ function SnapshotCompareHeader({
         <StatusBadge status={snapshot.status} />
       </div>
       <div className={styles.metaGrid}>
-        <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
-        <MetaItem label="Source" value={snapshot.source_type} />
-        <MetaItem label="Rows" value={formatNullableNumber(snapshot.total_rows_collected)} />
-        <MetaItem label="Note" value={formatSnapshotNote(snapshot.note)} />
+        <MetaItem label="수집 시각" value={formatDate(snapshot.captured_at)} />
+        <MetaItem label="입력 소스" value={formatSourceType(snapshot.source_type)} />
+        <MetaItem label="행 수" value={formatNullableNumber(snapshot.total_rows_collected)} />
+        <MetaItem label="메모" value={formatSnapshotNote(snapshot.note)} />
       </div>
     </div>
   );
@@ -1480,7 +1482,7 @@ function CompareTextRow({
       <td>{label}</td>
       <td>{leftValue}</td>
       <td>{rightValue}</td>
-      <td>{leftValue === rightValue ? "same" : "-"}</td>
+      <td>{leftValue === rightValue ? "같음" : "-"}</td>
     </tr>
   );
 }
@@ -1569,14 +1571,14 @@ function formatCollectorStop(diagnostics: CollectorDiagnostics | null) {
   }
 
   if (diagnostics.capture_stop_reason) {
-    return `capture:${diagnostics.capture_stop_reason}`;
+    return `캡처:${diagnostics.capture_stop_reason}`;
   }
 
   if (diagnostics.ocr_stop_reason) {
     const level = diagnostics.ocr_stop_level
       ? `(${diagnostics.ocr_stop_level})`
       : "";
-    return `ocr:${diagnostics.ocr_stop_reason}${level}`;
+    return `OCR:${diagnostics.ocr_stop_reason}${level}`;
   }
 
   return "-";
@@ -1630,7 +1632,7 @@ function formatSnapshotNote(note: string | null) {
     (line) => !line.startsWith("collector_json:"),
   );
   if (visibleLines.length === 0) {
-    return "collector diagnostics saved";
+    return "collector 진단 정보 저장됨";
   }
 
   const summary = visibleLines.join(" / ");
@@ -1639,4 +1641,41 @@ function formatSnapshotNote(note: string | null) {
   }
 
   return `${summary.slice(0, 157)}...`;
+}
+
+function formatStatusText(status: string) {
+  switch (status) {
+    case "completed":
+      return "완료";
+    case "collecting":
+      return "수집 중";
+    case "failed":
+      return "실패";
+    default:
+      return status;
+  }
+}
+
+function formatSourceType(sourceType: string) {
+  switch (sourceType) {
+    case "image_sidecar":
+      return "이미지 사이드카";
+    case "image_tesseract":
+      return "이미지 Tesseract";
+    case "mock_json":
+      return "목업 JSON";
+    default:
+      return sourceType;
+  }
+}
+
+function formatEventType(eventType: string) {
+  switch (eventType) {
+    case "total_assault":
+      return "총력전";
+    case "grand_assault":
+      return "대결전";
+    default:
+      return eventType;
+  }
 }

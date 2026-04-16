@@ -74,14 +74,14 @@ export default async function SnapshotDetailPage({
   if (snapshotResult.error || !snapshot) {
     return (
       <PageShell
-        eyebrow="Snapshot Detail"
-        title={`Snapshot #${snapshotId}`}
-        subtitle="snapshot 통계와 entry 목록을 확인하는 화면입니다."
+        eyebrow="스냅샷 상세"
+        title={`스냅샷 #${snapshotId}`}
+        subtitle="스냅샷 통계와 엔트리 목록을 확인하는 화면입니다."
         backHref="/"
         backLabel="시즌 목록으로"
       >
         <ErrorBox
-          message={`snapshot 정보를 불러오지 못했습니다. ${
+          message={`스냅샷 정보를 불러오지 못했습니다. ${
             snapshotResult.error ?? "대상을 찾을 수 없습니다."
           }`}
         />
@@ -117,16 +117,16 @@ export default async function SnapshotDetailPage({
   );
   return (
     <PageShell
-      eyebrow="Snapshot Detail"
-      title={`Snapshot #${snapshot.id}`}
-      subtitle="summary, cutoffs, distribution, entry 목록을 한 화면에서 확인합니다."
+      eyebrow="스냅샷 상세"
+      title={`스냅샷 #${snapshot.id}`}
+      subtitle="요약, 컷오프, 분포, 엔트리 목록을 한 화면에서 확인합니다."
       backHref={`/seasons/${snapshot.season_id}`}
       backLabel={`시즌 #${snapshot.season_id}로`}
     >
       <div className={styles.grid}>
         {summaryResult.error || !summaryResult.data ? (
           <ErrorBox
-            message={`summary를 불러오지 못했습니다. ${
+            message={`요약 정보를 불러오지 못했습니다. ${
               summaryResult.error ?? "알 수 없는 오류입니다."
             }`}
           />
@@ -137,7 +137,7 @@ export default async function SnapshotDetailPage({
         <div className={`${styles.grid} ${styles.twoColumn}`}>
           {cutoffsResult.error || !cutoffsResult.data ? (
             <ErrorBox
-              message={`cutoffs를 불러오지 못했습니다. ${
+              message={`컷오프를 불러오지 못했습니다. ${
                 cutoffsResult.error ?? "알 수 없는 오류입니다."
               }`}
             />
@@ -147,7 +147,7 @@ export default async function SnapshotDetailPage({
 
           {distributionResult.error || !distributionResult.data ? (
             <ErrorBox
-              message={`distribution을 불러오지 못했습니다. ${
+              message={`분포 정보를 불러오지 못했습니다. ${
                 distributionResult.error ?? "알 수 없는 오류입니다."
               }`}
             />
@@ -165,7 +165,7 @@ export default async function SnapshotDetailPage({
 
         {validationReportResult.error || !validationReportResult.data ? (
           <ErrorBox
-            message={`validation report를 불러오지 못했습니다. ${
+            message={`검증 리포트를 불러오지 못했습니다. ${
               validationReportResult.error ?? "알 수 없는 오류입니다."
             }`}
           />
@@ -178,31 +178,31 @@ export default async function SnapshotDetailPage({
 
         <section className={styles.panel}>
           <div className={styles.panelTitle}>
-            <h2>Ranking Entries</h2>
+            <h2>랭킹 엔트리</h2>
             <span className={styles.muted}>
-              backend query parameter로 필터링합니다.
+              백엔드 query parameter로 필터링합니다.
             </span>
           </div>
 
           <form className={styles.controls}>
             <div className={styles.controlRow}>
               <div className={styles.field}>
-                <label htmlFor="isValid">Validity</label>
+                <label htmlFor="isValid">유효성</label>
                 <select id="isValid" name="isValid" defaultValue={isValid}>
-                  <option value="all">all</option>
-                  <option value="true">valid</option>
-                  <option value="false">invalid</option>
+                  <option value="all">전체</option>
+                  <option value="true">유효</option>
+                  <option value="false">무효</option>
                 </select>
               </div>
               <div className={styles.field}>
-                <label htmlFor="sortBy">Sort By</label>
+                <label htmlFor="sortBy">정렬 기준</label>
                 <select id="sortBy" name="sortBy" defaultValue={sortBy}>
-                  <option value="rank">rank</option>
-                  <option value="score">score</option>
+                  <option value="rank">순위</option>
+                  <option value="score">점수</option>
                 </select>
               </div>
               <div className={styles.field}>
-                <label htmlFor="limit">Limit</label>
+                <label htmlFor="limit">개수</label>
                 <select id="limit" name="limit" defaultValue={String(limit)}>
                   {PAGE_SIZE_OPTIONS.map((pageSize) => (
                     <option key={pageSize} value={pageSize}>
@@ -212,7 +212,7 @@ export default async function SnapshotDetailPage({
                 </select>
               </div>
               <div className={styles.field}>
-                <label htmlFor="offset">Offset</label>
+                <label htmlFor="offset">오프셋</label>
                 <input
                   id="offset"
                   name="offset"
@@ -223,13 +223,13 @@ export default async function SnapshotDetailPage({
                 />
               </div>
               <div className={styles.field}>
-                <label htmlFor="validationIssue">Issue</label>
+                <label htmlFor="validationIssue">이슈</label>
                 <select
                   id="validationIssue"
                   name="validationIssue"
                   defaultValue={validationIssue}
                 >
-                  <option value="all">all</option>
+                  <option value="all">전체</option>
                   {validationIssueOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -238,10 +238,10 @@ export default async function SnapshotDetailPage({
                 </select>
               </div>
               <div className={styles.field}>
-                <label htmlFor="order">Order</label>
+                <label htmlFor="order">정렬 방향</label>
                 <select id="order" name="order" defaultValue={order}>
-                  <option value="asc">asc</option>
-                  <option value="desc">desc</option>
+                  <option value="asc">오름차순</option>
+                  <option value="desc">내림차순</option>
                 </select>
               </div>
               <button type="submit" className={styles.button}>
@@ -252,7 +252,7 @@ export default async function SnapshotDetailPage({
 
           {entriesResult.error ? (
             <ErrorBox
-              message={`entry 목록을 불러오지 못했습니다. ${entriesResult.error}`}
+              message={`엔트리 목록을 불러오지 못했습니다. ${entriesResult.error}`}
             />
           ) : entriesResult.data && entriesResult.data.length > 0 ? (
             <>
@@ -260,12 +260,12 @@ export default async function SnapshotDetailPage({
               <div className={styles.pagination}>
                 <span className={styles.muted}>
                   현재 offset {offset.toLocaleString()}에서 최대{" "}
-                  {limit.toLocaleString()}개의 entry를 표시합니다.
+                  {limit.toLocaleString()}개의 엔트리를 표시합니다.
                 </span>
               </div>
             </>
           ) : (
-            <EmptyBox message="조건에 맞는 entry가 없습니다." />
+            <EmptyBox message="조건에 맞는 엔트리가 없습니다." />
           )}
         </section>
 

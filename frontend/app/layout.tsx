@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "plana-ai dashboard",
+  title: "plana-ai 대시보드",
   description: "블루 아카이브 총력전/대결전 통계 대시보드",
 };
 
