@@ -36,6 +36,8 @@ type SeasonPageProps = {
     collector?: string;
     captureStopReason?: string;
     ocrStopReason?: string;
+    ignoredReason?: string;
+    ocrStopLevel?: string;
     compareLeft?: string;
     compareRight?: string;
   }>;
@@ -78,6 +80,14 @@ export default async function SeasonDetailPage({
     resolvedSearchParams.ocrStopReason && resolvedSearchParams.ocrStopReason.trim()
       ? resolvedSearchParams.ocrStopReason
       : "all";
+  const selectedIgnoredReason =
+    resolvedSearchParams.ignoredReason && resolvedSearchParams.ignoredReason.trim()
+      ? resolvedSearchParams.ignoredReason
+      : "all";
+  const selectedOcrStopLevel =
+    resolvedSearchParams.ocrStopLevel && resolvedSearchParams.ocrStopLevel.trim()
+      ? resolvedSearchParams.ocrStopLevel
+      : "all";
   const requestedCompareLeft = Number(resolvedSearchParams.compareLeft ?? "");
   const requestedCompareRight = Number(resolvedSearchParams.compareRight ?? "");
   const selectedStatusFilter = SEASON_STATUS_FILTERS.includes(
@@ -114,6 +124,12 @@ export default async function SeasonDetailPage({
             : selectedCaptureStopReason,
         ocrStopReason:
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
+        ignoredReason:
+          selectedIgnoredReason === "all" ? undefined : selectedIgnoredReason,
+        ocrStopLevel:
+          selectedOcrStopLevel === "all"
+            ? undefined
+            : (selectedOcrStopLevel as "soft" | "hard"),
       }),
       getSeasonValidationSeries(numericSeasonId, {
         status: selectedStatusFilter,
@@ -125,6 +141,12 @@ export default async function SeasonDetailPage({
             : selectedCaptureStopReason,
         ocrStopReason:
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
+        ignoredReason:
+          selectedIgnoredReason === "all" ? undefined : selectedIgnoredReason,
+        ocrStopLevel:
+          selectedOcrStopLevel === "all"
+            ? undefined
+            : (selectedOcrStopLevel as "soft" | "hard"),
       }),
     ]);
 
@@ -143,7 +165,9 @@ export default async function SeasonDetailPage({
     if (
       (selectedCollector !== "all" ||
         selectedCaptureStopReason !== "all" ||
-        selectedOcrStopReason !== "all") &&
+        selectedOcrStopReason !== "all" ||
+        selectedIgnoredReason !== "all" ||
+        selectedOcrStopLevel !== "all") &&
       validationSeriesResult.data &&
       !validationSeriesResult.data.points.some(
         (point) => point.snapshot_id === snapshot.id,
@@ -235,6 +259,8 @@ export default async function SeasonDetailPage({
                   selectedCollector={selectedCollector}
                   selectedCaptureStopReason={selectedCaptureStopReason}
                   selectedOcrStopReason={selectedOcrStopReason}
+                  selectedIgnoredReason={selectedIgnoredReason}
+                  selectedOcrStopLevel={selectedOcrStopLevel}
                 />
                 {validationSeriesResult.error || !validationSeriesResult.data ? (
                   <ErrorBox
@@ -253,6 +279,8 @@ export default async function SeasonDetailPage({
                     selectedSource={selectedSource}
                     captureStopReason={selectedCaptureStopReason}
                     ocrStopReason={selectedOcrStopReason}
+                    ignoredReason={selectedIgnoredReason}
+                    ocrStopLevel={selectedOcrStopLevel}
                   />
                 )}
                 <ValidationIssuesPanel
@@ -341,6 +369,33 @@ export default async function SeasonDetailPage({
                       ))}
                     </select>
                   </div>
+                  <div className={styles.field}>
+                    <label htmlFor="ignoredReason">Ignored OCR Reason</label>
+                    <select
+                      id="ignoredReason"
+                      name="ignoredReason"
+                      defaultValue={selectedIgnoredReason}
+                    >
+                      <option value="all">all</option>
+                      {validationOverviewResult.data?.ignored_reasons.map((row) => (
+                        <option key={row.reason} value={row.reason}>
+                          {row.reason}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="ocrStopLevel">OCR Stop Level</label>
+                    <select
+                      id="ocrStopLevel"
+                      name="ocrStopLevel"
+                      defaultValue={selectedOcrStopLevel}
+                    >
+                      <option value="all">all</option>
+                      <option value="soft">soft</option>
+                      <option value="hard">hard</option>
+                    </select>
+                  </div>
                   <input type="hidden" name="rank" value={String(seriesRank)} />
                   {selectedCompareLeft ? (
                     <input
@@ -409,6 +464,16 @@ export default async function SeasonDetailPage({
                     type="hidden"
                     name="ocrStopReason"
                     value={selectedOcrStopReason}
+                  />
+                  <input
+                    type="hidden"
+                    name="ignoredReason"
+                    value={selectedIgnoredReason}
+                  />
+                  <input
+                    type="hidden"
+                    name="ocrStopLevel"
+                    value={selectedOcrStopLevel}
                   />
                   {selectedCompareLeft ? (
                     <input
@@ -491,6 +556,16 @@ export default async function SeasonDetailPage({
                       type="hidden"
                       name="ocrStopReason"
                       value={selectedOcrStopReason}
+                    />
+                    <input
+                      type="hidden"
+                      name="ignoredReason"
+                      value={selectedIgnoredReason}
+                    />
+                    <input
+                      type="hidden"
+                      name="ocrStopLevel"
+                      value={selectedOcrStopLevel}
                     />
                     <button type="submit" className={styles.button}>
                       비교

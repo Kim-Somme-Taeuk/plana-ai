@@ -186,6 +186,7 @@ entry 조회 사용성:
 - collector가 snapshot `note`에 남긴 진단 요약은 `validation-report`, `validation-overview`, `validation-series`에도 구조화되어 노출됩니다.
 - `validation-overview`, `validation-series`는 추가로 `collector_filter=with_diagnostics|capture_stop|hard_ocr_stop`을 지원합니다.
 - `validation-overview`, `validation-series`는 추가로 `capture_stop_reason`, `ocr_stop_reason` query로 특정 collector reason만 drilldown할 수 있습니다.
+- `validation-overview`, `validation-series`는 `ignored_reason`, `ocr_stop_level` query로 ignored OCR reason / stop severity 기준 drilldown도 지원합니다.
 
 ### validation 1차
 

@@ -179,6 +179,8 @@ def _matches_collector_filter(
     collector_filter: str | None,
     capture_stop_reason: str | None,
     ocr_stop_reason: str | None,
+    ignored_reason: str | None,
+    ocr_stop_level: str | None,
 ) -> bool:
     if collector_filter is None:
         filter_matches = True
@@ -196,7 +198,12 @@ def _matches_collector_filter(
     if not filter_matches:
         return False
 
-    if capture_stop_reason is None and ocr_stop_reason is None:
+    if (
+        capture_stop_reason is None
+        and ocr_stop_reason is None
+        and ignored_reason is None
+        and ocr_stop_level is None
+    ):
         return True
 
     if diagnostics is None:
@@ -208,6 +215,12 @@ def _matches_collector_filter(
     ):
         return False
     if ocr_stop_reason is not None and diagnostics.ocr_stop_reason != ocr_stop_reason:
+        return False
+    if ocr_stop_level is not None and diagnostics.ocr_stop_level != ocr_stop_level:
+        return False
+    if ignored_reason is not None and not any(
+        row.reason == ignored_reason for row in diagnostics.ignored_reasons
+    ):
         return False
     return True
 
@@ -221,6 +234,8 @@ def _get_filtered_season_snapshots(
     collector_filter: str | None,
     capture_stop_reason: str | None,
     ocr_stop_reason: str | None,
+    ignored_reason: str | None,
+    ocr_stop_level: str | None,
 ) -> list[tuple[RankingSnapshot, CollectorDiagnosticsRead | None]]:
     snapshots = list(
         db.scalars(
@@ -244,6 +259,8 @@ def _get_filtered_season_snapshots(
             collector_filter,
             capture_stop_reason,
             ocr_stop_reason,
+            ignored_reason,
+            ocr_stop_level,
         ):
             rows.append((snapshot, diagnostics))
     return rows
@@ -422,6 +439,8 @@ def _build_season_validation_overview(
     collector_filter: str | None = None,
     capture_stop_reason: str | None = None,
     ocr_stop_reason: str | None = None,
+    ignored_reason: str | None = None,
+    ocr_stop_level: str | None = None,
 ) -> SeasonValidationOverviewRead:
     snapshot_rows = _get_filtered_season_snapshots(
         db,
@@ -431,6 +450,8 @@ def _build_season_validation_overview(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        ignored_reason=ignored_reason,
+        ocr_stop_level=ocr_stop_level,
     )
     snapshots = [snapshot for snapshot, _ in snapshot_rows]
     snapshot_counts: dict[str, int] = {}
@@ -542,6 +563,8 @@ def _build_season_validation_series(
     collector_filter: str | None = None,
     capture_stop_reason: str | None = None,
     ocr_stop_reason: str | None = None,
+    ignored_reason: str | None = None,
+    ocr_stop_level: str | None = None,
 ) -> SeasonValidationSeriesRead:
     points: list[SeasonValidationSeriesPointRead] = []
     for snapshot, diagnostics in _get_filtered_season_snapshots(
@@ -552,6 +575,8 @@ def _build_season_validation_series(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        ignored_reason=ignored_reason,
+        ocr_stop_level=ocr_stop_level,
     ):
         valid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, True)
         invalid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, False)
@@ -735,6 +760,8 @@ def get_season_validation_overview(
     collector_filter: Literal["with_diagnostics", "capture_stop", "hard_ocr_stop"] | None = Query(None),
     capture_stop_reason: str | None = Query(None, min_length=1),
     ocr_stop_reason: str | None = Query(None, min_length=1),
+    ignored_reason: str | None = Query(None, min_length=1),
+    ocr_stop_level: Literal["soft", "hard"] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> SeasonValidationOverviewRead:
     season = _get_season_or_404(db, season_id)
@@ -746,6 +773,8 @@ def get_season_validation_overview(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        ignored_reason=ignored_reason,
+        ocr_stop_level=ocr_stop_level,
     )
 
 
@@ -760,6 +789,8 @@ def get_season_validation_series(
     collector_filter: Literal["with_diagnostics", "capture_stop", "hard_ocr_stop"] | None = Query(None),
     capture_stop_reason: str | None = Query(None, min_length=1),
     ocr_stop_reason: str | None = Query(None, min_length=1),
+    ignored_reason: str | None = Query(None, min_length=1),
+    ocr_stop_level: Literal["soft", "hard"] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> SeasonValidationSeriesRead:
     season = _get_season_or_404(db, season_id)
@@ -771,4 +802,6 @@ def get_season_validation_series(
         collector_filter=collector_filter,
         capture_stop_reason=capture_stop_reason,
         ocr_stop_reason=ocr_stop_reason,
+        ignored_reason=ignored_reason,
+        ocr_stop_level=ocr_stop_level,
     )

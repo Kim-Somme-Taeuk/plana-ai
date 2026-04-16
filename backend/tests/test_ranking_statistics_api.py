@@ -947,6 +947,86 @@ def test_get_season_validation_endpoints_support_collector_reason_filters(
     )
 
 
+def test_get_season_validation_endpoints_support_ignored_reason_and_ocr_level_filters(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "baseline note\n"
+        "collector: pages=2/3; capture_stop=noisy_last_page; "
+        "ignored=4(blank_line=1,non_entry_line=3); "
+        "ocr_stop=noisy_last_page(hard)"
+    )
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) + timedelta(minutes=10),
+        source_type="image_tesseract",
+        status="completed",
+        total_rows_collected=1,
+        note=(
+            "collector: pages=1/1; ignored=1(separator_line=1); "
+            "ocr_stop=sparse_last_page(soft)"
+        ),
+    )
+    db_session.add(second_snapshot)
+    db_session.flush()
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1,
+                score=10000,
+                player_name="Valid",
+                ocr_confidence=0.99,
+                raw_text="1 Valid 10000",
+                image_path="/tmp/valid.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=second_snapshot.id,
+                rank=2,
+                score=9000,
+                player_name="Invalid OCR",
+                ocr_confidence=0.2,
+                raw_text="2 Invalid OCR 9000",
+                image_path="/tmp/invalid.png",
+                is_valid=False,
+                validation_issue="low_ocr_confidence",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    ignored_reason_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-overview"
+        "?ignored_reason=separator_line"
+    )
+    ocr_level_response = client.get(
+        f"/seasons/{ranking_snapshot.season_id}/validation-series"
+        "?ocr_stop_level=hard"
+    )
+
+    assert ignored_reason_response.status_code == 200
+    assert ignored_reason_response.json()["snapshot_count"] == 1
+    assert ignored_reason_response.json()["ignored_reasons"] == [
+        {"reason": "separator_line", "count": 1}
+    ]
+    assert ignored_reason_response.json()["ocr_stop_reasons"] == [
+        {"reason": "sparse_last_page", "count": 1}
+    ]
+
+    assert ocr_level_response.status_code == 200
+    assert [point["snapshot_id"] for point in ocr_level_response.json()["points"]] == [
+        ranking_snapshot.id
+    ]
+    assert (
+        ocr_level_response.json()["points"][0]["collector_diagnostics"]["ocr_stop_level"]
+        == "hard"
+    )
+
+
 def test_get_ranking_snapshot_cutoffs_returns_scores_and_nulls(
     client,
     db_session: Session,

@@ -413,6 +413,8 @@ export function SeasonValidationOverviewPanel({
   selectedCollector,
   selectedCaptureStopReason,
   selectedOcrStopReason,
+  selectedIgnoredReason,
+  selectedOcrStopLevel,
 }: {
   overview: SeasonValidationOverview;
   seasonId: number;
@@ -421,9 +423,11 @@ export function SeasonValidationOverviewPanel({
   selectedCollector?: string;
   selectedCaptureStopReason?: string;
   selectedOcrStopReason?: string;
+  selectedIgnoredReason?: string;
+  selectedOcrStopLevel?: string;
 }) {
   const buildSeasonReasonHref = (
-    reasonType: "capture" | "ocr",
+    reasonType: "capture" | "ocr" | "ignored",
     reason: string,
   ) => {
     const params = new URLSearchParams();
@@ -441,6 +445,12 @@ export function SeasonValidationOverviewPanel({
       if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
         params.set("ocrStopReason", selectedOcrStopReason);
       }
+      if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
+        params.set("ignoredReason", selectedIgnoredReason);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
     } else if (reasonType === "ocr") {
       params.set(
         "collector",
@@ -451,6 +461,29 @@ export function SeasonValidationOverviewPanel({
       params.set("ocrStopReason", reason);
       if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
         params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedIgnoredReason && selectedIgnoredReason !== "all") {
+        params.set("ignoredReason", selectedIgnoredReason);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
+      }
+    } else {
+      params.set(
+        "collector",
+        selectedCollector && selectedCollector !== "all"
+          ? selectedCollector
+          : "with_diagnostics",
+      );
+      params.set("ignoredReason", reason);
+      if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
+        params.set("captureStopReason", selectedCaptureStopReason);
+      }
+      if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
+        params.set("ocrStopReason", selectedOcrStopReason);
+      }
+      if (selectedOcrStopLevel && selectedOcrStopLevel !== "all") {
+        params.set("ocrStopLevel", selectedOcrStopLevel);
       }
     }
 
@@ -524,6 +557,7 @@ export function SeasonValidationOverviewPanel({
           title="Ignored OCR Reasons"
           rows={overview.ignored_reasons}
           emptyMessage="집계된 ignored OCR reason이 없습니다."
+          getHref={(reason) => buildSeasonReasonHref("ignored", reason)}
         />
       </div>
     </section>
@@ -540,6 +574,8 @@ export function SeasonValidationSeriesPanel({
   selectedSource,
   captureStopReason,
   ocrStopReason,
+  ignoredReason,
+  ocrStopLevel,
 }: {
   series: SeasonValidationSeries;
   selectedCompareLeftId?: number | null;
@@ -550,6 +586,8 @@ export function SeasonValidationSeriesPanel({
   selectedSource?: string;
   captureStopReason?: string;
   ocrStopReason?: string;
+  ignoredReason?: string;
+  ocrStopLevel?: string;
 }) {
   const maxInvalidRatio =
     series.points.reduce((currentMax, point) => {
@@ -686,6 +724,14 @@ export function SeasonValidationSeriesPanel({
                                 }${
                                   ocrStopReason && ocrStopReason !== "all"
                                     ? `&ocrStopReason=${encodeURIComponent(ocrStopReason)}`
+                                    : ""
+                                }${
+                                  ignoredReason && ignoredReason !== "all"
+                                    ? `&ignoredReason=${encodeURIComponent(ignoredReason)}`
+                                    : ""
+                                }${
+                                  ocrStopLevel && ocrStopLevel !== "all"
+                                    ? `&ocrStopLevel=${encodeURIComponent(ocrStopLevel)}`
                                     : ""
                                 }`}
                                 className={styles.linkButton}

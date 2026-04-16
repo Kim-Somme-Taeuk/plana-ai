@@ -189,6 +189,8 @@ export function getSeasonValidationOverview(
     collectorFilter?: "with_diagnostics" | "capture_stop" | "hard_ocr_stop";
     captureStopReason?: string;
     ocrStopReason?: string;
+    ignoredReason?: string;
+    ocrStopLevel?: "soft" | "hard";
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -206,6 +208,12 @@ export function getSeasonValidationOverview(
   }
   if (options.ocrStopReason) {
     params.set("ocr_stop_reason", options.ocrStopReason);
+  }
+  if (options.ignoredReason) {
+    params.set("ignored_reason", options.ignoredReason);
+  }
+  if (options.ocrStopLevel) {
+    params.set("ocr_stop_level", options.ocrStopLevel);
   }
   return fetchApi<SeasonValidationOverview>(
     `/seasons/${seasonId}/validation-overview${params.size ? `?${params.toString()}` : ""}`,
@@ -220,6 +228,8 @@ export function getSeasonValidationSeries(
     collectorFilter?: "with_diagnostics" | "capture_stop" | "hard_ocr_stop";
     captureStopReason?: string;
     ocrStopReason?: string;
+    ignoredReason?: string;
+    ocrStopLevel?: "soft" | "hard";
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -237,6 +247,12 @@ export function getSeasonValidationSeries(
   }
   if (options.ocrStopReason) {
     params.set("ocr_stop_reason", options.ocrStopReason);
+  }
+  if (options.ignoredReason) {
+    params.set("ignored_reason", options.ignoredReason);
+  }
+  if (options.ocrStopLevel) {
+    params.set("ocr_stop_level", options.ocrStopLevel);
   }
   return fetchApi<SeasonValidationSeries>(
     `/seasons/${seasonId}/validation-series${params.size ? `?${params.toString()}` : ""}`,
