@@ -376,6 +376,14 @@ npm run lint
 npm run build
 ```
 
+### GitHub Actions CI
+
+`.github/workflows/ci.yml`에서 아래를 자동 검증합니다.
+
+- `python -m pytest backend/tests collector/tests -q`
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+
 ### 빠른 전체 확인
 
 ```bash
