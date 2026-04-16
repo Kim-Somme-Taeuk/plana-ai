@@ -275,8 +275,9 @@ backend/.venv/bin/python collector/adb_capture.py \
 - 로컬에 `adb` 명령이 있어야 합니다.
 - 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
 - 마지막 페이지 판정 2차는 screenshot 바이트 동일 또는 과거 프레임 재등장 여부 기반입니다.
-- OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page`, `duplicate_last_page` 같은 후속 종료 힌트를 남깁니다.
+- OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page`, `stale_last_page`, `duplicate_last_page` 같은 후속 종료 힌트를 남깁니다.
 - `ocr_stop_recommendation`은 `hard` / `soft` level과 `primary_reason`을 함께 반환합니다.
+- `stale_last_page`는 마지막 페이지에 새 rank가 거의 없어서 다음 페이지로 넘어가도 새 데이터가 적을 가능성이 높다는 soft 힌트입니다.
 - `pipeline_stop_recommendation`은 capture 종료 사유와 OCR 종료 힌트를 합쳐 후속 자동화가 바로 쓸 수 있는 최종 stop 판단입니다.
 - import 시 snapshot `note`에는 기존 note를 유지한 채 collector 진단 요약이 자동으로 덧붙습니다.
 - `stop_capture_on_recommendation=any`는 soft OCR 힌트 한 번으로 바로 멈추지 않고, 같은 soft 사유가 연속으로 반복될 때 조기 종료합니다.

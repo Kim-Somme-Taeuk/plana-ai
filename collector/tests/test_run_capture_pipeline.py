@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 import collector.capture_import as capture_import
+import collector.run_capture_pipeline as capture_pipeline
+from collector.adb_capture import PipelineStopPolicy
 from collector.run_capture_pipeline import run_capture_pipeline
 
 
@@ -1016,6 +1018,33 @@ def test_run_capture_pipeline_treats_duplicate_last_page_as_hard_ocr_stop(
         "primary_reason": "duplicate_last_page",
         "reasons": ["duplicate_last_page"],
     }
+
+
+def test_build_capture_stop_decision_supports_repeated_stale_last_page_soft_stop() -> None:
+    stop_decision = capture_pipeline._build_capture_stop_decision(
+        mode="any",
+        ocr_stop_recommendation={
+            "should_stop": True,
+            "level": "soft",
+            "primary_reason": "stale_last_page",
+            "reasons": ["overlapping_last_page", "stale_last_page"],
+        },
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+        ),
+        captured_page_count=3,
+        previous_soft_reason="stale_last_page",
+        previous_soft_count=1,
+    )
+
+    assert stop_decision == capture_pipeline.AdbCaptureStopDecision(
+        should_continue=False,
+        reason="stale_last_page",
+        source="ocr",
+        level="soft",
+        discard_last_page=False,
+    )
 
 
 def test_run_capture_pipeline_stops_capture_early_for_soft_recommendation_in_any_mode(

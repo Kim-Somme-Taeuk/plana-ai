@@ -565,6 +565,8 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
                 "ignored_line_count": 1,
                 "overlap_with_previous_count": 3,
                 "overlap_with_previous_ratio": 0.75,
+                "new_rank_count": 1,
+                "new_rank_ratio": 0.25,
             },
         ]
     ) == [
@@ -573,6 +575,12 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
             "page_index": 2,
             "overlap_with_previous_count": 3,
             "overlap_with_previous_ratio": 0.75,
+        },
+        {
+            "reason": "stale_last_page",
+            "page_index": 2,
+            "new_rank_count": 1,
+            "new_rank_ratio": 0.25,
         }
     ]
 
@@ -615,13 +623,19 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
                 "page_index": 2,
                 "overlap_with_previous_count": 3,
                 "overlap_with_previous_ratio": 0.75,
+            },
+            {
+                "reason": "stale_last_page",
+                "page_index": 2,
+                "new_rank_count": 1,
+                "new_rank_ratio": 0.25,
             }
         ]
     ) == {
         "should_stop": True,
         "level": "soft",
         "primary_reason": "overlapping_last_page",
-        "reasons": ["overlapping_last_page"],
+        "reasons": ["overlapping_last_page", "stale_last_page"],
     }
 
     assert build_ocr_stop_recommendation(

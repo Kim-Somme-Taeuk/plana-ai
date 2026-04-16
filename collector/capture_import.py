@@ -60,6 +60,8 @@ PAGINATION_RE = re.compile(
 )
 COLLECTOR_SUMMARY_PREFIX = "collector: "
 COLLECTOR_JSON_PREFIX = "collector_json: "
+STALE_LAST_PAGE_NEW_RANK_RATIO_THRESHOLD = 0.25
+STALE_LAST_PAGE_MIN_ENTRY_COUNT = 4
 
 
 @dataclass(frozen=True)
@@ -293,6 +295,8 @@ def build_ocr_stop_hints(
     last_page_ignored_line_count = int(last_page.get("ignored_line_count", 0))
     last_page_overlap_count = int(last_page.get("overlap_with_previous_count", 0))
     last_page_overlap_ratio = float(last_page.get("overlap_with_previous_ratio", 0.0))
+    last_page_new_rank_count = int(last_page.get("new_rank_count", 0))
+    last_page_new_rank_ratio = float(last_page.get("new_rank_ratio", 0.0))
 
     if len(page_summaries) >= 2 and last_page_entry_count == 0:
         hints.append(
@@ -322,6 +326,20 @@ def build_ocr_stop_hints(
                 "page_index": last_page["page_index"],
                 "overlap_with_previous_count": last_page_overlap_count,
                 "overlap_with_previous_ratio": last_page_overlap_ratio,
+            }
+        )
+
+    if (
+        len(page_summaries) >= 2
+        and last_page_entry_count >= STALE_LAST_PAGE_MIN_ENTRY_COUNT
+        and 0 < last_page_new_rank_ratio <= STALE_LAST_PAGE_NEW_RANK_RATIO_THRESHOLD
+    ):
+        hints.append(
+            {
+                "reason": "stale_last_page",
+                "page_index": last_page["page_index"],
+                "new_rank_count": last_page_new_rank_count,
+                "new_rank_ratio": last_page_new_rank_ratio,
             }
         )
 
@@ -364,6 +382,7 @@ def build_ocr_stop_recommendation(
         "duplicate_last_page": "hard",
         "sparse_last_page": "soft",
         "overlapping_last_page": "soft",
+        "stale_last_page": "soft",
     }
     levels = [reason_levels.get(hint["reason"], "soft") for hint in ocr_stop_hints]
 
