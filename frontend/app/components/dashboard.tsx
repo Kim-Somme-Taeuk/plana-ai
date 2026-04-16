@@ -291,12 +291,15 @@ export function DistributionPanel({
 
 export function SnapshotValidationReportPanel({
   report,
+  seasonId,
 }: {
   report: RankingSnapshotValidationReport;
+  seasonId: number;
 }) {
   const collectorSummary = formatCollectorDiagnosticsSummary(
     report.collector_diagnostics,
   );
+  const collectorDiagnostics = report.collector_diagnostics;
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
@@ -351,6 +354,56 @@ export function SnapshotValidationReportPanel({
           value={report.collector_diagnostics?.raw_summary ?? "-"}
         />
       </div>
+      {collectorDiagnostics ? (
+        <div className={styles.twoColumnGrid}>
+          <div className={styles.subPanel}>
+            <div className={styles.panelTitle}>
+              <h3>Collector Stop Drilldown</h3>
+            </div>
+            <div className={styles.paginationLinks}>
+              {collectorDiagnostics.capture_stop_reason ? (
+                <Link
+                  href={`/seasons/${seasonId}?collector=capture_stop&captureStopReason=${encodeURIComponent(
+                    collectorDiagnostics.capture_stop_reason,
+                  )}`}
+                  className={styles.linkButton}
+                >
+                  capture:{collectorDiagnostics.capture_stop_reason}
+                </Link>
+              ) : null}
+              {collectorDiagnostics.ocr_stop_reason ? (
+                <Link
+                  href={`/seasons/${seasonId}?collector=with_diagnostics&ocrStopReason=${encodeURIComponent(
+                    collectorDiagnostics.ocr_stop_reason,
+                  )}${
+                    collectorDiagnostics.ocr_stop_level
+                      ? `&ocrStopLevel=${encodeURIComponent(collectorDiagnostics.ocr_stop_level)}`
+                      : ""
+                  }`}
+                  className={styles.linkButton}
+                >
+                  ocr:{collectorDiagnostics.ocr_stop_reason}
+                  {collectorDiagnostics.ocr_stop_level
+                    ? ` (${collectorDiagnostics.ocr_stop_level})`
+                    : ""}
+                </Link>
+              ) : null}
+              {!collectorDiagnostics.capture_stop_reason &&
+              !collectorDiagnostics.ocr_stop_reason ? (
+                <span className={styles.muted}>collector stop signal이 없습니다.</span>
+              ) : null}
+            </div>
+          </div>
+          <ReasonSummaryPanel
+            title="Ignored OCR Reason Drilldown"
+            rows={collectorDiagnostics.ignored_reasons}
+            emptyMessage="ignored OCR reason이 없습니다."
+            getHref={(reason) =>
+              `/seasons/${seasonId}?collector=with_diagnostics&ignoredReason=${encodeURIComponent(reason)}`
+            }
+          />
+        </div>
+      ) : null}
     </section>
   );
 }

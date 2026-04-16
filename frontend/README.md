@@ -39,6 +39,7 @@
 - snapshot compare에서 validation issue delta 비교
 - snapshot compare에서 collector stop / ignored OCR line 비교
 - snapshot compare에서 left/right invalid, top issue drilldown 링크 제공
+- snapshot 상세 validation report에서 collector stop / ignored OCR reason 기준으로 시즌 상세 drilldown 가능
 - validation series에서 바로 이전 snapshot과 compare 링크 제공
 - validation series에서 invalid entry / top issue / snapshot 상세로 바로 drilldown
 - season validation overview / validation series는 현재 선택된 `status` / `source` 필터와 같이 움직임

@@ -170,7 +170,10 @@ export default async function SnapshotDetailPage({
             }`}
           />
         ) : (
-          <SnapshotValidationReportPanel report={validationReportResult.data} />
+          <SnapshotValidationReportPanel
+            report={validationReportResult.data}
+            seasonId={snapshot.season_id}
+          />
         )}
 
         <section className={styles.panel}>
