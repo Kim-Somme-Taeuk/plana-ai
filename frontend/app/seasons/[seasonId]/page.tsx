@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 type SeasonPageProps = {
   params: Promise<{ seasonId: string }>;
-  searchParams: Promise<{ rank?: string }>;
+  searchParams: Promise<{ rank?: string; status?: string; source?: string }>;
 };
 
 const SERIES_RANK_OPTIONS = [1, 10, 100, 1000, 5000, 10000];
@@ -35,6 +35,14 @@ export default async function SeasonDetailPage({
   const resolvedSearchParams = await searchParams;
   const numericSeasonId = Number(seasonId);
   const seriesRank = Number(resolvedSearchParams.rank ?? "10");
+  const selectedStatus =
+    resolvedSearchParams.status && resolvedSearchParams.status.trim()
+      ? resolvedSearchParams.status
+      : "all";
+  const selectedSource =
+    resolvedSearchParams.source && resolvedSearchParams.source.trim()
+      ? resolvedSearchParams.source
+      : "all";
 
   const [seasonResult, snapshotsResult, seriesResult, validationOverviewResult] =
     await Promise.all([
@@ -45,6 +53,19 @@ export default async function SeasonDetailPage({
     ]);
 
   const season = seasonResult.data;
+  const snapshots = snapshotsResult.data ?? [];
+  const sourceOptions = Array.from(
+    new Set(snapshots.map((snapshot) => snapshot.source_type)),
+  ).sort();
+  const filteredSnapshots = snapshots.filter((snapshot) => {
+    if (selectedStatus !== "all" && snapshot.status !== selectedStatus) {
+      return false;
+    }
+    if (selectedSource !== "all" && snapshot.source_type !== selectedSource) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <PageShell
@@ -89,14 +110,50 @@ export default async function SeasonDetailPage({
                   수집 상태와 row 수를 빠르게 확인합니다.
                 </span>
               </div>
+              <form className={styles.controls}>
+                <div className={styles.controlRow}>
+                  <div className={styles.field}>
+                    <label htmlFor="status">Status</label>
+                    <select
+                      id="status"
+                      name="status"
+                      defaultValue={selectedStatus}
+                    >
+                      <option value="all">all</option>
+                      <option value="completed">completed</option>
+                      <option value="collecting">collecting</option>
+                      <option value="failed">failed</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="source">Source</label>
+                    <select
+                      id="source"
+                      name="source"
+                      defaultValue={selectedSource}
+                    >
+                      <option value="all">all</option>
+                      {sourceOptions.map((sourceType) => (
+                        <option key={sourceType} value={sourceType}>
+                          {sourceType}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <input type="hidden" name="rank" value={String(seriesRank)} />
+                  <button type="submit" className={styles.button}>
+                    적용
+                  </button>
+                </div>
+              </form>
               {snapshotsResult.error ? (
                 <ErrorBox
                   message={`snapshot 목록을 불러오지 못했습니다. ${snapshotsResult.error}`}
                 />
-              ) : snapshotsResult.data && snapshotsResult.data.length > 0 ? (
-                <SnapshotList snapshots={snapshotsResult.data} />
+              ) : filteredSnapshots.length > 0 ? (
+                <SnapshotList snapshots={filteredSnapshots} />
               ) : (
-                <EmptyBox message="이 시즌에는 snapshot이 아직 없습니다." />
+                <EmptyBox message="조건에 맞는 snapshot이 없습니다." />
               )}
             </section>
           </div>
