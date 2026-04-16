@@ -272,6 +272,7 @@ JSON 파일만으로 아래 흐름을 검증합니다.
   - capture manifest 자동 생성
 - `run_capture_pipeline.py`
   - `adb_capture -> capture_import -> backend import`를 한 번에 실행
+  - `ocr_stop_hints`로 sparse/noisy 마지막 페이지 힌트 제공
   - OCR provider override, ADB command override, device serial override 지원
 
 제약:
