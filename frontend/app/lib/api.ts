@@ -189,6 +189,7 @@ export function getSeasonValidationOverview(
     collectorFilter?: "with_diagnostics" | "capture_stop" | "hard_ocr_stop";
     captureStopReason?: string;
     ocrStopReason?: string;
+    pipelineStopReason?: string;
     pipelineStopSource?: "capture" | "ocr";
     pipelineStopLevel?: "soft" | "hard";
     ignoredReason?: string;
@@ -212,6 +213,9 @@ export function getSeasonValidationOverview(
   }
   if (options.ocrStopReason) {
     params.set("ocr_stop_reason", options.ocrStopReason);
+  }
+  if (options.pipelineStopReason) {
+    params.set("pipeline_stop_reason", options.pipelineStopReason);
   }
   if (options.pipelineStopSource) {
     params.set("pipeline_stop_source", options.pipelineStopSource);
@@ -244,6 +248,7 @@ export function getSeasonValidationSeries(
     collectorFilter?: "with_diagnostics" | "capture_stop" | "hard_ocr_stop";
     captureStopReason?: string;
     ocrStopReason?: string;
+    pipelineStopReason?: string;
     pipelineStopSource?: "capture" | "ocr";
     pipelineStopLevel?: "soft" | "hard";
     ignoredReason?: string;
@@ -267,6 +272,9 @@ export function getSeasonValidationSeries(
   }
   if (options.ocrStopReason) {
     params.set("ocr_stop_reason", options.ocrStopReason);
+  }
+  if (options.pipelineStopReason) {
+    params.set("pipeline_stop_reason", options.pipelineStopReason);
   }
   if (options.pipelineStopSource) {
     params.set("pipeline_stop_source", options.pipelineStopSource);

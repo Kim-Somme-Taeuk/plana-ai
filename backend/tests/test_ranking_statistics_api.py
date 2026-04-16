@@ -506,6 +506,7 @@ def test_get_season_validation_overview_returns_expected_values(
         "malformed_entry_line_count": 0,
         "capture_stop_reasons": [],
         "ocr_stop_reasons": [],
+        "pipeline_stop_reasons": [],
         "pipeline_stop_sources": [],
         "pipeline_stop_levels": [],
         "ignored_reasons": [],
@@ -622,6 +623,7 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "malformed_entry_line_count": 0,
         "capture_stop_reasons": [],
         "ocr_stop_reasons": [],
+        "pipeline_stop_reasons": [],
         "pipeline_stop_sources": [],
         "pipeline_stop_levels": [],
         "ignored_reasons": [],
@@ -1053,7 +1055,7 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     ]
 
 
-def test_get_season_validation_endpoints_filter_pipeline_stop_source_and_level(
+def test_get_season_validation_endpoints_filter_pipeline_stop_reason_source_and_level(
     client,
     db_session: Session,
     ranking_snapshot: RankingSnapshot,
@@ -1068,16 +1070,21 @@ def test_get_season_validation_endpoints_filter_pipeline_stop_source_and_level(
 
     overview_response = client.get(
         f"/seasons/{ranking_snapshot.season_id}/validation-overview"
-        "?pipeline_stop_source=ocr&pipeline_stop_level=hard"
+        "?pipeline_stop_reason=duplicate_last_page"
+        "&pipeline_stop_source=ocr&pipeline_stop_level=hard"
     )
     series_response = client.get(
         f"/seasons/{ranking_snapshot.season_id}/validation-series"
-        "?pipeline_stop_source=ocr&pipeline_stop_level=hard"
+        "?pipeline_stop_reason=duplicate_last_page"
+        "&pipeline_stop_source=ocr&pipeline_stop_level=hard"
     )
 
     assert overview_response.status_code == 200
     assert overview_response.json()["snapshot_count"] == 1
     assert overview_response.json()["snapshots_with_pipeline_stop_count"] == 1
+    assert overview_response.json()["pipeline_stop_reasons"] == [
+        {"reason": "duplicate_last_page", "count": 1}
+    ]
     assert overview_response.json()["pipeline_stop_sources"] == [
         {"reason": "ocr", "count": 1}
     ]

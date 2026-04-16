@@ -148,6 +148,7 @@ class SeasonValidationOverviewRead(BaseModel):
     malformed_entry_line_count: int
     capture_stop_reasons: list[CollectorReasonCountRead]
     ocr_stop_reasons: list[CollectorReasonCountRead]
+    pipeline_stop_reasons: list[CollectorReasonCountRead]
     pipeline_stop_sources: list[CollectorReasonCountRead]
     pipeline_stop_levels: list[CollectorReasonCountRead]
     ignored_reasons: list[CollectorIgnoredReasonCountRead]

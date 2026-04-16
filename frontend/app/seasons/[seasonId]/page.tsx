@@ -36,6 +36,7 @@ type SeasonPageProps = {
     collector?: string;
     captureStopReason?: string;
     ocrStopReason?: string;
+    pipelineStopReason?: string;
     pipelineStopSource?: string;
     pipelineStopLevel?: string;
     ignoredReason?: string;
@@ -83,6 +84,11 @@ export default async function SeasonDetailPage({
   const selectedOcrStopReason =
     resolvedSearchParams.ocrStopReason && resolvedSearchParams.ocrStopReason.trim()
       ? resolvedSearchParams.ocrStopReason
+      : "all";
+  const selectedPipelineStopReason =
+    resolvedSearchParams.pipelineStopReason &&
+    resolvedSearchParams.pipelineStopReason.trim()
+      ? resolvedSearchParams.pipelineStopReason
       : "all";
   const selectedPipelineStopSource =
     resolvedSearchParams.pipelineStopSource &&
@@ -146,6 +152,10 @@ export default async function SeasonDetailPage({
             : selectedCaptureStopReason,
         ocrStopReason:
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
+        pipelineStopReason:
+          selectedPipelineStopReason === "all"
+            ? undefined
+            : selectedPipelineStopReason,
         pipelineStopSource:
           selectedPipelineStopSource === "all"
             ? undefined
@@ -184,6 +194,10 @@ export default async function SeasonDetailPage({
             : selectedCaptureStopReason,
         ocrStopReason:
           selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
+        pipelineStopReason:
+          selectedPipelineStopReason === "all"
+            ? undefined
+            : selectedPipelineStopReason,
         pipelineStopSource:
           selectedPipelineStopSource === "all"
             ? undefined
@@ -230,6 +244,7 @@ export default async function SeasonDetailPage({
       (selectedCollector !== "all" ||
         selectedCaptureStopReason !== "all" ||
         selectedOcrStopReason !== "all" ||
+        selectedPipelineStopReason !== "all" ||
         selectedPipelineStopSource !== "all" ||
         selectedPipelineStopLevel !== "all" ||
         selectedIgnoredReason !== "all" ||
@@ -313,6 +328,9 @@ export default async function SeasonDetailPage({
       ? `캡처 중단: ${selectedCaptureStopReason}`
       : null,
     selectedOcrStopReason !== "all" ? `OCR 중단: ${selectedOcrStopReason}` : null,
+    selectedPipelineStopReason !== "all"
+      ? `파이프라인 중단: ${selectedPipelineStopReason}`
+      : null,
     selectedPipelineStopSource !== "all"
       ? `파이프라인 소스: ${formatPipelineStopSourceLabel(selectedPipelineStopSource)}`
       : null,
@@ -365,6 +383,7 @@ export default async function SeasonDetailPage({
                     selectedCollector={selectedCollector}
                     selectedCaptureStopReason={selectedCaptureStopReason}
                     selectedOcrStopReason={selectedOcrStopReason}
+                    selectedPipelineStopReason={selectedPipelineStopReason}
                     selectedPipelineStopSource={selectedPipelineStopSource}
                     selectedPipelineStopLevel={selectedPipelineStopLevel}
                     selectedIgnoredReason={selectedIgnoredReason}
@@ -393,6 +412,7 @@ export default async function SeasonDetailPage({
                     selectedSource={selectedSource}
                     captureStopReason={selectedCaptureStopReason}
                     ocrStopReason={selectedOcrStopReason}
+                    pipelineStopReason={selectedPipelineStopReason}
                     pipelineStopSource={selectedPipelineStopSource}
                     pipelineStopLevel={selectedPipelineStopLevel}
                     ignoredReason={selectedIgnoredReason}
@@ -571,6 +591,21 @@ export default async function SeasonDetailPage({
                         </select>
                       </div>
                       <div className={styles.field}>
+                        <label htmlFor="pipelineStopReason">파이프라인 중단 사유</label>
+                        <select
+                          id="pipelineStopReason"
+                          name="pipelineStopReason"
+                          defaultValue={selectedPipelineStopReason}
+                        >
+                          <option value="all">전체</option>
+                          {validationOverviewResult.data?.pipeline_stop_reasons.map((row) => (
+                            <option key={row.reason} value={row.reason}>
+                              {row.reason}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className={styles.field}>
                         <label htmlFor="pipelineStopSource">파이프라인 소스</label>
                         <select
                           id="pipelineStopSource"
@@ -721,6 +756,11 @@ export default async function SeasonDetailPage({
                     />
                     <input
                       type="hidden"
+                      name="pipelineStopReason"
+                      value={selectedPipelineStopReason}
+                    />
+                    <input
+                      type="hidden"
                       name="pipelineStopSource"
                       value={selectedPipelineStopSource}
                     />
@@ -823,6 +863,11 @@ export default async function SeasonDetailPage({
                         type="hidden"
                         name="ocrStopReason"
                         value={selectedOcrStopReason}
+                      />
+                      <input
+                        type="hidden"
+                        name="pipelineStopReason"
+                        value={selectedPipelineStopReason}
                       />
                       <input
                         type="hidden"

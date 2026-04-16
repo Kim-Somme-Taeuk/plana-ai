@@ -173,6 +173,7 @@ export type SeasonValidationOverview = {
   malformed_entry_line_count: number;
   capture_stop_reasons: CollectorReasonCount[];
   ocr_stop_reasons: CollectorReasonCount[];
+  pipeline_stop_reasons: CollectorReasonCount[];
   pipeline_stop_sources: CollectorReasonCount[];
   pipeline_stop_levels: CollectorReasonCount[];
   ignored_reasons: CollectorIgnoredReasonCount[];
