@@ -1,26 +1,68 @@
 from datetime import UTC, datetime
+from pathlib import Path
+import sys
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app.db.session import SessionLocal
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from app.db.base import Base
+from app.db.session import get_db
 from app.main import app
 from app.models.ranking_entry import RankingEntry
 from app.models.ranking_snapshot import RankingSnapshot
 from app.models.season import Season
 
 
-@pytest.fixture(scope="module")
-def client() -> TestClient:
-    with TestClient(app) as test_client:
-        yield test_client
+@pytest.fixture
+def session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    factory = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+    )
+
+    try:
+        yield factory
+    finally:
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
 
 
 @pytest.fixture
-def db_session() -> Session:
-    session = SessionLocal()
+def client(session_factory: sessionmaker[Session]) -> TestClient:
+    def override_get_db():
+        db = session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def db_session(session_factory: sessionmaker[Session]) -> Session:
+    session = session_factory()
     try:
         yield session
     finally:
@@ -58,7 +100,10 @@ def ranking_snapshot(db_session: Session) -> RankingSnapshot:
 
 
 @pytest.fixture
-def ranking_entry(db_session: Session, ranking_snapshot: RankingSnapshot) -> RankingEntry:
+def ranking_entry(
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> RankingEntry:
     entry = RankingEntry(
         ranking_snapshot_id=ranking_snapshot.id,
         rank=1,

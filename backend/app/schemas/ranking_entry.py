@@ -1,19 +1,29 @@
-from pydantic import BaseModel, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RankingEntryBase(BaseModel):
     rank: int
     score: int
-    player_name: str | None = None
+    player_name: str | None = Field(default=None, max_length=100)
     ocr_confidence: float | None = None
-    raw_text: str | None = None
-    image_path: str | None = None
+    raw_text: str | None = Field(default=None, max_length=255)
+    image_path: str | None = Field(default=None, max_length=255)
     is_valid: bool = True
-    validation_issue: str | None = None
+    validation_issue: str | None = Field(default=None, max_length=255)
 
 
 class RankingEntryCreate(RankingEntryBase):
     pass
+
+
+class RankingEntryListParams(BaseModel):
+    is_valid: bool | None = None
+    limit: int | None = Field(default=None, ge=1, le=100)
+    offset: int | None = Field(default=None, ge=0)
+    sort_by: Literal["rank", "score"] | None = None
+    order: Literal["asc", "desc"] | None = None
 
 
 class RankingEntryRead(RankingEntryBase):
