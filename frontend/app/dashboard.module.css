@@ -312,11 +312,16 @@
 .tableWrap {
   overflow-x: auto;
   min-width: 0;
+  border: 1px solid rgba(89, 110, 82, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .table {
-  width: 100%;
-  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table th,
@@ -325,6 +330,7 @@
   text-align: left;
   border-bottom: 1px solid rgba(89, 110, 82, 0.12);
   font-size: 14px;
+  vertical-align: top;
 }
 
 .table th {
@@ -332,6 +338,23 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #6c7a6d;
+  white-space: nowrap;
+  background: #f4f7ef;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table td {
+  white-space: nowrap;
+}
+
+.table tbody tr:nth-child(even) {
+  background: rgba(244, 247, 239, 0.55);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .controls {
@@ -518,6 +541,12 @@
 
 .issueCodeLink {
   display: inline-flex;
+}
+
+@media (max-width: 1280px) {
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
