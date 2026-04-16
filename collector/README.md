@@ -145,6 +145,7 @@ backend/.venv/bin/python collector/capture_import.py \
 - OCR line 파싱에 실패하면 import를 중단합니다.
 - 숫자 토큰은 흔한 OCR 오인식에 대해 보정합니다.
   - 예: `O -> 0`, `l -> 1`, trailing `.` 제거
+- whitespace fallback의 confidence token도 같은 보정 규칙을 적용합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
@@ -283,6 +284,7 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 ### 주의사항
 
 - 이 파이프라인은 기존 `adb_capture.py`와 `capture_import.py`를 조합하는 얇은 orchestration 레이어입니다.
+- 요청 파일에 `ocr.provider`를 생략하면 통합 파이프라인에서는 `tesseract`를 기본값으로 사용합니다.
 - capture 자체가 성공해도 import 단계에서 실패할 수 있으며, 이 경우 생성된 capture 디렉터리는 디버깅용으로 그대로 남습니다.
 - 운영용 안정화가 끝난 collector가 아니라 개발/검증용 실제 입력 파이프라인 1차입니다.
 

@@ -503,7 +503,7 @@ def _parse_whitespace_fallback_line(
 
 
 def _looks_like_confidence_token(value: str) -> bool:
-    stripped = value.strip()
+    stripped = _normalize_float_ocr_token(value)
     if "." not in stripped:
         return False
 

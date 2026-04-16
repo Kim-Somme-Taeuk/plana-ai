@@ -255,6 +255,28 @@ def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_confide
     assert mock_payload.entries[0]["ocr_confidence"] == 0.87
 
 
+def test_build_mock_payload_from_capture_normalizes_whitespace_confidence_token(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12345678 O.87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-whitespace-confidence-normalized-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.87
+
+
 def test_build_mock_payload_from_capture_normalizes_common_ocr_numeric_tokens(
     tmp_path: Path,
 ) -> None:

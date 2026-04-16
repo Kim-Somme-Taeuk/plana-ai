@@ -67,9 +67,14 @@ def run_capture_pipeline(
         request,
         adb_client or AdbClient(request.adb.adb_command),
     )
+    effective_ocr_provider = _resolve_pipeline_ocr_provider(
+        requested_provider=ocr_provider,
+        request=request,
+        capture_result=capture_result,
+    )
     capture_payload = load_capture_import_payload(
         capture_result.output_dir,
-        ocr_provider=ocr_provider,
+        ocr_provider=effective_ocr_provider,
         ocr_command=ocr_command,
         ocr_language=ocr_language,
         ocr_psm=ocr_psm,
@@ -90,6 +95,25 @@ def run_capture_pipeline(
         total_rows_collected=import_result.total_rows_collected,
         ocr_provider=capture_payload.ocr.provider,
     )
+
+
+def _resolve_pipeline_ocr_provider(
+    *,
+    requested_provider: str | None,
+    request,
+    capture_result: AdbCaptureResult,
+) -> str | None:
+    if requested_provider is not None:
+        return requested_provider
+
+    if request.ocr.get("provider") != "sidecar":
+        return None
+
+    sidecar_exists = any(image_path.with_suffix(".txt").exists() for image_path in capture_result.image_paths)
+    if sidecar_exists:
+        return None
+
+    return "tesseract"
 
 
 def build_parser() -> argparse.ArgumentParser:

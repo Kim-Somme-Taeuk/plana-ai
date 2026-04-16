@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -98,6 +99,64 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     ]
 
 
+def test_run_capture_pipeline_defaults_to_tesseract_without_explicit_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-default-provider-season",
+        include_ocr=False,
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class FakeApiClient:
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 1,
+            }
+
+    def fake_run(args, capture_output, text, check):
+        assert args[:3] == [
+            "tesseract",
+            str((tmp_path / "capture-output" / "page-001.png").resolve()),
+            "stdout",
+        ]
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.ocr_provider == "tesseract"
+
+
 def test_run_capture_pipeline_propagates_import_error_after_capture(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -139,32 +198,36 @@ def test_run_capture_pipeline_propagates_import_error_after_capture(
     assert (tmp_path / "capture-output" / "manifest.json").exists()
 
 
-def _write_request(base_dir: Path, *, season_label: str) -> Path:
+def _write_request(
+    base_dir: Path,
+    *,
+    season_label: str,
+    include_ocr: bool = True,
+) -> Path:
     request_path = base_dir / "pipeline-request.json"
+    payload = {
+        "season": {
+            "event_type": "total_assault",
+            "server": "kr",
+            "boss_name": "Binah",
+            "terrain": "outdoor",
+            "season_label": season_label,
+        },
+        "snapshot": {
+            "captured_at": "2026-04-16T12:00:00Z",
+        },
+        "adb": {
+            "page_count": 1,
+        },
+    }
+    if include_ocr:
+        payload["ocr"] = {
+            "provider": "tesseract",
+            "language": "eng",
+            "psm": 6,
+        }
     request_path.write_text(
-        """
-{
-  "season": {
-    "event_type": "total_assault",
-    "server": "kr",
-    "boss_name": "Binah",
-    "terrain": "outdoor",
-    "season_label": "%s"
-  },
-  "snapshot": {
-    "captured_at": "2026-04-16T12:00:00Z"
-  },
-  "ocr": {
-    "provider": "tesseract",
-    "language": "eng",
-    "psm": 6
-  },
-  "adb": {
-    "page_count": 1
-  }
-}
-"""
-        % season_label,
+        json.dumps(payload, ensure_ascii=False),
         encoding="utf-8",
     )
     return request_path
