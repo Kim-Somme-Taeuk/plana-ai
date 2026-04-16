@@ -9,6 +9,9 @@ BACKEND_URL="${BACKEND_URL:-http://localhost:8000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:3000}"
 SMOKE_SNAPSHOT_ID="${SMOKE_SNAPSHOT_ID:-41}"
 SMOKE_SEASON_ID="${SMOKE_SEASON_ID:-33}"
+SMOKE_COMPARE_SEASON_ID="${SMOKE_COMPARE_SEASON_ID:-18}"
+SMOKE_COMPARE_LEFT_ID="${SMOKE_COMPARE_LEFT_ID:-24}"
+SMOKE_COMPARE_RIGHT_ID="${SMOKE_COMPARE_RIGHT_ID:-25}"
 
 retry_curl() {
   local url="$1"
@@ -43,6 +46,9 @@ retry_curl "$FRONTEND_URL/"
 
 echo "[smoke] frontend season detail"
 retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID"
+
+echo "[smoke] frontend season compare"
+retry_curl "$FRONTEND_URL/seasons/$SMOKE_COMPARE_SEASON_ID?compareLeft=$SMOKE_COMPARE_LEFT_ID&compareRight=$SMOKE_COMPARE_RIGHT_ID"
 
 echo "[smoke] frontend snapshot detail"
 retry_curl "$FRONTEND_URL/snapshots/$SMOKE_SNAPSHOT_ID?validationIssue=low_ocr_confidence&limit=50&offset=0"
