@@ -94,6 +94,9 @@ export type CollectorDiagnostics = {
   requested_page_count: number | null;
   capture_stop_reason: string | null;
   ignored_line_count: number;
+  overlay_ignored_line_count: number;
+  header_ignored_line_count: number;
+  malformed_entry_line_count: number;
   ignored_reasons: CollectorIgnoredReasonCount[];
   ocr_stop_reason: string | null;
   ocr_stop_level: string | null;
@@ -139,6 +142,9 @@ export type SeasonValidationOverview = {
   snapshots_with_capture_stop_count: number;
   snapshots_with_hard_ocr_stop_count: number;
   total_ignored_line_count: number;
+  overlay_ignored_line_count: number;
+  header_ignored_line_count: number;
+  malformed_entry_line_count: number;
   capture_stop_reasons: CollectorReasonCount[];
   ocr_stop_reasons: CollectorReasonCount[];
   ignored_reasons: CollectorIgnoredReasonCount[];

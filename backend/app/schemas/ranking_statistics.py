@@ -56,6 +56,9 @@ class CollectorDiagnosticsRead(BaseModel):
     requested_page_count: int | None = None
     capture_stop_reason: str | None = None
     ignored_line_count: int
+    overlay_ignored_line_count: int = 0
+    header_ignored_line_count: int = 0
+    malformed_entry_line_count: int = 0
     ignored_reasons: list[CollectorIgnoredReasonCountRead]
     ocr_stop_reason: str | None = None
     ocr_stop_level: str | None = None
@@ -114,6 +117,9 @@ class SeasonValidationOverviewRead(BaseModel):
     snapshots_with_capture_stop_count: int
     snapshots_with_hard_ocr_stop_count: int
     total_ignored_line_count: int
+    overlay_ignored_line_count: int
+    header_ignored_line_count: int
+    malformed_entry_line_count: int
     capture_stop_reasons: list[CollectorReasonCountRead]
     ocr_stop_reasons: list[CollectorReasonCountRead]
     ignored_reasons: list[CollectorIgnoredReasonCountRead]

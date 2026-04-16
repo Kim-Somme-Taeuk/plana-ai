@@ -47,6 +47,8 @@ ALLOWED_STATUS_TRANSITIONS = {
     (COLLECTING_STATUS, FAILED_STATUS),
 }
 DEFAULT_CUTOFF_RANKS = (1, 10, 100, 1000, 5000, 10000)
+OVERLAY_IGNORED_REASONS = ("reward_line", "ui_control_line", "status_line")
+HEADER_IGNORED_REASONS = ("header_line", "pagination_line")
 
 
 def _get_ranking_snapshot_or_404(db: Session, snapshot_id: int) -> RankingSnapshot:
@@ -168,6 +170,18 @@ def _build_collector_diagnostics_read(
         requested_page_count=summary.requested_page_count,
         capture_stop_reason=summary.capture_stop_reason,
         ignored_line_count=summary.ignored_line_count,
+        overlay_ignored_line_count=_sum_ignored_reasons(
+            summary.ignored_reasons,
+            OVERLAY_IGNORED_REASONS,
+        ),
+        header_ignored_line_count=_sum_ignored_reasons(
+            summary.ignored_reasons,
+            HEADER_IGNORED_REASONS,
+        ),
+        malformed_entry_line_count=_sum_ignored_reasons(
+            summary.ignored_reasons,
+            ("malformed_entry_line",),
+        ),
         ignored_reasons=[
             CollectorIgnoredReasonCountRead(reason=row.reason, count=row.count)
             for row in summary.ignored_reasons
@@ -239,6 +253,17 @@ def _matches_collector_filter(
     ):
         return False
     return True
+
+
+def _sum_ignored_reasons(
+    ignored_reasons,
+    target_reasons: tuple[str, ...],
+) -> int:
+    return sum(
+        row.count
+        for row in ignored_reasons
+        if row.reason in target_reasons
+    )
 
 
 def _get_filtered_season_snapshots(
@@ -519,6 +544,9 @@ def _build_season_validation_overview(
     capture_stop_reason_counts: dict[str, int] = {}
     ocr_stop_reason_counts: dict[str, int] = {}
     ignored_reason_counts: dict[str, int] = {}
+    overlay_ignored_line_count = 0
+    header_ignored_line_count = 0
+    malformed_entry_line_count = 0
     for row in collector_diagnostics:
         if row.capture_stop_reason is not None:
             capture_stop_reason_counts[row.capture_stop_reason] = (
@@ -533,6 +561,9 @@ def _build_season_validation_overview(
                 ignored_reason_counts.get(ignored_reason.reason, 0)
                 + ignored_reason.count
             )
+        overlay_ignored_line_count += row.overlay_ignored_line_count
+        header_ignored_line_count += row.header_ignored_line_count
+        malformed_entry_line_count += row.malformed_entry_line_count
 
     return SeasonValidationOverviewRead(
         season_id=season.id,
@@ -555,6 +586,9 @@ def _build_season_validation_overview(
             1 for row in collector_diagnostics if row.ocr_stop_level == "hard"
         ),
         total_ignored_line_count=sum(row.ignored_line_count for row in collector_diagnostics),
+        overlay_ignored_line_count=overlay_ignored_line_count,
+        header_ignored_line_count=header_ignored_line_count,
+        malformed_entry_line_count=malformed_entry_line_count,
         capture_stop_reasons=[
             CollectorReasonCountRead(reason=reason, count=count)
             for reason, count in sorted(capture_stop_reason_counts.items())

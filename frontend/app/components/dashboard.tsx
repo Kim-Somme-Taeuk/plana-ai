@@ -360,6 +360,18 @@ export function SnapshotValidationReportPanel({
           value={collectorSummary.ignored}
         />
         <StatCard
+          label="오버레이 OCR 줄"
+          value={collectorDiagnostics?.overlay_ignored_line_count.toLocaleString() ?? "-"}
+        />
+        <StatCard
+          label="헤더 OCR 줄"
+          value={collectorDiagnostics?.header_ignored_line_count.toLocaleString() ?? "-"}
+        />
+        <StatCard
+          label="비정상 엔트리 OCR"
+          value={collectorDiagnostics?.malformed_entry_line_count.toLocaleString() ?? "-"}
+        />
+        <StatCard
           label="수집 요약 원문"
           value={report.collector_diagnostics?.raw_summary ?? "-"}
         />
@@ -691,6 +703,18 @@ export function SeasonValidationOverviewPanel({
         <StatCard
           label="무시된 OCR 줄"
           value={String(overview.total_ignored_line_count)}
+        />
+        <StatCard
+          label="오버레이 OCR 줄"
+          value={String(overview.overlay_ignored_line_count)}
+        />
+        <StatCard
+          label="헤더 OCR 줄"
+          value={String(overview.header_ignored_line_count)}
+        />
+        <StatCard
+          label="비정상 엔트리 OCR"
+          value={String(overview.malformed_entry_line_count)}
         />
       </div>
       <div className={styles.threeColumnGrid}>

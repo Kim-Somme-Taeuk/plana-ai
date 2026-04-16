@@ -270,6 +270,9 @@ def test_get_ranking_snapshot_validation_report_includes_collector_diagnostics(
         "requested_page_count": 3,
         "capture_stop_reason": "noisy_last_page",
         "ignored_line_count": 3,
+        "overlay_ignored_line_count": 0,
+        "header_ignored_line_count": 0,
+        "malformed_entry_line_count": 0,
         "ignored_reasons": [
             {"reason": "blank_line", "count": 1},
             {"reason": "non_entry_line", "count": 2},
@@ -305,6 +308,9 @@ def test_get_ranking_snapshot_validation_report_parses_collector_json_details(
         "primary_reason": "duplicate_last_page",
         "reasons": ["duplicate_last_page"],
     }
+    assert collector_diagnostics["overlay_ignored_line_count"] == 0
+    assert collector_diagnostics["header_ignored_line_count"] == 1
+    assert collector_diagnostics["malformed_entry_line_count"] == 0
     assert collector_diagnostics["ocr_stop_hints"] == [
         {
             "reason": "duplicate_last_page",
@@ -435,6 +441,9 @@ def test_get_season_validation_overview_returns_expected_values(
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
         "total_ignored_line_count": 0,
+        "overlay_ignored_line_count": 0,
+        "header_ignored_line_count": 0,
+        "malformed_entry_line_count": 0,
         "capture_stop_reasons": [],
         "ocr_stop_reasons": [],
         "ignored_reasons": [],
@@ -540,6 +549,9 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
         "total_ignored_line_count": 0,
+        "overlay_ignored_line_count": 0,
+        "header_ignored_line_count": 0,
+        "malformed_entry_line_count": 0,
         "capture_stop_reasons": [],
         "ocr_stop_reasons": [],
         "ignored_reasons": [],
@@ -826,6 +838,9 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert overview_response.json()["snapshots_with_capture_stop_count"] == 1
     assert overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
     assert overview_response.json()["total_ignored_line_count"] == 5
+    assert overview_response.json()["overlay_ignored_line_count"] == 0
+    assert overview_response.json()["header_ignored_line_count"] == 0
+    assert overview_response.json()["malformed_entry_line_count"] == 0
     assert overview_response.json()["capture_stop_reasons"] == [
         {"reason": "noisy_last_page", "count": 1}
     ]
@@ -862,6 +877,9 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
                 "requested_page_count": 3,
                 "capture_stop_reason": "noisy_last_page",
                 "ignored_line_count": 4,
+                "overlay_ignored_line_count": 0,
+                "header_ignored_line_count": 0,
+                "malformed_entry_line_count": 0,
                 "ignored_reasons": [
                     {"reason": "blank_line", "count": 1},
                     {"reason": "non_entry_line", "count": 3},
@@ -896,6 +914,9 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
                 "requested_page_count": 1,
                 "capture_stop_reason": None,
                 "ignored_line_count": 1,
+                "overlay_ignored_line_count": 0,
+                "header_ignored_line_count": 0,
+                "malformed_entry_line_count": 0,
                 "ignored_reasons": [
                     {"reason": "separator_line", "count": 1},
                 ],
@@ -937,6 +958,53 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert [point["snapshot_id"] for point in capture_series_response.json()["points"]] == [
         ranking_snapshot.id
     ]
+
+
+def test_get_season_validation_overview_aggregates_derived_ignored_reason_counts(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "collector: pages=2/2; ignored=5(reward_line=2,ui_control_line=1,"
+        "header_line=1,malformed_entry_line=1); ocr_stop=overlay_last_page(hard)"
+    )
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) + timedelta(minutes=5),
+        source_type="image_tesseract",
+        status="completed",
+        total_rows_collected=1,
+        note=(
+            "collector: pages=1/1; ignored=3(status_line=1,pagination_line=1,"
+            "malformed_entry_line=1); ocr_stop=header_repeat_last_page(hard)"
+        ),
+    )
+    db_session.add(second_snapshot)
+    db_session.flush()
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=10000,
+            player_name="Valid",
+            ocr_confidence=0.99,
+            raw_text="1 Valid 10000",
+            image_path="/tmp/valid.png",
+            is_valid=True,
+            validation_issue=None,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/seasons/{ranking_snapshot.season_id}/validation-overview")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_ignored_line_count"] == 8
+    assert body["overlay_ignored_line_count"] == 4
+    assert body["header_ignored_line_count"] == 2
+    assert body["malformed_entry_line_count"] == 2
 
 
 def test_get_season_validation_endpoints_support_collector_reason_filters(
