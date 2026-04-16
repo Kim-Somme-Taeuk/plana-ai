@@ -279,7 +279,10 @@ def _build_after_capture_page_callback(
     if stop_capture_on_recommendation_mode == "off":
         return None
 
+    previous_soft_reason: str | None = None
+
     def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
+        nonlocal previous_soft_reason
         parsed_payload = parse_capture_payload(
             CaptureImportPayload(
                 base_dir=request.adb.output_dir,
@@ -317,20 +320,56 @@ def _build_after_capture_page_callback(
         ocr_stop_recommendation = build_ocr_stop_recommendation(
             build_ocr_stop_hints(parsed_payload.page_summaries)
         )
-        if not _should_skip_import_on_recommendation(
+        stop_decision = _build_capture_stop_decision(
             mode=stop_capture_on_recommendation_mode,
-            pipeline_stop_recommendation=ocr_stop_recommendation,
-        ):
+            ocr_stop_recommendation=ocr_stop_recommendation,
+            previous_soft_reason=previous_soft_reason,
+        )
+        if stop_decision is None:
+            if ocr_stop_recommendation["level"] == "soft":
+                previous_soft_reason = ocr_stop_recommendation["primary_reason"]
+            else:
+                previous_soft_reason = None
             return AdbCaptureStopDecision(should_continue=True)
 
-        return AdbCaptureStopDecision(
-            should_continue=False,
-            reason=ocr_stop_recommendation["primary_reason"],
-            source="ocr",
-            level=ocr_stop_recommendation["level"],
-        )
+        previous_soft_reason = None
+        return stop_decision
 
     return after_capture_page
+
+
+def _build_capture_stop_decision(
+    *,
+    mode: str,
+    ocr_stop_recommendation: dict[str, Any],
+    previous_soft_reason: str | None,
+) -> AdbCaptureStopDecision | None:
+    if not ocr_stop_recommendation["should_stop"]:
+        return None
+
+    level = ocr_stop_recommendation["level"]
+    reason = ocr_stop_recommendation["primary_reason"]
+
+    if level == "hard":
+        return AdbCaptureStopDecision(
+            should_continue=False,
+            reason=reason,
+            source="ocr",
+            level=level,
+        )
+
+    if mode != "any":
+        return None
+
+    if previous_soft_reason != reason:
+        return None
+
+    return AdbCaptureStopDecision(
+        should_continue=False,
+        reason=reason,
+        source="ocr",
+        level=level,
+    )
 
 
 def _build_runtime_ocr_config(
