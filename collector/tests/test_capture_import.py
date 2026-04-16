@@ -314,6 +314,28 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
     }
 
 
+def test_parse_capture_payload_raises_when_all_pages_are_empty(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "\n-----\n총 참여 인원 999\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-all-empty-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+
+    with pytest.raises(MockImportError) as exc_info:
+        parse_capture_payload(payload)
+
+    assert str(exc_info.value) == "capture 전체에서 파싱 가능한 OCR entry가 없습니다."
+
+
 def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
     page_summaries = [
         {

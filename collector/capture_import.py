@@ -768,6 +768,9 @@ def _validate_snapshot_entries(
     entries: list[dict[str, Any]],
     page_summaries: list[dict[str, Any]],
 ) -> None:
+    if not entries:
+        raise MockImportError("capture 전체에서 파싱 가능한 OCR entry가 없습니다.")
+
     summary = summarize_snapshot_entries(entries)
 
     if summary.duplicate_ranks:
