@@ -59,8 +59,16 @@
   gap: 18px;
 }
 
+.grid > * {
+  min-width: 0;
+}
+
 .twoColumn {
   grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+}
+
+.twoColumn > * {
+  min-width: 0;
 }
 
 .panel {
@@ -69,6 +77,7 @@
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 8px 30px rgba(48, 67, 46, 0.06);
+  min-width: 0;
 }
 
 .panelTitle {
@@ -103,6 +112,7 @@
   border-radius: 18px;
   background: #fbfcf8;
   transition: transform 120ms ease, box-shadow 120ms ease;
+  min-width: 0;
 }
 
 .seasonCard:hover {
@@ -123,13 +133,15 @@
 
 .metaGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .metaItem {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .metaLabel {
@@ -158,6 +170,7 @@
   border: 1px solid rgba(102, 128, 97, 0.14);
   border-radius: 16px;
   background: #fcfdf9;
+  min-width: 0;
 }
 
 .snapshotCardTop {
@@ -202,15 +215,17 @@
 
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .threeColumnGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
   margin-top: 16px;
+  min-width: 0;
 }
 
 .subPanel {
@@ -218,6 +233,7 @@
   border-radius: 16px;
   background: #f8faf4;
   border: 1px solid rgba(102, 128, 97, 0.12);
+  min-width: 0;
 }
 
 .compareHeaderGrid {
@@ -225,6 +241,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+  min-width: 0;
 }
 
 .compareHeaderCard {
@@ -232,6 +249,7 @@
   border-radius: 16px;
   background: #f8faf4;
   border: 1px solid rgba(102, 128, 97, 0.12);
+  min-width: 0;
 }
 
 .compareActions {
@@ -246,6 +264,7 @@
   border-radius: 16px;
   background: #f8faf4;
   border: 1px solid rgba(102, 128, 97, 0.12);
+  min-width: 0;
 }
 
 .statValue {
@@ -285,6 +304,7 @@
 
 .tableWrap {
   overflow-x: auto;
+  min-width: 0;
 }
 
 .table {
@@ -311,6 +331,7 @@
   display: grid;
   gap: 12px;
   margin-bottom: 16px;
+  min-width: 0;
 }
 
 .controlRow {
@@ -318,11 +339,13 @@
   flex-wrap: wrap;
   gap: 10px;
   align-items: flex-end;
+  min-width: 0;
 }
 
 .field {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .field label {
