@@ -473,16 +473,17 @@ def _parse_whitespace_fallback_line(
 
     rank = _parse_int_token(tokens[0], "rank", page_index, line_index)
     ocr_confidence: float | None = default_ocr_confidence
-
+    body_tokens = tokens[1:]
     if len(tokens) >= 4 and _looks_like_confidence_token(tokens[-1]):
-        score_index = -2
-        player_tokens = tokens[1:-2]
+        body_tokens = tokens[1:-1]
         ocr_confidence = _parse_float_token(
             tokens[-1], "ocr_confidence", page_index, line_index
         )
-    else:
-        score_index = -1
-        player_tokens = tokens[1:-1]
+    score_tokens, player_tokens = _split_score_and_player_tokens(
+        body_tokens,
+        page_index=page_index,
+        line_index=line_index,
+    )
 
     if not player_tokens:
         raise MockImportError(
@@ -492,7 +493,11 @@ def _parse_whitespace_fallback_line(
 
     return {
         "rank": rank,
-        "score": _parse_int_token(tokens[score_index], "score", page_index, line_index),
+        "score": _parse_grouped_score_tokens(
+            score_tokens,
+            page_index=page_index,
+            line_index=line_index,
+        ),
         "player_name": " ".join(player_tokens),
         "ocr_confidence": ocr_confidence,
         "raw_text": raw_line,
@@ -513,6 +518,63 @@ def _looks_like_confidence_token(value: str) -> bool:
         return False
 
     return 0 <= parsed <= 1
+
+
+def _split_score_and_player_tokens(
+    body_tokens: list[str],
+    *,
+    page_index: int,
+    line_index: int,
+) -> tuple[list[str], list[str]]:
+    if len(body_tokens) < 2:
+        raise MockImportError(
+            "OCR line 파싱에 실패했습니다. "
+            f"page={page_index}, line={line_index}, raw_text tokens 부족"
+        )
+
+    score_start = len(body_tokens) - 1
+    last_token_normalized = _normalize_integer_ocr_token(body_tokens[-1])
+    if len(last_token_normalized) > 3:
+        return body_tokens[-1:], body_tokens[:-1]
+
+    while score_start > 0:
+        candidate = body_tokens[score_start - 1]
+        normalized_candidate = _normalize_integer_ocr_token(candidate)
+        if not (normalized_candidate.isdigit() and len(normalized_candidate) == 3):
+            break
+        score_start -= 1
+
+    if score_start > 0:
+        leading_candidate = _normalize_integer_ocr_token(body_tokens[score_start - 1])
+        if leading_candidate.isdigit() and 2 <= len(leading_candidate) <= 3:
+            score_start -= 1
+
+    return body_tokens[score_start:], body_tokens[:score_start]
+
+
+def _parse_grouped_score_tokens(
+    score_tokens: list[str],
+    *,
+    page_index: int,
+    line_index: int,
+) -> int:
+    if not score_tokens:
+        raise MockImportError(
+            "OCR line 파싱에 실패했습니다. "
+            f"page={page_index}, line={line_index}, score token이 없습니다."
+        )
+
+    if len(score_tokens) == 1:
+        return _parse_int_token(score_tokens[0], "score", page_index, line_index)
+
+    normalized_tokens = [_normalize_integer_ocr_token(token) for token in score_tokens]
+    if not all(token.isdigit() for token in normalized_tokens):
+        raise MockImportError(
+            "OCR line 파싱에 실패했습니다. "
+            f"page={page_index}, line={line_index}, grouped score token이 숫자가 아닙니다."
+        )
+
+    return int("".join(normalized_tokens))
 
 
 def _validate_snapshot_entries(entries: list[dict[str, Any]]) -> None:

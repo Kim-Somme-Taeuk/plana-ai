@@ -146,6 +146,7 @@ backend/.venv/bin/python collector/capture_import.py \
 - 숫자 토큰은 흔한 OCR 오인식에 대해 보정합니다.
   - 예: `O -> 0`, `l -> 1`, trailing `.` 제거
 - whitespace fallback의 confidence token도 같은 보정 규칙을 적용합니다.
+- whitespace fallback에서는 `12 345 678`처럼 공백으로 분리된 score token도 보수적으로 합쳐서 파싱합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 

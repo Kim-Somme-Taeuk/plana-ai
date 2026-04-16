@@ -255,6 +255,50 @@ def test_build_mock_payload_from_capture_parses_whitespace_fallback_with_confide
     assert mock_payload.entries[0]["ocr_confidence"] == 0.87
 
 
+def test_build_mock_payload_from_capture_parses_grouped_score_tokens(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Player 2 12 345 678 0.87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-grouped-score-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Player 2"
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.87
+
+
+def test_build_mock_payload_from_capture_normalizes_grouped_score_tokens(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1 Plana l2 34O 678 O.87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-grouped-score-normalized-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["player_name"] == "Plana"
+    assert mock_payload.entries[0]["score"] == 12340678
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.87
+
+
 def test_build_mock_payload_from_capture_normalizes_whitespace_confidence_token(
     tmp_path: Path,
 ) -> None:
