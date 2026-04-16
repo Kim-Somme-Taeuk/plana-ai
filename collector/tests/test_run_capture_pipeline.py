@@ -157,6 +157,43 @@ def test_run_capture_pipeline_defaults_to_tesseract_without_explicit_provider(
     assert result.ocr_provider == "tesseract"
 
 
+def test_run_capture_pipeline_preserves_explicit_sidecar_provider(
+    tmp_path: Path,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-explicit-sidecar-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["ocr"] = {"provider": "sidecar"}
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class UnusedApiClient:
+        def create_season(self, payload):
+            raise AssertionError("sidecar 단계에서 실패해야 합니다")
+
+    with pytest.raises(capture_import.MockImportError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(tmp_path / "capture-output"),
+            adb_client=FakeAdbClient(),
+            api_client=UnusedApiClient(),
+        )
+
+    assert "ocr_text_path가 없고 기본 OCR sidecar(.txt)도 찾을 수 없습니다" in str(
+        exc_info.value
+    )
+
+
 def test_run_capture_pipeline_propagates_import_error_after_capture(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

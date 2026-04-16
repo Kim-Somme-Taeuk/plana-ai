@@ -106,6 +106,9 @@ def _resolve_pipeline_ocr_provider(
     if requested_provider is not None:
         return requested_provider
 
+    if request.ocr_provider_explicit:
+        return None
+
     if request.ocr.get("provider") != "sidecar":
         return None
 

@@ -56,6 +56,7 @@ class AdbCaptureRequest:
     snapshot: dict[str, Any]
     ocr: dict[str, Any]
     adb: AdbOptions
+    ocr_provider_explicit: bool
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,7 @@ def load_adb_capture_request(
     snapshot = _require_mapping(root.get("snapshot"), "snapshot")
     ocr = _require_optional_mapping(root.get("ocr"), "ocr")
     adb = _require_optional_mapping(root.get("adb"), "adb")
+    ocr_provider_explicit = "provider" in ocr
 
     _require_fields(season, SEASON_REQUIRED_FIELDS, "season")
     _require_fields(snapshot, SNAPSHOT_REQUIRED_FIELDS, "snapshot")
@@ -212,6 +214,7 @@ def load_adb_capture_request(
             page_count=page_count,
             swipe=swipe,
         ),
+        ocr_provider_explicit=ocr_provider_explicit,
     )
 
 

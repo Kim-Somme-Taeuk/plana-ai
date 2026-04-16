@@ -453,7 +453,7 @@ def _normalize_integer_ocr_token(value: str) -> str:
 
 def _normalize_float_ocr_token(value: str) -> str:
     normalized = value.strip().replace(",", "").translate(OCR_NUMERIC_TRANSLATION)
-    return normalized[:-1] if normalized.endswith(".") else normalized
+    return normalized.strip(".:;")
 
 
 def _parse_whitespace_fallback_line(

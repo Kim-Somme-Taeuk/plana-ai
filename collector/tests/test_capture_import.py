@@ -321,6 +321,27 @@ def test_build_mock_payload_from_capture_strips_trailing_numeric_punctuation(
     assert mock_payload.entries[0]["ocr_confidence"] == 0.95
 
 
+def test_build_mock_payload_from_capture_strips_trailing_float_punctuation_variants(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "10\tArona\t9,876,543:\t0.95;\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-ocr-float-punctuation-variants-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["score"] == 9876543
+    assert mock_payload.entries[0]["ocr_confidence"] == 0.95
+
+
 def test_build_mock_payload_from_capture_runs_tesseract_ocr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

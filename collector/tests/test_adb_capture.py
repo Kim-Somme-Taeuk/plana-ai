@@ -27,6 +27,19 @@ def test_load_adb_capture_request_reads_defaults(tmp_path: Path) -> None:
     assert request.adb.swipe is None
     assert request.adb.output_dir == tmp_path / "capture-output"
     assert request.adb.adb_command == "adb"
+    assert request.ocr_provider_explicit is False
+
+
+def test_load_adb_capture_request_marks_explicit_ocr_provider(tmp_path: Path) -> None:
+    request_path = _write_request(
+        tmp_path,
+        ocr={"provider": "sidecar"},
+    )
+
+    request = load_adb_capture_request(request_path)
+
+    assert request.ocr["provider"] == "sidecar"
+    assert request.ocr_provider_explicit is True
 
 
 def test_load_adb_capture_request_resolves_relative_output_dir_from_request_file(
