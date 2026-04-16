@@ -7,6 +7,7 @@ import type {
   RankingSnapshotCutoffs,
   RankingSnapshotDistribution,
   RankingSnapshotSummary,
+  RankingSnapshotValidationReport,
   Season,
   SeasonCutoffSeries,
   ValidationIssueFilter,
@@ -97,6 +98,12 @@ export function getSnapshot(snapshotId: number) {
 export function getSnapshotSummary(snapshotId: number) {
   return fetchApi<RankingSnapshotSummary>(
     `/ranking-snapshots/${snapshotId}/summary`,
+  );
+}
+
+export function getSnapshotValidationReport(snapshotId: number) {
+  return fetchApi<RankingSnapshotValidationReport>(
+    `/ranking-snapshots/${snapshotId}/validation-report`,
   );
 }
 

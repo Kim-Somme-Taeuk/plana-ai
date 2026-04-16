@@ -7,6 +7,8 @@ import type {
   RankingSnapshotCutoffs,
   RankingSnapshotDistribution,
   RankingSnapshotSummary,
+  RankingSnapshotValidationIssueCount,
+  RankingSnapshotValidationReport,
   Season,
   SeasonCutoffSeries,
 } from "../lib/types";
@@ -133,6 +135,7 @@ export function SnapshotList({ snapshots }: { snapshots: RankingSnapshot[] }) {
           </div>
           <div className={styles.metaGrid}>
             <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
+            <MetaItem label="Source" value={snapshot.source_type} />
             <MetaItem
               label="Rows"
               value={
@@ -261,10 +264,45 @@ export function DistributionPanel({
   );
 }
 
+export function SnapshotValidationReportPanel({
+  report,
+}: {
+  report: RankingSnapshotValidationReport;
+}) {
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelTitle}>
+        <h2>Validation Report</h2>
+        <span className={styles.muted}>snapshot 정합성 보조 정보</span>
+      </div>
+      <div className={styles.statsGrid}>
+        <StatCard label="Total Entries" value={String(report.total_entry_count)} />
+        <StatCard label="Valid Entries" value={String(report.valid_entry_count)} />
+        <StatCard
+          label="Invalid Entries"
+          value={String(report.invalid_entry_count)}
+        />
+        <StatCard
+          label="Excluded From Stats"
+          value={String(report.excluded_from_statistics_count)}
+        />
+        <StatCard
+          label="Duplicate Ranks"
+          value={String(report.duplicate_rank_count)}
+        />
+        <StatCard
+          label="Rank Order"
+          value={report.has_rank_order_violation ? "violation" : "normal"}
+        />
+      </div>
+    </section>
+  );
+}
+
 export function ValidationIssuesPanel({
   issues,
 }: {
-  issues: RankingSnapshotSummary["validation_issues"];
+  issues: RankingSnapshotValidationIssueCount[];
 }) {
   return (
     <section className={styles.panel}>
@@ -301,7 +339,7 @@ export function ValidationIssuesPanel({
 }
 
 export function getValidationIssueOptions(
-  issues: RankingSnapshotSummary["validation_issues"],
+  issues: RankingSnapshotValidationIssueCount[],
   currentValue?: string,
 ) {
   const knownCodes = [

@@ -46,6 +46,18 @@ export type RankingSnapshotValidationIssueCount = {
   count: number;
 };
 
+export type RankingSnapshotValidationReport = {
+  snapshot_id: number;
+  status: string;
+  total_entry_count: number;
+  valid_entry_count: number;
+  invalid_entry_count: number;
+  excluded_from_statistics_count: number;
+  duplicate_rank_count: number;
+  has_rank_order_violation: boolean;
+  validation_issues: RankingSnapshotValidationIssueCount[];
+};
+
 export type RankingSnapshotSummary = {
   snapshot_id: number;
   season_id: number;

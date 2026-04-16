@@ -8,6 +8,7 @@ import {
   ErrorBox,
   PageShell,
   SnapshotEntryTable,
+  SnapshotValidationReportPanel,
   SummaryCards,
   ValidationIssuesPanel,
   getValidationIssueOptions,
@@ -18,6 +19,7 @@ import {
   getSnapshotDistribution,
   getSnapshotEntries,
   getSnapshotSummary,
+  getSnapshotValidationReport,
 } from "../../lib/api";
 import type { ValidationIssueFilter } from "../../lib/types";
 
@@ -27,13 +29,16 @@ type SnapshotPageProps = {
   params: Promise<{ snapshotId: string }>;
   searchParams: Promise<{
     isValid?: string;
+    limit?: string;
+    offset?: string;
     validationIssue?: string;
     sortBy?: string;
     order?: string;
   }>;
 };
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 export default async function SnapshotDetailPage({
   params,
@@ -50,6 +55,13 @@ export default async function SnapshotDetailPage({
   const sortBy =
     resolvedSearchParams.sortBy === "score" ? "score" : "rank";
   const order = resolvedSearchParams.order === "desc" ? "desc" : "asc";
+  const requestedLimit = Number(resolvedSearchParams.limit ?? DEFAULT_PAGE_SIZE);
+  const limit = PAGE_SIZE_OPTIONS.includes(requestedLimit)
+    ? requestedLimit
+    : DEFAULT_PAGE_SIZE;
+  const requestedOffset = Number(resolvedSearchParams.offset ?? "0");
+  const offset =
+    Number.isInteger(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
   const validationIssue =
     resolvedSearchParams.validationIssue &&
     resolvedSearchParams.validationIssue.trim()
@@ -77,17 +89,24 @@ export default async function SnapshotDetailPage({
     );
   }
 
-  const [summaryResult, cutoffsResult, distributionResult, entriesResult] =
+  const [
+    summaryResult,
+    validationReportResult,
+    cutoffsResult,
+    distributionResult,
+    entriesResult,
+  ] =
     await Promise.all([
       getSnapshotSummary(snapshot.id),
+      getSnapshotValidationReport(snapshot.id),
       getSnapshotCutoffs(snapshot.id),
       getSnapshotDistribution(snapshot.id),
       getSnapshotEntries(snapshot.id, {
         isValid: isValid === "all" ? undefined : isValid,
         validationIssue:
           validationIssue === "all" ? undefined : validationIssue,
-        limit: PAGE_SIZE,
-        offset: 0,
+        limit,
+        offset,
         sortBy,
         order,
       }),
@@ -141,6 +160,16 @@ export default async function SnapshotDetailPage({
           <ValidationIssuesPanel issues={summaryResult.data.validation_issues} />
         )}
 
+        {validationReportResult.error || !validationReportResult.data ? (
+          <ErrorBox
+            message={`validation report를 불러오지 못했습니다. ${
+              validationReportResult.error ?? "알 수 없는 오류입니다."
+            }`}
+          />
+        ) : (
+          <SnapshotValidationReportPanel report={validationReportResult.data} />
+        )}
+
         <section className={styles.panel}>
           <div className={styles.panelTitle}>
             <h2>Ranking Entries</h2>
@@ -165,6 +194,27 @@ export default async function SnapshotDetailPage({
                   <option value="rank">rank</option>
                   <option value="score">score</option>
                 </select>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="limit">Limit</label>
+                <select id="limit" name="limit" defaultValue={String(limit)}>
+                  {PAGE_SIZE_OPTIONS.map((pageSize) => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="offset">Offset</label>
+                <input
+                  id="offset"
+                  name="offset"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={offset}
+                />
               </div>
               <div className={styles.field}>
                 <label htmlFor="validationIssue">Issue</label>
@@ -203,8 +253,8 @@ export default async function SnapshotDetailPage({
               <SnapshotEntryTable entries={entriesResult.data} />
               <div className={styles.pagination}>
                 <span className={styles.muted}>
-                  최대 {PAGE_SIZE}개의 entry를 표시합니다. 더 많은 entry 탐색은
-                  backend API의 `limit`/`offset`을 직접 사용하세요.
+                  현재 offset {offset.toLocaleString()}에서 최대{" "}
+                  {limit.toLocaleString()}개의 entry를 표시합니다.
                 </span>
               </div>
             </>
