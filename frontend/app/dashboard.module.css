@@ -1,0 +1,410 @@
+.page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f6f7f2 0%, #eef1e6 100%);
+  color: #172019;
+}
+
+.shell {
+  width: min(1180px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0 56px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6d7a5d;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.05;
+  font-weight: 700;
+}
+
+.subtitle {
+  max-width: 760px;
+  color: #4a5c4c;
+  line-height: 1.6;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #386047;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  gap: 18px;
+}
+
+.twoColumn {
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(89, 110, 82, 0.14);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 30px rgba(48, 67, 46, 0.06);
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panelTitle h2,
+.panelTitle h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.muted {
+  color: #617163;
+  font-size: 14px;
+}
+
+.seasonList {
+  display: grid;
+  gap: 14px;
+}
+
+.seasonCard {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(102, 128, 97, 0.16);
+  border-radius: 18px;
+  background: #fbfcf8;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.seasonCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(49, 72, 44, 0.08);
+}
+
+.seasonCardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.seasonCardTitle strong {
+  font-size: 18px;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.metaItem {
+  display: grid;
+  gap: 4px;
+}
+
+.metaLabel {
+  font-size: 12px;
+  color: #6f7d6f;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.metaValue {
+  font-size: 14px;
+  color: #1f2f21;
+}
+
+.snapshotList {
+  display: grid;
+  gap: 12px;
+}
+
+.snapshotCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(102, 128, 97, 0.14);
+  border-radius: 16px;
+  background: #fcfdf9;
+}
+
+.snapshotCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.snapshotLink {
+  font-weight: 700;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.statusCompleted {
+  background: #ddf7e7;
+  color: #0b6a33;
+}
+
+.statusCollecting {
+  background: #eef2f7;
+  color: #355c86;
+}
+
+.statusFailed {
+  background: #fde6e1;
+  color: #9d3526;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.statCard {
+  padding: 14px;
+  border-radius: 16px;
+  background: #f8faf4;
+  border: 1px solid rgba(102, 128, 97, 0.12);
+}
+
+.statValue {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.errorBox,
+.emptyBox,
+.loadingBox {
+  padding: 18px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.errorBox {
+  background: #fff1ef;
+  border: 1px solid #f1c5be;
+  color: #8f2d1f;
+}
+
+.emptyBox {
+  background: #f7f8f4;
+  border: 1px dashed #c6cebd;
+  color: #5d6a5b;
+}
+
+.loadingBox {
+  background: #f2f5ef;
+  border: 1px solid #d7ded0;
+  color: #51634e;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(89, 110, 82, 0.12);
+  font-size: 14px;
+}
+
+.table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6c7a6d;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.controlRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 12px;
+  color: #657665;
+}
+
+.field select,
+.field input,
+.button {
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(90, 110, 84, 0.18);
+  background: #fff;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  background: #1f5133;
+  color: #fff;
+  border: none;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.paginationLinks {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 86px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(90, 110, 84, 0.18);
+  background: #fff;
+  font-size: 14px;
+}
+
+.disabledLink {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.seriesChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-height: 160px;
+  padding-top: 12px;
+}
+
+.seriesBar {
+  flex: 1;
+  min-width: 64px;
+  display: grid;
+  gap: 8px;
+}
+
+.seriesBarTrack {
+  display: flex;
+  align-items: flex-end;
+  height: 120px;
+  padding: 8px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #eff5eb 0%, #e6eee0 100%);
+}
+
+.seriesBarFill {
+  width: 100%;
+  border-radius: 12px 12px 8px 8px;
+  background: linear-gradient(180deg, #6db37c 0%, #256146 100%);
+}
+
+.seriesBarMuted {
+  background: linear-gradient(180deg, #dbe1db 0%, #b7c2b9 100%);
+}
+
+.seriesBarLabel {
+  font-size: 12px;
+  color: #5f6f60;
+}
+
+.seriesBarValue {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.entryValid {
+  color: #0f6a35;
+  font-weight: 600;
+}
+
+.entryInvalid {
+  color: #9b3b2c;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .shell {
+    width: min(100vw - 24px, 1180px);
+    padding: 24px 0 40px;
+  }
+}
