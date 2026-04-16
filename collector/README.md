@@ -135,7 +135,7 @@ backend/.venv/bin/python collector/capture_import.py \
 ```
 
 성공 시 `season_id`, `snapshot_id`, `page_count`, `entry_count`, `entry_ids`, `status`, `total_rows_collected`를 JSON으로 출력합니다.
-`ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ignored_lines`도 함께 출력해서 OCR header/footer/blank line 잡음 줄과 페이지별 파싱 상태를 확인할 수 있습니다.
+`ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ocr_stop_hints`, `ignored_lines`도 함께 출력해서 OCR header/footer/blank line 잡음 줄, 페이지별 파싱 상태, 마지막 페이지 종료 힌트를 확인할 수 있습니다.
 
 ### 주의사항
 
