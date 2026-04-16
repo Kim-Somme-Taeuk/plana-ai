@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,18 @@ class AdbOptions:
     device_serial: str | None
     page_prefix: str
     adb_command: str
+    page_count: int
+    swipe: "AdbSwipeConfig | None"
+
+
+@dataclass(frozen=True)
+class AdbSwipeConfig:
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+    duration_ms: int
+    settle_delay_ms: int
 
 
 @dataclass(frozen=True)
@@ -57,14 +70,7 @@ class AdbClient:
         self.command = command
 
     def capture_screenshot(self, *, device_serial: str | None) -> bytes:
-        if shutil.which(self.command) is None:
-            raise MockImportError(
-                f"adb 명령을 찾을 수 없습니다: command={self.command!r}"
-            )
-
-        args = [self.command]
-        if device_serial:
-            args.extend(["-s", device_serial])
+        args = self._build_args(device_serial)
         args.extend(["exec-out", "screencap", "-p"])
 
         try:
@@ -89,6 +95,55 @@ class AdbClient:
             raise MockImportError("adb screenshot 결과가 비어 있습니다.")
 
         return result.stdout
+
+    def swipe(
+        self,
+        *,
+        device_serial: str | None,
+        swipe: AdbSwipeConfig,
+    ) -> None:
+        args = self._build_args(device_serial)
+        args.extend(
+            [
+                "shell",
+                "input",
+                "swipe",
+                str(swipe.start_x),
+                str(swipe.start_y),
+                str(swipe.end_x),
+                str(swipe.end_y),
+                str(swipe.duration_ms),
+            ]
+        )
+
+        try:
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                check=False,
+            )
+        except OSError as exc:
+            raise MockImportError(
+                f"adb swipe 실행에 실패했습니다: command={self.command!r}"
+            ) from exc
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip() or "unknown error"
+            raise MockImportError(
+                "adb swipe에 실패했습니다. "
+                f"returncode={result.returncode}, stderr={stderr}"
+            )
+
+    def _build_args(self, device_serial: str | None) -> list[str]:
+        if shutil.which(self.command) is None:
+            raise MockImportError(
+                f"adb 명령을 찾을 수 없습니다: command={self.command!r}"
+            )
+
+        args = [self.command]
+        if device_serial:
+            args.extend(["-s", device_serial])
+        return args
 
 
 def load_adb_capture_request(
@@ -125,6 +180,19 @@ def load_adb_capture_request(
     page_prefix = adb.get("page_prefix", "page")
     if not isinstance(page_prefix, str) or not page_prefix.strip():
         raise MockImportError("adb.page_prefix는 비어 있지 않은 문자열이어야 합니다.")
+    page_count = adb.get("page_count", 1)
+    try:
+        page_count = int(page_count)
+    except (TypeError, ValueError) as exc:
+        raise MockImportError("adb.page_count는 정수여야 합니다.") from exc
+    if page_count <= 0:
+        raise MockImportError("adb.page_count는 1 이상이어야 합니다.")
+
+    swipe = _build_swipe_config(adb.get("swipe"))
+    if page_count > 1 and swipe is None:
+        raise MockImportError(
+            "adb.page_count가 2 이상이면 adb.swipe 설정이 필요합니다."
+        )
 
     return AdbCaptureRequest(
         season=season,
@@ -141,6 +209,8 @@ def load_adb_capture_request(
             device_serial=device_serial or adb.get("device_serial"),
             page_prefix=page_prefix,
             adb_command=adb_command or adb.get("command") or DEFAULT_ADB_COMMAND,
+            page_count=page_count,
+            swipe=swipe,
         ),
     )
 
@@ -151,9 +221,23 @@ def capture_adb_screenshot(
 ) -> AdbCaptureResult:
     request.adb.output_dir.mkdir(parents=True, exist_ok=True)
 
-    image_path = request.adb.output_dir / f"{request.adb.page_prefix}-001.png"
-    image_bytes = client.capture_screenshot(device_serial=request.adb.device_serial)
-    image_path.write_bytes(image_bytes)
+    image_paths: list[Path] = []
+    for page_number in range(1, request.adb.page_count + 1):
+        image_path = (
+            request.adb.output_dir / f"{request.adb.page_prefix}-{page_number:03d}.png"
+        )
+        image_bytes = client.capture_screenshot(device_serial=request.adb.device_serial)
+        image_path.write_bytes(image_bytes)
+        image_paths.append(image_path)
+
+        if page_number < request.adb.page_count:
+            assert request.adb.swipe is not None  # guarded during request loading
+            client.swipe(
+                device_serial=request.adb.device_serial,
+                swipe=request.adb.swipe,
+            )
+            if request.adb.swipe.settle_delay_ms > 0:
+                time.sleep(request.adb.swipe.settle_delay_ms / 1000)
 
     manifest_path = request.adb.output_dir / "manifest.json"
     manifest_path.write_text(
@@ -166,6 +250,7 @@ def capture_adb_screenshot(
                     {
                         "image_path": image_path.name,
                     }
+                    for image_path in image_paths
                 ],
             },
             ensure_ascii=False,
@@ -177,7 +262,7 @@ def capture_adb_screenshot(
     return AdbCaptureResult(
         output_dir=request.adb.output_dir,
         manifest_path=manifest_path,
-        image_paths=[image_path],
+        image_paths=image_paths,
     )
 
 
@@ -224,6 +309,29 @@ def _resolve_output_dir(
     if output_dir.is_absolute():
         return output_dir
     return request_dir / output_dir
+
+
+def _build_swipe_config(value: Any) -> AdbSwipeConfig | None:
+    if value is None:
+        return None
+    swipe = _require_mapping(value, "adb.swipe")
+    required_fields = ("start_x", "start_y", "end_x", "end_y")
+    missing_fields = [field_name for field_name in required_fields if swipe.get(field_name) is None]
+    if missing_fields:
+        joined = ", ".join(missing_fields)
+        raise MockImportError(f"adb.swipe에 필수 필드가 없습니다: {joined}")
+
+    try:
+        return AdbSwipeConfig(
+            start_x=int(swipe["start_x"]),
+            start_y=int(swipe["start_y"]),
+            end_x=int(swipe["end_x"]),
+            end_y=int(swipe["end_y"]),
+            duration_ms=int(swipe.get("duration_ms", 300)),
+            settle_delay_ms=int(swipe.get("settle_delay_ms", 800)),
+        )
+    except (TypeError, ValueError) as exc:
+        raise MockImportError("adb.swipe 필드는 정수여야 합니다.") from exc
 
 
 def build_parser() -> argparse.ArgumentParser:

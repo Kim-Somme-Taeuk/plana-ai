@@ -23,6 +23,8 @@ def test_load_adb_capture_request_reads_defaults(tmp_path: Path) -> None:
     assert request.snapshot["note"] == "adb screenshot capture"
     assert request.ocr["provider"] == "sidecar"
     assert request.adb.page_prefix == "page"
+    assert request.adb.page_count == 1
+    assert request.adb.swipe is None
     assert request.adb.output_dir == tmp_path / "capture-output"
     assert request.adb.adb_command == "adb"
 
@@ -63,6 +65,59 @@ def test_capture_adb_screenshot_writes_manifest_and_image(tmp_path: Path) -> Non
     assert result.image_paths[0].read_bytes().startswith(b"\x89PNG")
 
 
+def test_capture_adb_screenshot_supports_multi_page_scroll(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        adb={
+            "page_count": 3,
+            "swipe": {
+                "start_x": 500,
+                "start_y": 1600,
+                "end_x": 500,
+                "end_y": 600,
+                "duration_ms": 200,
+                "settle_delay_ms": 50,
+            },
+        },
+    )
+    request = load_adb_capture_request(request_path)
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+            self.swipes: list[tuple[str | None, object]] = []
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return f"PNG-{self.capture_index}".encode("utf-8")
+
+        def swipe(self, *, device_serial, swipe):
+            self.swipes.append((device_serial, swipe))
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(adb_capture.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+
+    client = FakeAdbClient()
+    result = capture_adb_screenshot(request, client)
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert [page["image_path"] for page in manifest["pages"]] == [
+        "page-001.png",
+        "page-002.png",
+        "page-003.png",
+    ]
+    assert [path.read_bytes() for path in result.image_paths] == [
+        b"PNG-1",
+        b"PNG-2",
+        b"PNG-3",
+    ]
+    assert len(client.swipes) == 2
+    assert sleep_calls == [0.05, 0.05]
+
+
 def test_adb_client_uses_serial_and_screencap_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -91,6 +146,46 @@ def test_adb_client_uses_serial_and_screencap_command(
     ]
 
 
+def test_adb_client_uses_swipe_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_args: list[str] = []
+
+    def fake_run(args, capture_output, check):
+        captured_args.extend(args)
+        assert capture_output is True
+        assert check is False
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+    client.swipe(
+        device_serial="device-01",
+        swipe=adb_capture.AdbSwipeConfig(
+            start_x=500,
+            start_y=1600,
+            end_x=500,
+            end_y=600,
+            duration_ms=200,
+            settle_delay_ms=800,
+        ),
+    )
+
+    assert captured_args == [
+        "adb",
+        "-s",
+        "device-01",
+        "shell",
+        "input",
+        "swipe",
+        "500",
+        "1600",
+        "500",
+        "600",
+        "200",
+    ]
+
+
 def test_adb_client_fails_when_command_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(adb_capture.shutil, "which", lambda command: None)
 
@@ -100,6 +195,20 @@ def test_adb_client_fails_when_command_missing(monkeypatch: pytest.MonkeyPatch) 
         client.capture_screenshot(device_serial=None)
 
     assert "adb 명령을 찾을 수 없습니다" in str(exc_info.value)
+
+
+def test_load_adb_capture_request_requires_swipe_for_multiple_pages(
+    tmp_path: Path,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        adb={"page_count": 2},
+    )
+
+    with pytest.raises(MockImportError) as exc_info:
+        load_adb_capture_request(request_path)
+
+    assert "adb.page_count가 2 이상이면 adb.swipe 설정이 필요합니다" in str(exc_info.value)
 
 
 def _write_request(

@@ -151,9 +151,10 @@ backend/.venv/bin/python collector/capture_import.py \
 
 현재 1차 범위:
 
-- 한 번의 screenshot 캡처
+- 한 번 또는 여러 번의 screenshot 캡처
 - `manifest.json` 자동 생성
 - OCR provider 설정 전달
+- multi-page일 때 `capture -> swipe -> capture` 반복
 - 실제 import는 별도 단계로 유지
 
 ### 요청 파일 형식
@@ -186,11 +187,41 @@ backend/.venv/bin/python collector/capture_import.py \
 샘플 파일:
 
 - [adb_data/sample_request.json](adb_data/sample_request.json)
+- [adb_data/sample_scroll_request.json](adb_data/sample_scroll_request.json)
+
+### multi-page scroll 설정
+
+여러 페이지를 캡처하려면 `adb.page_count`와 `adb.swipe`를 함께 지정합니다.
+
+```json
+{
+  "adb": {
+    "output_dir": "collector/capture_runs/sample_scroll_capture",
+    "page_count": 3,
+    "swipe": {
+      "start_x": 500,
+      "start_y": 1600,
+      "end_x": 500,
+      "end_y": 600,
+      "duration_ms": 200,
+      "settle_delay_ms": 800
+    }
+  }
+}
+```
+
+정책:
+
+- `page_count=1`이면 swipe 설정이 필요 없습니다.
+- `page_count>=2`이면 `adb.swipe`가 필수입니다.
+- 마지막 페이지 뒤에는 swipe를 실행하지 않습니다.
+- swipe 뒤에는 `settle_delay_ms`만큼 대기합니다.
 
 ### 실행 예시
 
 ```bash
 backend/.venv/bin/python collector/adb_capture.py collector/adb_data/sample_request.json
+backend/.venv/bin/python collector/adb_capture.py collector/adb_data/sample_scroll_request.json
 ```
 
 serial이나 adb 경로를 override하려면:
@@ -208,7 +239,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 ### 주의사항
 
 - 로컬에 `adb` 명령이 있어야 합니다.
-- 이 단계는 screenshot 캡처까지만 수행합니다.
+- 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
 
