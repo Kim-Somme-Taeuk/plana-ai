@@ -176,7 +176,7 @@ export function SnapshotList({
                 label="Ignored OCR"
                 value={formatCollectorIgnoredCount(validationPoint?.collector_diagnostics ?? null)}
               />
-              <MetaItem label="Note" value={snapshot.note ?? "-"} />
+              <MetaItem label="Note" value={formatSnapshotNote(snapshot.note)} />
             </div>
           </Link>
         );
@@ -224,7 +224,7 @@ export function SummaryCards({
           value={formatNullableNumber(summary.lowest_score)}
         />
         <StatCard label="Source Type" value={snapshot.source_type} />
-        <StatCard label="Note" value={snapshot.note ?? "-"} />
+        <StatCard label="Note" value={formatSnapshotNote(snapshot.note)} />
       </div>
     </section>
   );
@@ -1438,7 +1438,7 @@ function SnapshotCompareHeader({
         <MetaItem label="Captured At" value={formatDate(snapshot.captured_at)} />
         <MetaItem label="Source" value={snapshot.source_type} />
         <MetaItem label="Rows" value={formatNullableNumber(snapshot.total_rows_collected)} />
-        <MetaItem label="Note" value={snapshot.note ?? "-"} />
+        <MetaItem label="Note" value={formatSnapshotNote(snapshot.note)} />
       </div>
     </div>
   );
@@ -1611,4 +1611,32 @@ function formatCollectorDiagnosticsSummary(
     stop: formatCollectorStop(diagnostics),
     ignored: `${diagnostics.ignored_line_count.toLocaleString()}${ignoredReasons}`,
   };
+}
+
+function formatSnapshotNote(note: string | null) {
+  if (!note) {
+    return "-";
+  }
+
+  const lines = note
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return "-";
+  }
+
+  const visibleLines = lines.filter(
+    (line) => !line.startsWith("collector_json:"),
+  );
+  if (visibleLines.length === 0) {
+    return "collector diagnostics saved";
+  }
+
+  const summary = visibleLines.join(" / ");
+  if (summary.length <= 160) {
+    return summary;
+  }
+
+  return `${summary.slice(0, 157)}...`;
 }
