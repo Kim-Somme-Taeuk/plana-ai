@@ -2,7 +2,7 @@
 
 개발용 데이터 주입기와 실제 collector 확장 실험 코드를 두는 디렉터리입니다.
 
-현재 collector는 두 경로를 제공합니다.
+현재 collector는 네 경로를 제공합니다.
 
 1. `mock_import.py`
    JSON 기반 mock 데이터 주입기
@@ -10,6 +10,8 @@
    이미지 파일 + OCR 추출 기반 1차 실제 collector
 3. `adb_capture.py`
    ADB screenshot을 capture manifest 디렉터리로 저장하는 1차 캡처 도구
+4. `run_capture_pipeline.py`
+   ADB capture부터 OCR import까지 한 번에 실행하는 상위 파이프라인
 
 루트 개요 문서는 [README.md](../README.md)를 먼저 참고하세요.
 
@@ -245,7 +247,44 @@ backend/.venv/bin/python collector/adb_capture.py \
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.
 
-## 3. mock import
+## 3. integrated capture pipeline
+
+`run_capture_pipeline.py`는 아래 단계를 한 번에 수행합니다.
+
+1. `adb_capture.py`로 screenshot 캡처
+2. `capture_import.py`로 OCR/파싱
+3. backend API로 season / snapshot / entries / completed 적재
+
+### 실행 예시
+
+```bash
+backend/.venv/bin/python collector/run_capture_pipeline.py collector/adb_data/sample_request.json
+backend/.venv/bin/python collector/run_capture_pipeline.py collector/adb_data/sample_scroll_request.json
+```
+
+override 예시:
+
+```bash
+backend/.venv/bin/python collector/run_capture_pipeline.py \
+  --adb-command adb \
+  --device-serial emulator-5554 \
+  --ocr-provider tesseract \
+  --ocr-language eng \
+  --ocr-psm 6 \
+  --output-dir /tmp/plana-pipeline-run \
+  collector/adb_data/sample_request.json
+```
+
+성공 시 `output_dir`, `manifest_path`, `image_paths`, `season_id`, `snapshot_id`,
+`entry_count`, `entry_ids`, `status`, `total_rows_collected`, `ocr_provider`를 JSON으로 출력합니다.
+
+### 주의사항
+
+- 이 파이프라인은 기존 `adb_capture.py`와 `capture_import.py`를 조합하는 얇은 orchestration 레이어입니다.
+- capture 자체가 성공해도 import 단계에서 실패할 수 있으며, 이 경우 생성된 capture 디렉터리는 디버깅용으로 그대로 남습니다.
+- 운영용 안정화가 끝난 collector가 아니라 개발/검증용 실제 입력 파이프라인 1차입니다.
+
+## 4. mock import
 
 실제 OCR/ADB 없이 JSON 파일만으로 아래 흐름을 주입합니다.
 

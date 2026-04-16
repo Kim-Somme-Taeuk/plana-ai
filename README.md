@@ -230,12 +230,12 @@ JSON 파일만으로 아래 흐름을 검증합니다.
 
 #### 2. image capture import
 
-실제 OCR 엔진 대신 이미지 파일 + OCR sidecar 텍스트를 입력으로 사용하는 1차 실제 collector 입니다.
+이미지 파일을 입력으로 season -> snapshot -> entries -> completed 흐름을 적재하는 1차 실제 collector 입니다.
 
 흐름:
 
 1. capture manifest 로드
-2. 페이지별 이미지/sidecar 텍스트 확인
+2. 페이지별 이미지/sidecar 텍스트 확인 또는 OCR 실행
 3. OCR line 파싱
 4. backend API로 season / snapshot / entries / completed 적재
 
@@ -244,13 +244,27 @@ JSON 파일만으로 아래 흐름을 검증합니다.
 - tab-separated 또는 whitespace fallback 텍스트 파싱
 - duplicate rank 사전 검증
 - rank order 이상 시 경고 출력
+- `sidecar` / `tesseract` OCR provider 지원
 - backend validation 및 통계 정책 재사용
 
-아직 미구현:
+#### 3. ADB capture / integrated pipeline
 
-- 실제 OCR 엔진 호출
-- ADB 스크린샷 캡처
-- 자동 스크롤 수집
+실제 기기 화면을 캡처해서 바로 import 흐름으로 넘길 수 있는 1차 수집 도구가 있습니다.
+
+현재 범위:
+
+- `adb_capture.py`
+  - 단일 페이지 screenshot 캡처
+  - multi-page `capture -> swipe -> capture` 반복
+  - capture manifest 자동 생성
+- `run_capture_pipeline.py`
+  - `adb_capture -> capture_import -> backend import`를 한 번에 실행
+  - OCR provider override, ADB command override, device serial override 지원
+
+제약:
+
+- 페이지 중복 제거, 마지막 페이지 판정, OCR 품질 보정은 아직 1차 수준입니다.
+- 실제 운영용 collector라기보다 개발/검증용 실제 입력 파이프라인에 가깝습니다.
 
 ## 실행 방법
 
@@ -317,6 +331,13 @@ backend/.venv/bin/python collector/capture_import.py collector/capture_data/samp
 backend/.venv/bin/python collector/capture_import.py collector/capture_data/sample_invalid_capture
 ```
 
+### integrated capture pipeline
+
+```bash
+backend/.venv/bin/python collector/run_capture_pipeline.py collector/adb_data/sample_request.json
+backend/.venv/bin/python collector/run_capture_pipeline.py collector/adb_data/sample_scroll_request.json
+```
+
 ## 테스트
 
 ### backend + collector
@@ -380,8 +401,9 @@ cd frontend && npm run lint && npm run build
 
 ### 3. 현재 남아 있는 큰 작업 범주
 
-- 실제 OCR 엔진 연동
-- ADB 스크린샷 캡처 및 자동 스크롤 수집
+- collector 상위 파이프라인 안정화
+- OCR 품질 보정 및 이미지 전처리
+- 스크롤 수집 중복 제거 / 마지막 페이지 판정
 - frontend 2차 고도화
 - validation 2차 이상 정교화
 - 운영용 문서와 배포/모니터링 정리

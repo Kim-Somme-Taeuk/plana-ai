@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+import collector.capture_import as capture_import
+from collector.run_capture_pipeline import run_capture_pipeline
+
+
+def test_run_capture_pipeline_captures_and_imports_with_tesseract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-happy-path-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            assert device_serial is None
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class FakeApiClient:
+        def __init__(self):
+            self.calls: list[tuple[str, object]] = []
+
+        def create_season(self, payload):
+            self.calls.append(("create_season", payload))
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            self.calls.append(("create_snapshot", {"season_id": season_id, **payload}))
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            self.calls.append(("create_entry", {"snapshot_id": snapshot_id, **payload}))
+            return {"id": len([call for call in self.calls if call[0] == "create_entry"])}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            self.calls.append(("update_snapshot_status", {"snapshot_id": snapshot_id, "status": status}))
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 2,
+            }
+
+    def fake_run(args, capture_output, text, check):
+        assert args == [
+            "tesseract",
+            str((tmp_path / "capture-output" / "page-001.png").resolve()),
+            "stdout",
+            "-l",
+            "eng",
+            "--psm",
+            "6",
+        ]
+        assert capture_output is True
+        assert text is True
+        assert check is False
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.97\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    api_client = FakeApiClient()
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        ocr_provider="tesseract",
+        ocr_language="eng",
+        ocr_psm=6,
+        adb_client=FakeAdbClient(),
+        api_client=api_client,
+    )
+
+    assert result.season_id == 101
+    assert result.snapshot_id == 202
+    assert result.status == "completed"
+    assert result.total_rows_collected == 2
+    assert result.ocr_provider == "tesseract"
+    assert result.manifest_path.exists()
+    assert len(result.image_paths) == 1
+    assert [call[0] for call in api_client.calls] == [
+        "create_season",
+        "create_snapshot",
+        "create_entry",
+        "create_entry",
+        "update_snapshot_status",
+    ]
+
+
+def test_run_capture_pipeline_propagates_import_error_after_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-import-failure-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class FailingApiClient:
+        def create_season(self, payload):
+            raise RuntimeError("unexpected import failure")
+
+    def fake_run(args, capture_output, text, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(tmp_path / "capture-output"),
+            adb_client=FakeAdbClient(),
+            api_client=FailingApiClient(),
+        )
+
+    assert "unexpected import failure" in str(exc_info.value)
+    assert (tmp_path / "capture-output" / "manifest.json").exists()
+
+
+def _write_request(base_dir: Path, *, season_label: str) -> Path:
+    request_path = base_dir / "pipeline-request.json"
+    request_path.write_text(
+        """
+{
+  "season": {
+    "event_type": "total_assault",
+    "server": "kr",
+    "boss_name": "Binah",
+    "terrain": "outdoor",
+    "season_label": "%s"
+  },
+  "snapshot": {
+    "captured_at": "2026-04-16T12:00:00Z"
+  },
+  "ocr": {
+    "provider": "tesseract",
+    "language": "eng",
+    "psm": 6
+  },
+  "adb": {
+    "page_count": 1
+  }
+}
+"""
+        % season_label,
+        encoding="utf-8",
+    )
+    return request_path
