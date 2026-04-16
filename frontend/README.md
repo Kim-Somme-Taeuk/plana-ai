@@ -108,6 +108,8 @@ npm run build
 bash scripts/smoke.sh
 ```
 
+`smoke.sh`는 seed 데이터를 자동으로 넣은 뒤 시즌 상세, compare, snapshot 상세까지 함께 확인합니다.
+
 빈 DB를 seed한 뒤 docker 경로까지 확인하는 CI용 smoke:
 
 ```bash

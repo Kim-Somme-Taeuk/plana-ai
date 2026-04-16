@@ -408,6 +408,9 @@ cd frontend && npm run lint && npm run build
 bash scripts/smoke.sh
 ```
 
+`smoke.sh`는 로컬 docker 환경을 띄운 뒤 seed 데이터를 주입해서
+backend / frontend의 주요 품질 화면과 drilldown 경로를 함께 확인합니다.
+
 CI나 빈 DB 환경에서 seed까지 포함한 smoke:
 
 ```bash
@@ -418,12 +421,6 @@ collector 전용 smoke:
 
 ```bash
 bash scripts/collector_smoke.sh
-```
-
-검증 대상 season/snapshot은 환경변수로 바꿀 수 있습니다.
-
-```bash
-SMOKE_SEASON_ID=33 SMOKE_SNAPSHOT_ID=41 bash scripts/smoke.sh
 ```
 
 ## 개발 시 주의사항
