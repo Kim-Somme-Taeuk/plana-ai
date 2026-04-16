@@ -51,6 +51,7 @@ OCR_NUMERIC_TRANSLATION = str.maketrans(
         "B": "8",
     }
 )
+OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
 
 
 @dataclass(frozen=True)
@@ -416,13 +417,14 @@ def _parse_page_entries(
                 )
             )
             continue
-        if _should_ignore_ocr_line(raw_line):
+        ignored_reason = _get_ignored_line_reason(raw_line)
+        if ignored_reason is not None:
             ignored_lines.append(
                 IgnoredOcrLine(
                     page_index=page_index,
                     line_index=line_index,
                     raw_text=raw_line,
-                    reason="non_entry_line",
+                    reason=ignored_reason,
                 )
             )
             continue
@@ -500,13 +502,23 @@ def _can_parse_rank_token(value: str) -> bool:
     return normalized.isdigit()
 
 
-def _should_ignore_ocr_line(raw_line: str) -> bool:
+def _get_ignored_line_reason(raw_line: str) -> str | None:
     stripped = raw_line.strip()
     if not stripped:
-        return True
+        return "blank_line"
+
+    if _looks_like_separator_line(stripped):
+        return "separator_line"
 
     first_token = stripped.split()[0]
-    return not _can_parse_rank_token(first_token)
+    if not _can_parse_rank_token(first_token):
+        return "non_entry_line"
+
+    return None
+
+
+def _looks_like_separator_line(value: str) -> bool:
+    return all(character in OCR_SEPARATOR_CHARACTERS for character in value)
 
 
 def _parse_float_token(

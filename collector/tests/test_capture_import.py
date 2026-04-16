@@ -168,6 +168,29 @@ def test_parse_capture_payload_ignores_non_entry_lines(
     ]
 
 
+def test_parse_capture_payload_classifies_separator_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "-----\n1\tPlana\t12345678\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-separator-lines-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+    ignored_summary = summarize_ignored_lines(parsed_payload.ignored_lines)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert parsed_payload.ignored_lines[0].reason == "separator_line"
+    assert ignored_summary == [{"reason": "separator_line", "count": 1}]
+
+
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
     class FakeApiClient:
         def __init__(self):
