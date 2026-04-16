@@ -312,6 +312,14 @@ def build_ocr_stop_hints(
         last_page_ignored_reason_counts.get(reason, 0)
         for reason in ("reward_line", "ui_control_line", "status_line")
     )
+    last_page_header_ignored_count = sum(
+        last_page_ignored_reason_counts.get(reason, 0)
+        for reason in ("header_line", "pagination_line")
+    )
+    last_page_malformed_entry_count = last_page_ignored_reason_counts.get(
+        "malformed_entry_line",
+        0,
+    )
 
     if len(page_summaries) >= 2 and last_page_entry_count == 0:
         hints.append(
@@ -374,6 +382,34 @@ def build_ocr_stop_hints(
 
     if (
         len(page_summaries) >= 2
+        and last_page_entry_count <= 3
+        and last_page_header_ignored_count > 0
+    ):
+        hints.append(
+            {
+                "reason": "header_repeat_last_page",
+                "page_index": last_page["page_index"],
+                "ignored_header_count": last_page_header_ignored_count,
+                "entry_count": last_page_entry_count,
+            }
+        )
+
+    if (
+        len(page_summaries) >= 2
+        and last_page_malformed_entry_count > 0
+        and last_page_malformed_entry_count >= max(1, last_page_entry_count)
+    ):
+        hints.append(
+            {
+                "reason": "malformed_last_page",
+                "page_index": last_page["page_index"],
+                "malformed_entry_count": last_page_malformed_entry_count,
+                "entry_count": last_page_entry_count,
+            }
+        )
+
+    if (
+        len(page_summaries) >= 2
         and last_page_entry_count > 0
         and last_page_overlap_count == last_page_entry_count
     ):
@@ -410,6 +446,8 @@ def build_ocr_stop_recommendation(
         "noisy_last_page": "hard",
         "duplicate_last_page": "hard",
         "overlay_last_page": "hard",
+        "header_repeat_last_page": "hard",
+        "malformed_last_page": "hard",
         "sparse_last_page": "soft",
         "overlapping_last_page": "soft",
         "stale_last_page": "soft",
