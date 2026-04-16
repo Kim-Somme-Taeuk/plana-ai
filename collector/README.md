@@ -135,7 +135,7 @@ backend/.venv/bin/python collector/capture_import.py \
 ```
 
 성공 시 `season_id`, `snapshot_id`, `page_count`, `entry_count`, `entry_ids`, `status`, `total_rows_collected`를 JSON으로 출력합니다.
-`ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ocr_stop_hints`, `ocr_stop_recommendation`, `ignored_lines`도 함께 출력해서 OCR header/footer/blank line 잡음 줄, 페이지별 파싱 상태, 마지막 페이지 종료 힌트를 확인할 수 있습니다.
+`ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ocr_stop_hints`, `ocr_stop_recommendation`, `ignored_lines`도 함께 출력해서 OCR header/metadata/blank line 잡음 줄, 페이지별 파싱 상태, 마지막 페이지 종료 힌트를 확인할 수 있습니다.
 
 ### 주의사항
 
@@ -153,6 +153,8 @@ backend/.venv/bin/python collector/capture_import.py \
 - `player_name`은 앞뒤 공백을 제거하고 내부 연속 공백을 한 칸으로 정리합니다.
 - rank로 시작하지 않는 OCR 잡음 줄은 import 전에 무시하고 결과에 `ignored_lines`로 남깁니다.
 - 빈 줄도 `blank_line` reason으로 집계합니다.
+- `RANK PLAYER SCORE` 같은 표 헤더는 `header_line` reason으로 집계합니다.
+- 숫자가 섞인 부가 정보 줄은 `metadata_line` reason으로 집계합니다.
 - 구분선처럼 보이는 줄은 `separator_line` reason으로 집계합니다.
 - entry가 전혀 없는 마지막 페이지도 summary에 남기며, `empty_last_page` 종료 힌트 계산에 사용합니다.
 - 이전 페이지와 rank가 많이 겹치는 마지막 페이지는 `overlapping_last_page` 힌트로 표시합니다.

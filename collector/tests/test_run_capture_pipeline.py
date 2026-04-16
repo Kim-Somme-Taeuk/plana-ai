@@ -403,7 +403,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
     )
 
     assert result.ignored_line_count == 1
-    assert result.ignored_line_reasons == [{"reason": "non_entry_line", "count": 1}]
+    assert result.ignored_line_reasons == [{"reason": "header_line", "count": 1}]
     assert result.ocr_stop_hints == [{"reason": "noisy_last_page", "page_index": 1, "ignored_line_count": 1, "entry_count": 1}]
     assert result.ocr_stop_recommendation == {
         "should_stop": True,
@@ -426,7 +426,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
             ),
             "entry_count": 1,
             "ignored_line_count": 1,
-            "ignored_line_reasons": [{"reason": "non_entry_line", "count": 1}],
+            "ignored_line_reasons": [{"reason": "header_line", "count": 1}],
             "first_rank": 1,
             "last_rank": 1,
             "overlap_with_previous_count": 0,

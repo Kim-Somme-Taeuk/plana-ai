@@ -184,11 +184,12 @@ def test_parse_capture_payload_ignores_non_entry_lines(
     assert len(parsed_payload.mock_payload.entries) == 1
     assert len(parsed_payload.ignored_lines) == 3
     assert parsed_payload.ignored_lines[0].reason == "blank_line"
-    assert parsed_payload.ignored_lines[1].reason == "non_entry_line"
+    assert parsed_payload.ignored_lines[1].reason == "header_line"
     assert parsed_payload.ignored_lines[2].raw_text == "총 참여 인원 999"
     assert ignored_summary == [
         {"reason": "blank_line", "count": 1},
-        {"reason": "non_entry_line", "count": 2},
+        {"reason": "header_line", "count": 1},
+        {"reason": "metadata_line", "count": 1},
     ]
     assert parsed_payload.page_summaries == [
         {
@@ -200,7 +201,8 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "ignored_line_count": 3,
             "ignored_line_reasons": [
                 {"reason": "blank_line", "count": 1},
-                {"reason": "non_entry_line", "count": 2},
+                {"reason": "header_line", "count": 1},
+                {"reason": "metadata_line", "count": 1},
             ],
             "first_rank": 1,
             "last_rank": 1,
@@ -211,7 +213,8 @@ def test_parse_capture_payload_ignores_non_entry_lines(
     ]
     assert parsed_payload.mock_payload.snapshot["note"] == (
         "capture import test fixture\n"
-        "collector: ignored=3(blank_line=1,non_entry_line=2); ocr_stop=noisy_last_page(hard)"
+        "collector: ignored=3(blank_line=1,header_line=1,metadata_line=1); "
+        "ocr_stop=noisy_last_page(hard)"
     )
 
 
@@ -330,7 +333,7 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "ignored_line_count": 3,
         "ignored_line_reasons": [
             {"reason": "blank_line", "count": 1},
-            {"reason": "non_entry_line", "count": 1},
+            {"reason": "metadata_line", "count": 1},
             {"reason": "separator_line", "count": 1},
         ],
         "first_rank": None,
@@ -341,7 +344,7 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
     }
     assert parsed_payload.mock_payload.snapshot["note"] == (
         "capture import test fixture\n"
-        "collector: ignored=3(blank_line=1,non_entry_line=1,separator_line=1); "
+        "collector: ignored=3(blank_line=1,metadata_line=1,separator_line=1); "
         "ocr_stop=empty_last_page(hard)"
     )
 

@@ -689,6 +689,10 @@ def _get_ignored_line_reason(raw_line: str) -> str | None:
 
     if _looks_like_separator_line(stripped):
         return "separator_line"
+    if _looks_like_header_line(stripped):
+        return "header_line"
+    if _looks_like_metadata_line(stripped):
+        return "metadata_line"
 
     first_token = stripped.split()[0]
     if not _can_parse_rank_token(first_token):
@@ -699,6 +703,26 @@ def _get_ignored_line_reason(raw_line: str) -> str | None:
 
 def _looks_like_separator_line(value: str) -> bool:
     return all(character in OCR_SEPARATOR_CHARACTERS for character in value)
+
+
+def _looks_like_header_line(value: str) -> bool:
+    lowered = value.lower().replace("\t", " ")
+    return "rank" in lowered and any(
+        keyword in lowered for keyword in ("score", "player", "nickname", "name")
+    )
+
+
+def _looks_like_metadata_line(value: str) -> bool:
+    lowered = value.lower()
+    if any(keyword in lowered for keyword in ("page", "captured", "server", "season", "boss", "total")):
+        return True
+
+    if any(character.isdigit() for character in value) and any(
+        keyword in value for keyword in ("총", "인원", "참여", "합계")
+    ):
+        return True
+
+    return False
 
 
 def _parse_float_token(

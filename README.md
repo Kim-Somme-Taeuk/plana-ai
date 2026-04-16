@@ -266,7 +266,7 @@ JSON 파일만으로 아래 흐름을 검증합니다.
 - rank order 이상 시 경고 출력
 - `sidecar` / `tesseract` OCR provider 지원
 - OCR 잡음 줄 ignored line 집계
-- ignored line reason(`blank_line`, `separator_line`, `non_entry_line`) 집계
+- ignored line reason(`blank_line`, `header_line`, `metadata_line`, `separator_line`, `non_entry_line`) 집계
 - page별 OCR parse summary 출력
 - backend validation 및 통계 정책 재사용
 
