@@ -1,0 +1,49 @@
+{
+  "season": {
+    "event_type": "total_assault",
+    "server": "kr",
+    "boss_name": "Binah",
+    "armor_type": "heavy",
+    "terrain": "outdoor",
+    "season_label": "mock-valid-season-20260416-a",
+    "started_at": "2026-04-16T09:00:00Z",
+    "ended_at": "2026-04-23T09:00:00Z"
+  },
+  "snapshot": {
+    "captured_at": "2026-04-16T10:15:00Z",
+    "source_type": "mock_json",
+    "note": "valid-only sample snapshot"
+  },
+  "entries": [
+    {
+      "rank": 1,
+      "score": 12345678,
+      "player_name": "Plana",
+      "ocr_confidence": 0.99,
+      "raw_text": "1 Plana 12345678",
+      "image_path": "/mock/valid/plana.png",
+      "is_valid": true,
+      "validation_issue": null
+    },
+    {
+      "rank": 10,
+      "score": 11876543,
+      "player_name": "Arona",
+      "ocr_confidence": 0.97,
+      "raw_text": "10 Arona 11876543",
+      "image_path": "/mock/valid/arona.png",
+      "is_valid": true,
+      "validation_issue": null
+    },
+    {
+      "rank": 100,
+      "score": 10999999,
+      "player_name": "Sensei",
+      "ocr_confidence": 0.95,
+      "raw_text": "100 Sensei 10999999",
+      "image_path": "/mock/valid/sensei.png",
+      "is_valid": true,
+      "validation_issue": null
+    }
+  ]
+}
