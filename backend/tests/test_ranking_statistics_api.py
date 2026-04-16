@@ -270,6 +270,11 @@ def test_get_ranking_snapshot_validation_report_includes_collector_diagnostics(
         "requested_page_count": 3,
         "capture_stop_reason": "noisy_last_page",
         "ignored_line_count": 3,
+        "empty_page_count": 0,
+        "sparse_page_count": 0,
+        "overlapping_page_count": 0,
+        "stale_page_count": 0,
+        "noisy_page_count": 0,
         "overlay_ignored_line_count": 0,
         "header_ignored_line_count": 0,
         "malformed_entry_line_count": 0,
@@ -308,6 +313,11 @@ def test_get_ranking_snapshot_validation_report_parses_collector_json_details(
         "primary_reason": "duplicate_last_page",
         "reasons": ["duplicate_last_page"],
     }
+    assert collector_diagnostics["empty_page_count"] == 0
+    assert collector_diagnostics["sparse_page_count"] == 2
+    assert collector_diagnostics["overlapping_page_count"] == 1
+    assert collector_diagnostics["stale_page_count"] == 0
+    assert collector_diagnostics["noisy_page_count"] == 0
     assert collector_diagnostics["overlay_ignored_line_count"] == 0
     assert collector_diagnostics["header_ignored_line_count"] == 1
     assert collector_diagnostics["malformed_entry_line_count"] == 0
@@ -351,6 +361,37 @@ def test_get_ranking_snapshot_validation_report_parses_collector_json_details(
             "new_rank_ratio": 0.0,
         },
     ]
+
+
+def test_get_ranking_snapshot_validation_report_derives_page_quality_counts(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "collector: pages=4/4; ignored=4(blank_line=1,header_line=2,malformed_entry_line=1); "
+        "ocr_stop=malformed_last_page(hard)\n"
+        'collector_json: {"page_summaries":['
+        '{"page_index":1,"image_path":"page-001.png","entry_count":3,"ignored_line_count":0,"ignored_line_reasons":[],"first_rank":1,"last_rank":3,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":3,"new_rank_ratio":1.0},'
+        '{"page_index":2,"image_path":"page-002.png","entry_count":5,"ignored_line_count":1,"ignored_line_reasons":[{"reason":"blank_line","count":1}],"first_rank":3,"last_rank":7,"overlap_with_previous_count":3,"overlap_with_previous_ratio":0.6,"new_rank_count":2,"new_rank_ratio":0.4},'
+        '{"page_index":3,"image_path":"page-003.png","entry_count":4,"ignored_line_count":1,"ignored_line_reasons":[{"reason":"header_line","count":1}],"first_rank":7,"last_rank":10,"overlap_with_previous_count":3,"overlap_with_previous_ratio":0.75,"new_rank_count":1,"new_rank_ratio":0.25},'
+        '{"page_index":4,"image_path":"page-004.png","entry_count":0,"ignored_line_count":2,"ignored_line_reasons":[{"reason":"header_line","count":1},{"reason":"malformed_entry_line","count":1}],"first_rank":null,"last_rank":null,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":0,"new_rank_ratio":0.0}'
+        '],"ocr_stop_hints":[{"reason":"empty_last_page","page_index":4},{"reason":"malformed_last_page","page_index":4,"entry_count":0}],"ocr_stop_recommendation":{"should_stop":true,"level":"hard","primary_reason":"malformed_last_page","reasons":["empty_last_page","malformed_last_page"]}}'
+    )
+    db_session.add(ranking_snapshot)
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/validation-report")
+
+    assert response.status_code == 200
+    collector_diagnostics = response.json()["collector_diagnostics"]
+    assert collector_diagnostics["empty_page_count"] == 1
+    assert collector_diagnostics["sparse_page_count"] == 2
+    assert collector_diagnostics["overlapping_page_count"] == 2
+    assert collector_diagnostics["stale_page_count"] == 1
+    assert collector_diagnostics["noisy_page_count"] == 1
+    assert collector_diagnostics["header_ignored_line_count"] == 2
+    assert collector_diagnostics["malformed_entry_line_count"] == 1
 
 
 def test_get_season_validation_overview_returns_expected_values(
@@ -441,6 +482,11 @@ def test_get_season_validation_overview_returns_expected_values(
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
         "total_ignored_line_count": 0,
+        "empty_page_count": 0,
+        "sparse_page_count": 0,
+        "overlapping_page_count": 0,
+        "stale_page_count": 0,
+        "noisy_page_count": 0,
         "overlay_ignored_line_count": 0,
         "header_ignored_line_count": 0,
         "malformed_entry_line_count": 0,
@@ -549,6 +595,11 @@ def test_get_season_validation_overview_supports_status_and_source_filters(
         "snapshots_with_capture_stop_count": 0,
         "snapshots_with_hard_ocr_stop_count": 0,
         "total_ignored_line_count": 0,
+        "empty_page_count": 0,
+        "sparse_page_count": 0,
+        "overlapping_page_count": 0,
+        "stale_page_count": 0,
+        "noisy_page_count": 0,
         "overlay_ignored_line_count": 0,
         "header_ignored_line_count": 0,
         "malformed_entry_line_count": 0,
@@ -838,6 +889,11 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
     assert overview_response.json()["snapshots_with_capture_stop_count"] == 1
     assert overview_response.json()["snapshots_with_hard_ocr_stop_count"] == 1
     assert overview_response.json()["total_ignored_line_count"] == 5
+    assert overview_response.json()["empty_page_count"] == 0
+    assert overview_response.json()["sparse_page_count"] == 0
+    assert overview_response.json()["overlapping_page_count"] == 0
+    assert overview_response.json()["stale_page_count"] == 0
+    assert overview_response.json()["noisy_page_count"] == 0
     assert overview_response.json()["overlay_ignored_line_count"] == 0
     assert overview_response.json()["header_ignored_line_count"] == 0
     assert overview_response.json()["malformed_entry_line_count"] == 0
@@ -877,6 +933,11 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
                 "requested_page_count": 3,
                 "capture_stop_reason": "noisy_last_page",
                 "ignored_line_count": 4,
+                "empty_page_count": 0,
+                "sparse_page_count": 0,
+                "overlapping_page_count": 0,
+                "stale_page_count": 0,
+                "noisy_page_count": 0,
                 "overlay_ignored_line_count": 0,
                 "header_ignored_line_count": 0,
                 "malformed_entry_line_count": 0,
@@ -914,6 +975,11 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
                 "requested_page_count": 1,
                 "capture_stop_reason": None,
                 "ignored_line_count": 1,
+                "empty_page_count": 0,
+                "sparse_page_count": 0,
+                "overlapping_page_count": 0,
+                "stale_page_count": 0,
+                "noisy_page_count": 0,
                 "overlay_ignored_line_count": 0,
                 "header_ignored_line_count": 0,
                 "malformed_entry_line_count": 0,
@@ -1066,6 +1132,58 @@ def test_get_season_validation_endpoints_support_ignored_group_filters(
         ]
         == 1
     )
+
+
+def test_get_season_validation_overview_aggregates_page_quality_counts(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.note = (
+        "collector: pages=2/2; ignored=1(blank_line=1); ocr_stop=stale_last_page(soft)\n"
+        'collector_json: {"page_summaries":['
+        '{"page_index":1,"image_path":"page-001.png","entry_count":3,"ignored_line_count":0,"ignored_line_reasons":[],"first_rank":1,"last_rank":3,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":3,"new_rank_ratio":1.0},'
+        '{"page_index":2,"image_path":"page-002.png","entry_count":4,"ignored_line_count":1,"ignored_line_reasons":[{"reason":"blank_line","count":1}],"first_rank":3,"last_rank":6,"overlap_with_previous_count":3,"overlap_with_previous_ratio":0.75,"new_rank_count":1,"new_rank_ratio":0.25}'
+        '],"ocr_stop_hints":[{"reason":"stale_last_page","page_index":2,"new_rank_count":1,"new_rank_ratio":0.25}],"ocr_stop_recommendation":{"should_stop":true,"level":"soft","primary_reason":"stale_last_page","reasons":["stale_last_page"]}}'
+    )
+    second_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) + timedelta(minutes=5),
+        source_type="image_tesseract",
+        status="completed",
+        total_rows_collected=1,
+        note=(
+            "collector: pages=1/1; ignored=2(header_line=1,malformed_entry_line=1); "
+            "ocr_stop=empty_last_page(hard)\n"
+            'collector_json: {"page_summaries":[{"page_index":1,"image_path":"page-003.png","entry_count":0,"ignored_line_count":2,"ignored_line_reasons":[{"reason":"header_line","count":1},{"reason":"malformed_entry_line","count":1}],"first_rank":null,"last_rank":null,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":0,"new_rank_ratio":0.0}],"ocr_stop_hints":[{"reason":"empty_last_page","page_index":1}],"ocr_stop_recommendation":{"should_stop":true,"level":"hard","primary_reason":"empty_last_page","reasons":["empty_last_page"]}}'
+        ),
+    )
+    db_session.add(second_snapshot)
+    db_session.flush()
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=10000,
+            player_name="Valid",
+            ocr_confidence=0.99,
+            raw_text="1 Valid 10000",
+            image_path="/tmp/valid.png",
+            is_valid=True,
+            validation_issue=None,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/seasons/{ranking_snapshot.season_id}/validation-overview")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["empty_page_count"] == 1
+    assert body["sparse_page_count"] == 2
+    assert body["overlapping_page_count"] == 1
+    assert body["stale_page_count"] == 1
+    assert body["noisy_page_count"] == 1
 
 
 def test_get_season_validation_endpoints_support_collector_reason_filters(

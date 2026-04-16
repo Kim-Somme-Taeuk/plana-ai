@@ -94,6 +94,11 @@ export type CollectorDiagnostics = {
   requested_page_count: number | null;
   capture_stop_reason: string | null;
   ignored_line_count: number;
+  empty_page_count: number;
+  sparse_page_count: number;
+  overlapping_page_count: number;
+  stale_page_count: number;
+  noisy_page_count: number;
   overlay_ignored_line_count: number;
   header_ignored_line_count: number;
   malformed_entry_line_count: number;
@@ -142,6 +147,11 @@ export type SeasonValidationOverview = {
   snapshots_with_capture_stop_count: number;
   snapshots_with_hard_ocr_stop_count: number;
   total_ignored_line_count: number;
+  empty_page_count: number;
+  sparse_page_count: number;
+  overlapping_page_count: number;
+  stale_page_count: number;
+  noisy_page_count: number;
   overlay_ignored_line_count: number;
   header_ignored_line_count: number;
   malformed_entry_line_count: number;

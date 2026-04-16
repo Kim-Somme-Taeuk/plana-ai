@@ -493,6 +493,33 @@ export function SnapshotValidationReportPanel({
                 <EmptyBox message="저장된 OCR 중단 권장 정보가 없습니다." />
               )}
             </div>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>페이지 품질 신호</h3>
+              </div>
+              <div className={styles.keyValueList}>
+                <div className={styles.keyValueRow}>
+                  <span>빈 페이지</span>
+                  <strong>{collectorDiagnostics.empty_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>Sparse 페이지</span>
+                  <strong>{collectorDiagnostics.sparse_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>중복 페이지</span>
+                  <strong>{collectorDiagnostics.overlapping_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>Stale 페이지</span>
+                  <strong>{collectorDiagnostics.stale_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>Noise 페이지</span>
+                  <strong>{collectorDiagnostics.noisy_page_count.toLocaleString()}</strong>
+                </div>
+              </div>
+            </div>
           </div>
           {collectorDiagnostics.page_summaries.length > 0 ? (
             <div className={styles.tableWrap}>
@@ -799,6 +826,35 @@ export function SeasonValidationOverviewPanel({
             비정상 엔트리 OCR 보기
           </Link>
         ) : null}
+      </div>
+      <div className={styles.threeColumnGrid}>
+        <div className={styles.subPanel}>
+          <div className={styles.panelTitle}>
+            <h3>페이지 품질 신호</h3>
+          </div>
+          <div className={styles.keyValueList}>
+            <div className={styles.keyValueRow}>
+              <span>빈 페이지</span>
+              <strong>{overview.empty_page_count.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>Sparse 페이지</span>
+              <strong>{overview.sparse_page_count.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>중복 페이지</span>
+              <strong>{overview.overlapping_page_count.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>Stale 페이지</span>
+              <strong>{overview.stale_page_count.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>Noise 페이지</span>
+              <strong>{overview.noisy_page_count.toLocaleString()}</strong>
+            </div>
+          </div>
+        </div>
       </div>
       <div className={styles.threeColumnGrid}>
         <ReasonSummaryPanel

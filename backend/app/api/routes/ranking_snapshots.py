@@ -49,6 +49,10 @@ ALLOWED_STATUS_TRANSITIONS = {
 DEFAULT_CUTOFF_RANKS = (1, 10, 100, 1000, 5000, 10000)
 OVERLAY_IGNORED_REASONS = ("reward_line", "ui_control_line", "status_line")
 HEADER_IGNORED_REASONS = ("header_line", "pagination_line")
+SPARSE_PAGE_ENTRY_THRESHOLD = 3
+OVERLAPPING_PAGE_RATIO_THRESHOLD = 0.5
+STALE_PAGE_MIN_ENTRY_COUNT = 4
+STALE_PAGE_NEW_RANK_RATIO_THRESHOLD = 0.25
 
 
 def _get_ranking_snapshot_or_404(db: Session, snapshot_id: int) -> RankingSnapshot:
@@ -157,6 +161,40 @@ def _calculate_invalid_ratio(valid_entry_count: int, invalid_entry_count: int) -
     return invalid_entry_count / total_entry_count
 
 
+def _build_page_quality_counts(
+    page_summaries: list[CollectorPageSummaryRead],
+) -> dict[str, int]:
+    counts = {
+        "empty_page_count": 0,
+        "sparse_page_count": 0,
+        "overlapping_page_count": 0,
+        "stale_page_count": 0,
+        "noisy_page_count": 0,
+    }
+
+    for summary in page_summaries:
+        if summary.entry_count == 0:
+            counts["empty_page_count"] += 1
+        if summary.entry_count <= SPARSE_PAGE_ENTRY_THRESHOLD:
+            counts["sparse_page_count"] += 1
+        if (
+            summary.entry_count > 0
+            and summary.overlap_with_previous_ratio >= OVERLAPPING_PAGE_RATIO_THRESHOLD
+        ):
+            counts["overlapping_page_count"] += 1
+        if (
+            summary.entry_count >= STALE_PAGE_MIN_ENTRY_COUNT
+            and 0 < summary.new_rank_ratio <= STALE_PAGE_NEW_RANK_RATIO_THRESHOLD
+        ):
+            counts["stale_page_count"] += 1
+        if summary.ignored_line_count > 0 and summary.ignored_line_count >= max(
+            1, summary.entry_count
+        ):
+            counts["noisy_page_count"] += 1
+
+    return counts
+
+
 def _build_collector_diagnostics_read(
     snapshot: RankingSnapshot,
 ) -> CollectorDiagnosticsRead | None:
@@ -164,12 +202,23 @@ def _build_collector_diagnostics_read(
     if summary is None:
         return None
 
+    page_summaries = [
+        CollectorPageSummaryRead(**page_summary)
+        for page_summary in summary.page_summaries
+    ]
+    page_quality_counts = _build_page_quality_counts(page_summaries)
+
     return CollectorDiagnosticsRead(
         raw_summary=summary.raw_summary,
         captured_page_count=summary.captured_page_count,
         requested_page_count=summary.requested_page_count,
         capture_stop_reason=summary.capture_stop_reason,
         ignored_line_count=summary.ignored_line_count,
+        empty_page_count=page_quality_counts["empty_page_count"],
+        sparse_page_count=page_quality_counts["sparse_page_count"],
+        overlapping_page_count=page_quality_counts["overlapping_page_count"],
+        stale_page_count=page_quality_counts["stale_page_count"],
+        noisy_page_count=page_quality_counts["noisy_page_count"],
         overlay_ignored_line_count=_sum_ignored_reasons(
             summary.ignored_reasons,
             OVERLAY_IGNORED_REASONS,
@@ -188,10 +237,7 @@ def _build_collector_diagnostics_read(
         ],
         ocr_stop_reason=summary.ocr_stop_reason,
         ocr_stop_level=summary.ocr_stop_level,
-        page_summaries=[
-            CollectorPageSummaryRead(**page_summary)
-            for page_summary in summary.page_summaries
-        ],
+        page_summaries=page_summaries,
         ocr_stop_hints=[
             CollectorStopHintRead(**hint)
             for hint in summary.ocr_stop_hints
@@ -556,6 +602,11 @@ def _build_season_validation_overview(
     capture_stop_reason_counts: dict[str, int] = {}
     ocr_stop_reason_counts: dict[str, int] = {}
     ignored_reason_counts: dict[str, int] = {}
+    empty_page_count = 0
+    sparse_page_count = 0
+    overlapping_page_count = 0
+    stale_page_count = 0
+    noisy_page_count = 0
     overlay_ignored_line_count = 0
     header_ignored_line_count = 0
     malformed_entry_line_count = 0
@@ -573,6 +624,11 @@ def _build_season_validation_overview(
                 ignored_reason_counts.get(ignored_reason.reason, 0)
                 + ignored_reason.count
             )
+        empty_page_count += row.empty_page_count
+        sparse_page_count += row.sparse_page_count
+        overlapping_page_count += row.overlapping_page_count
+        stale_page_count += row.stale_page_count
+        noisy_page_count += row.noisy_page_count
         overlay_ignored_line_count += row.overlay_ignored_line_count
         header_ignored_line_count += row.header_ignored_line_count
         malformed_entry_line_count += row.malformed_entry_line_count
@@ -598,6 +654,11 @@ def _build_season_validation_overview(
             1 for row in collector_diagnostics if row.ocr_stop_level == "hard"
         ),
         total_ignored_line_count=sum(row.ignored_line_count for row in collector_diagnostics),
+        empty_page_count=empty_page_count,
+        sparse_page_count=sparse_page_count,
+        overlapping_page_count=overlapping_page_count,
+        stale_page_count=stale_page_count,
+        noisy_page_count=noisy_page_count,
         overlay_ignored_line_count=overlay_ignored_line_count,
         header_ignored_line_count=header_ignored_line_count,
         malformed_entry_line_count=malformed_entry_line_count,
