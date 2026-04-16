@@ -9,6 +9,16 @@ from pathlib import Path
 from typing import Any
 from urllib import error, request
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_DIR = PROJECT_ROOT / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from app.core.ranking_entry_validation import (
+    ValidationIssueCode,
+    summarize_snapshot_entries,
+)
+
 DEFAULT_API_BASE_URL = "http://localhost:8000"
 SEASON_REQUIRED_FIELDS = (
     "event_type",
@@ -161,6 +171,8 @@ def load_mock_payload(path: str | Path) -> MockImportPayload:
         entry_mapping = _require_mapping(entry, f"entries[{index}]")
         _require_fields(entry_mapping, ENTRY_REQUIRED_FIELDS, f"entries[{index}]")
 
+    _validate_snapshot_entries(entries)
+
     return MockImportPayload(
         season=season,
         snapshot=snapshot,
@@ -270,6 +282,26 @@ def _build_entry_payload(entry: dict[str, Any]) -> dict[str, Any]:
         "is_valid": entry.get("is_valid", True),
         "validation_issue": entry.get("validation_issue"),
     }
+
+
+def _validate_snapshot_entries(entries: list[dict[str, Any]]) -> None:
+    summary = summarize_snapshot_entries(entries)
+
+    if summary.duplicate_ranks:
+        joined_ranks = ", ".join(str(rank) for rank in summary.duplicate_ranks)
+        raise MockImportError(
+            "entries 사전 검증에 실패했습니다. "
+            f"validation_issue={ValidationIssueCode.DUPLICATE_RANK.value}, "
+            f"duplicate_ranks={joined_ranks}"
+        )
+
+    if summary.has_rank_order_violation:
+        print(
+            "경고: entries 순서에서 "
+            f"{ValidationIssueCode.RANK_ORDER_VIOLATION.value} 징후를 감지했습니다. "
+            "입력은 계속 진행합니다.",
+            file=sys.stderr,
+        )
 
 
 def _require_mapping(value: Any, label: str) -> dict[str, Any]:

@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.ranking_entry_validation import validate_ranking_entry
 from app.db.session import get_db
 from app.models.ranking_entry import RankingEntry
 from app.models.ranking_snapshot import RankingSnapshot
@@ -148,9 +149,20 @@ def create_ranking_entry(
             detail="Rank already exists for this ranking snapshot",
         )
 
+    validation = validate_ranking_entry(
+        rank=payload.rank,
+        score=payload.score,
+        player_name=payload.player_name,
+        ocr_confidence=payload.ocr_confidence,
+    )
+
+    entry_payload = payload.model_dump()
+    entry_payload["is_valid"] = validation.is_valid
+    entry_payload["validation_issue"] = validation.validation_issue
+
     entry = RankingEntry(
         ranking_snapshot_id=snapshot_id,
-        **payload.model_dump(),
+        **entry_payload,
     )
     db.add(entry)
 

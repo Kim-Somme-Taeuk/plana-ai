@@ -191,3 +191,33 @@ def test_import_mock_payload_marks_snapshot_failed_when_completion_fails():
         "update_snapshot_status",
         {"snapshot_id": 601, "status": "failed"},
     )
+
+
+def test_load_mock_payload_rejects_duplicate_ranks(tmp_path):
+    mock_file = tmp_path / "duplicate-rank.json"
+    mock_file.write_text(
+        json.dumps(
+            {
+                "season": {
+                    "event_type": "raid",
+                    "server": "kr",
+                    "boss_name": "Binah",
+                    "terrain": "outdoor",
+                    "season_label": "collector-duplicate-rank-test",
+                },
+                "snapshot": {
+                    "captured_at": "2026-04-16T10:00:00Z",
+                },
+                "entries": [
+                    {"rank": 1, "score": 1000},
+                    {"rank": 1, "score": 900},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MockImportError) as exc_info:
+        load_mock_payload(mock_file)
+
+    assert "duplicate_rank" in str(exc_info.value)

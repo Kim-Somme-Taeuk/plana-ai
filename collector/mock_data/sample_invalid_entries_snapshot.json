@@ -32,8 +32,8 @@
       "ocr_confidence": 0.41,
       "raw_text": "10 Yuzu 9654321",
       "image_path": "/mock/invalid/yuzu.png",
-      "is_valid": false,
-      "validation_issue": "ocr mismatch"
+      "is_valid": true,
+      "validation_issue": null
     },
     {
       "rank": 100,
@@ -48,12 +48,12 @@
     {
       "rank": 1000,
       "score": 8123456,
-      "player_name": "Mari",
-      "ocr_confidence": 0.33,
+      "player_name": "   ",
+      "ocr_confidence": 0.91,
       "raw_text": "1000 Mari 8123456",
       "image_path": "/mock/invalid/mari.png",
-      "is_valid": false,
-      "validation_issue": "cropped screenshot"
+      "is_valid": true,
+      "validation_issue": null
     }
   ]
 }

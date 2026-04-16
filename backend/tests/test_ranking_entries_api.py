@@ -37,6 +37,115 @@ def test_create_ranking_entry(client, ranking_snapshot: RankingSnapshot) -> None
     }
 
 
+def test_create_ranking_entry_marks_invalid_rank(client, ranking_snapshot: RankingSnapshot) -> None:
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 0,
+            "score": 987654,
+            "player_name": "Bad Rank",
+            "ocr_confidence": 0.95,
+            "raw_text": "0 Bad Rank 987654",
+            "image_path": "/tmp/bad-rank.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["is_valid"] is False
+    assert response.json()["validation_issue"] == "invalid_rank"
+
+
+def test_create_ranking_entry_marks_invalid_score(client, ranking_snapshot: RankingSnapshot) -> None:
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 0,
+            "player_name": "Bad Score",
+            "ocr_confidence": 0.95,
+            "raw_text": "2 Bad Score 0",
+            "image_path": "/tmp/bad-score.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["is_valid"] is False
+    assert response.json()["validation_issue"] == "invalid_score"
+
+
+def test_create_ranking_entry_marks_missing_player_name(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 123456,
+            "player_name": "   ",
+            "ocr_confidence": 0.95,
+            "raw_text": "2 ??? 123456",
+            "image_path": "/tmp/missing-name.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["is_valid"] is False
+    assert response.json()["validation_issue"] == "missing_player_name"
+
+
+def test_create_ranking_entry_marks_low_ocr_confidence(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 123456,
+            "player_name": "Low OCR",
+            "ocr_confidence": 0.49,
+            "raw_text": "2 Low OCR 123456",
+            "image_path": "/tmp/low-ocr.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["is_valid"] is False
+    assert response.json()["validation_issue"] == "low_ocr_confidence"
+
+
+def test_create_ranking_entry_normalizes_conflicting_manual_validation_fields(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 123456,
+            "player_name": "Manual Invalid",
+            "ocr_confidence": 0.95,
+            "raw_text": "2 Manual Invalid 123456",
+            "image_path": "/tmp/manual-invalid.png",
+            "is_valid": False,
+            "validation_issue": "cropped_screenshot",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["is_valid"] is True
+    assert response.json()["validation_issue"] is None
+
+
 def test_list_ranking_entries_returns_rank_ascending(
     client,
     db_session: Session,

@@ -257,6 +257,62 @@ def test_get_ranking_snapshot_distribution_returns_nulls_without_valid_entries(
     }
 
 
+def test_statistics_exclude_invalid_entries_created_via_api(
+    client,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    valid_response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 1,
+            "score": 9000,
+            "player_name": "Valid",
+            "ocr_confidence": 0.95,
+            "raw_text": "1 Valid 9000",
+            "image_path": "/tmp/valid.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+    invalid_response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 2,
+            "score": 8000,
+            "player_name": "Low OCR",
+            "ocr_confidence": 0.4,
+            "raw_text": "2 Low OCR 8000",
+            "image_path": "/tmp/low-ocr.png",
+            "is_valid": True,
+            "validation_issue": None,
+        },
+    )
+
+    assert valid_response.status_code == 201
+    assert invalid_response.status_code == 201
+    assert invalid_response.json()["validation_issue"] == "low_ocr_confidence"
+
+    summary_response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/summary")
+    distribution_response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/distribution"
+    )
+    cutoffs_response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/cutoffs")
+
+    assert summary_response.status_code == 200
+    assert summary_response.json()["valid_entry_count"] == 1
+    assert summary_response.json()["invalid_entry_count"] == 1
+    assert summary_response.json()["highest_score"] == 9000
+    assert summary_response.json()["lowest_score"] == 9000
+
+    assert distribution_response.status_code == 200
+    assert distribution_response.json()["count"] == 1
+    assert distribution_response.json()["min_score"] == 9000
+    assert distribution_response.json()["max_score"] == 9000
+
+    assert cutoffs_response.status_code == 200
+    assert cutoffs_response.json()["cutoffs"][0] == {"rank": 1, "score": 9000}
+
+
 def test_get_season_cutoff_series_uses_completed_snapshots_only(
     client,
     db_session: Session,
