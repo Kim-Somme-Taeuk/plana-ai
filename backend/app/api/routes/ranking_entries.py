@@ -17,6 +17,7 @@ from app.schemas.ranking_entry import (
 router = APIRouter(tags=["ranking_entries"])
 
 RANKING_ENTRY_SNAPSHOT_RANK_CONSTRAINT = "uq_ranking_entries_snapshot_rank"
+COLLECTING_STATUS = "collecting"
 SQLITE_SNAPSHOT_RANK_CONFLICT = (
     "UNIQUE constraint failed: "
     "ranking_entries.ranking_snapshot_id, ranking_entries.rank"
@@ -128,7 +129,12 @@ def create_ranking_entry(
     payload: RankingEntryCreate,
     db: Session = Depends(get_db),
 ) -> RankingEntry:
-    _get_ranking_snapshot_or_404(db, snapshot_id)
+    snapshot = _get_ranking_snapshot_or_404(db, snapshot_id)
+    if snapshot.status != COLLECTING_STATUS:
+        raise HTTPException(
+            status_code=409,
+            detail="Ranking snapshot is not accepting new entries",
+        )
 
     existing = db.scalar(
         select(RankingEntry).where(

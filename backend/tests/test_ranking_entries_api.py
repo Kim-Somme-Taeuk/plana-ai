@@ -368,6 +368,64 @@ def test_create_ranking_entry_returns_404_for_missing_snapshot(client) -> None:
     assert response.json() == {"detail": "Ranking snapshot not found"}
 
 
+def test_create_ranking_entry_rejects_completed_snapshot(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.status = "completed"
+    db_session.add(ranking_snapshot)
+    db_session.commit()
+
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 1,
+            "score": 1000,
+            "player_name": "Blocked",
+            "ocr_confidence": 0.5,
+            "raw_text": "blocked",
+            "image_path": "/tmp/blocked.png",
+            "is_valid": False,
+            "validation_issue": "terminal snapshot",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Ranking snapshot is not accepting new entries"
+    }
+
+
+def test_create_ranking_entry_rejects_failed_snapshot(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.status = "failed"
+    db_session.add(ranking_snapshot)
+    db_session.commit()
+
+    response = client.post(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        json={
+            "rank": 1,
+            "score": 1000,
+            "player_name": "Blocked",
+            "ocr_confidence": 0.5,
+            "raw_text": "blocked",
+            "image_path": "/tmp/blocked.png",
+            "is_valid": False,
+            "validation_issue": "terminal snapshot",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Ranking snapshot is not accepting new entries"
+    }
+
+
 def test_list_ranking_entries_returns_404_for_missing_snapshot(client) -> None:
     response = client.get("/ranking-snapshots/999999/entries")
 

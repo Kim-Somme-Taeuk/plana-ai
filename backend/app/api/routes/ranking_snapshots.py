@@ -31,6 +31,9 @@ def _get_ranking_snapshot_or_404(db: Session, snapshot_id: int) -> RankingSnapsh
 
 
 def _ensure_valid_status_transition(current_status: str, next_status: str) -> None:
+    if current_status == next_status:
+        return
+
     if (current_status, next_status) not in ALLOWED_STATUS_TRANSITIONS:
         raise HTTPException(
             status_code=409,

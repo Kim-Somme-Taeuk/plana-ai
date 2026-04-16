@@ -94,6 +94,55 @@ def test_update_ranking_snapshot_status_rejects_completed_to_collecting(
     }
 
 
+def test_update_ranking_snapshot_status_allows_completed_to_completed_noop(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=10,
+                score=1000,
+                player_name="Rank 10",
+                ocr_confidence=0.8,
+                raw_text="10 Rank 10 1000",
+                image_path="/tmp/rank-10.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=20,
+                score=2000,
+                player_name="Rank 20",
+                ocr_confidence=0.7,
+                raw_text="20 Rank 20 2000",
+                image_path="/tmp/rank-20.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    first_response = client.patch(
+        f"/ranking-snapshots/{ranking_snapshot.id}/status",
+        json={"status": "completed"},
+    )
+    response = client.patch(
+        f"/ranking-snapshots/{ranking_snapshot.id}/status",
+        json={"status": "completed"},
+    )
+
+    assert first_response.status_code == 200
+    assert first_response.json()["total_rows_collected"] == 2
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    assert response.json()["total_rows_collected"] == 2
+
+
 def test_update_ranking_snapshot_status_rejects_failed_to_collecting(
     client,
     db_session: Session,
@@ -112,6 +161,30 @@ def test_update_ranking_snapshot_status_rejects_failed_to_collecting(
     assert response.json() == {
         "detail": "Invalid status transition from failed to collecting"
     }
+
+
+def test_update_ranking_snapshot_status_allows_failed_to_failed_noop(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    ranking_snapshot.total_rows_collected = 11
+    db_session.add(ranking_snapshot)
+    db_session.commit()
+
+    first_response = client.patch(
+        f"/ranking-snapshots/{ranking_snapshot.id}/status",
+        json={"status": "failed"},
+    )
+    response = client.patch(
+        f"/ranking-snapshots/{ranking_snapshot.id}/status",
+        json={"status": "failed"},
+    )
+
+    assert first_response.status_code == 200
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["total_rows_collected"] == 11
 
 
 def test_update_ranking_snapshot_status_rejects_completed_to_failed(
