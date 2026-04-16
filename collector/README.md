@@ -135,7 +135,7 @@ backend/.venv/bin/python collector/capture_import.py \
 ```
 
 성공 시 `season_id`, `snapshot_id`, `page_count`, `entry_count`, `entry_ids`, `status`, `total_rows_collected`를 JSON으로 출력합니다.
-`ignored_line_count`, `ignored_line_reasons`, `ignored_lines`도 함께 출력해서 OCR header/footer/blank line 잡음 줄을 확인할 수 있습니다.
+`ignored_line_count`, `ignored_line_reasons`, `page_summaries`, `ignored_lines`도 함께 출력해서 OCR header/footer/blank line 잡음 줄과 페이지별 파싱 상태를 확인할 수 있습니다.
 
 ### 주의사항
 
@@ -252,7 +252,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 
 성공 시 `output_dir`, `manifest_path`, `image_paths`, `ocr_provider`, `device_serial`,
 `requested_page_count`, `captured_page_count`, `stopped_reason`,
-`ignored_line_count`, `ignored_line_reasons`를 JSON으로 출력합니다.
+`ignored_line_count`, `ignored_line_reasons`, `page_summaries`를 JSON으로 출력합니다.
 
 ### 주의사항
 
