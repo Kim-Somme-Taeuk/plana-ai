@@ -79,6 +79,12 @@ npm run lint
 npm run build
 ```
 
+루트 기준 smoke 검증:
+
+```bash
+bash scripts/smoke.sh
+```
+
 ## 구조
 
 - `app/page.tsx`

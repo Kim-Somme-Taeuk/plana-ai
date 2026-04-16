@@ -369,6 +369,18 @@ backend/.venv/bin/pytest backend/tests collector/tests -q
 cd frontend && npm run lint && npm run build
 ```
 
+반복 smoke 검증은 아래 스크립트로 실행할 수 있습니다.
+
+```bash
+bash scripts/smoke.sh
+```
+
+검증 대상 season/snapshot은 환경변수로 바꿀 수 있습니다.
+
+```bash
+SMOKE_SEASON_ID=33 SMOKE_SNAPSHOT_ID=41 bash scripts/smoke.sh
+```
+
 ## 개발 시 주의사항
 
 - DB 스키마와 Alembic migration은 함부로 수정하지 않습니다.
