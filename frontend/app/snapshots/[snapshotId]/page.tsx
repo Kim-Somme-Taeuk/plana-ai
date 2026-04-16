@@ -9,8 +9,8 @@ import {
   PageShell,
   SnapshotEntryTable,
   SummaryCards,
-  VALIDATION_ISSUE_OPTIONS,
   ValidationIssuesPanel,
+  getValidationIssueOptions,
 } from "../../components/dashboard";
 import {
   getSnapshot,
@@ -50,11 +50,11 @@ export default async function SnapshotDetailPage({
   const sortBy =
     resolvedSearchParams.sortBy === "score" ? "score" : "rank";
   const order = resolvedSearchParams.order === "desc" ? "desc" : "asc";
-  const validationIssue = VALIDATION_ISSUE_OPTIONS.some(
-    (option) => option.value === resolvedSearchParams.validationIssue,
-  )
-    ? (resolvedSearchParams.validationIssue as ValidationIssueFilter)
-    : "all";
+  const validationIssue =
+    resolvedSearchParams.validationIssue &&
+    resolvedSearchParams.validationIssue.trim()
+      ? (resolvedSearchParams.validationIssue as ValidationIssueFilter)
+      : "all";
 
   const snapshotResult = await getSnapshot(numericSnapshotId);
   const snapshot = snapshotResult.data;
@@ -92,6 +92,10 @@ export default async function SnapshotDetailPage({
         order,
       }),
     ]);
+  const validationIssueOptions = getValidationIssueOptions(
+    summaryResult.data?.validation_issues ?? [],
+    validationIssue,
+  );
   return (
     <PageShell
       eyebrow="Snapshot Detail"
@@ -170,7 +174,7 @@ export default async function SnapshotDetailPage({
                   defaultValue={validationIssue}
                 >
                   <option value="all">all</option>
-                  {VALIDATION_ISSUE_OPTIONS.map((option) => (
+                  {validationIssueOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>

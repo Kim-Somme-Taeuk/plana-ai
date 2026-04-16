@@ -5,10 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.ranking_entry_validation import (
-    ValidationIssueCode,
-    validate_ranking_entry,
-)
+from app.core.ranking_entry_validation import validate_ranking_entry
 from app.db.session import get_db
 from app.models.ranking_entry import RankingEntry
 from app.models.ranking_snapshot import RankingSnapshot
@@ -59,8 +56,9 @@ def _get_ranking_entry_list_params(
         ),
     ] = None,
     validation_issue: Annotated[
-        ValidationIssueCode | None,
+        str | None,
         Query(
+            min_length=1,
             description="Filter entries by validation issue code",
         ),
     ] = None,
@@ -117,7 +115,7 @@ def _build_ranking_entries_query(
 
     if params.validation_issue is not None:
         statement = statement.where(
-            RankingEntry.validation_issue == params.validation_issue.value
+            RankingEntry.validation_issue == params.validation_issue
         )
 
     sort_by = params.sort_by or "rank"

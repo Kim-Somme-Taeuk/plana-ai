@@ -2,9 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.ranking_entry_validation import ValidationIssueCode
-
-
 class RankingEntryBase(BaseModel):
     rank: int
     score: int
@@ -25,7 +22,7 @@ class RankingEntryCreate(RankingEntryBase):
 
 class RankingEntryListParams(BaseModel):
     is_valid: bool | None = None
-    validation_issue: ValidationIssueCode | None = None
+    validation_issue: str | None = Field(default=None, min_length=1)
     limit: int | None = Field(default=None, ge=1, le=100)
     offset: int | None = Field(default=None, ge=0)
     sort_by: Literal["rank", "score"] | None = None

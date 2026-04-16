@@ -219,6 +219,7 @@ def capture_adb_screenshot(
     request: AdbCaptureRequest,
     client: AdbClient,
 ) -> AdbCaptureResult:
+    _ensure_capture_output_dir_is_empty(request.adb.output_dir)
     request.adb.output_dir.mkdir(parents=True, exist_ok=True)
 
     image_paths: list[Path] = []
@@ -264,6 +265,17 @@ def capture_adb_screenshot(
         manifest_path=manifest_path,
         image_paths=image_paths,
     )
+
+
+def _ensure_capture_output_dir_is_empty(output_dir: Path) -> None:
+    if not output_dir.exists():
+        return
+
+    if any(output_dir.iterdir()):
+        raise MockImportError(
+            "기존 capture 결과가 있는 output_dir에는 새 캡처를 쓰지 않습니다. "
+            f"빈 디렉터리를 사용하거나 새 output_dir를 지정하세요: {output_dir}"
+        )
 
 
 def _require_mapping(value: Any, label: str) -> dict[str, Any]:

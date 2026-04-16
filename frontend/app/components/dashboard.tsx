@@ -9,7 +9,6 @@ import type {
   RankingSnapshotSummary,
   Season,
   SeasonCutoffSeries,
-  ValidationIssueFilter,
 } from "../lib/types";
 
 export function PageShell({
@@ -301,6 +300,36 @@ export function ValidationIssuesPanel({
   );
 }
 
+export function getValidationIssueOptions(
+  issues: RankingSnapshotSummary["validation_issues"],
+  currentValue?: string,
+) {
+  const knownCodes = [
+    "invalid_rank",
+    "invalid_score",
+    "missing_player_name",
+    "low_ocr_confidence",
+    "duplicate_rank",
+    "rank_order_violation",
+  ];
+  const values = new Set<string>(knownCodes);
+
+  for (const issue of issues) {
+    if (issue.code.trim()) {
+      values.add(issue.code);
+    }
+  }
+
+  if (currentValue && currentValue !== "all" && currentValue.trim()) {
+    values.add(currentValue);
+  }
+
+  return Array.from(values).map((value) => ({
+    value,
+    label: value,
+  }));
+}
+
 export function CutoffSeriesPanel({
   series,
 }: {
@@ -419,18 +448,6 @@ export function SnapshotEntryTable({
     </div>
   );
 }
-
-export const VALIDATION_ISSUE_OPTIONS: Array<{
-  value: ValidationIssueFilter;
-  label: string;
-}> = [
-  { value: "invalid_rank", label: "invalid_rank" },
-  { value: "invalid_score", label: "invalid_score" },
-  { value: "missing_player_name", label: "missing_player_name" },
-  { value: "low_ocr_confidence", label: "low_ocr_confidence" },
-  { value: "duplicate_rank", label: "duplicate_rank" },
-  { value: "rank_order_violation", label: "rank_order_violation" },
-];
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (

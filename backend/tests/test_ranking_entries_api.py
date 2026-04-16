@@ -277,6 +277,78 @@ def test_list_ranking_entries_filters_by_validation_issue(
     ]
 
 
+def test_list_ranking_entries_filters_by_custom_validation_issue_string(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=1,
+                score=9000,
+                player_name="Legacy Invalid",
+                ocr_confidence=0.8,
+                raw_text="1 Legacy Invalid 9000",
+                image_path="/tmp/legacy-invalid.png",
+                is_valid=False,
+                validation_issue="ocr mismatch",
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=2,
+                score=8000,
+                player_name="Missing Name",
+                ocr_confidence=0.8,
+                raw_text="2 Missing Name 8000",
+                image_path="/tmp/missing-name.png",
+                is_valid=False,
+                validation_issue="missing_player_name",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        params={"validation_issue": "ocr mismatch"},
+    )
+
+    assert response.status_code == 200
+    assert [entry["rank"] for entry in response.json()] == [1]
+
+
+def test_list_ranking_entries_filters_by_oversized_stored_validation_issue(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    oversized_issue = "V" * 256
+    db_session.add(
+        RankingEntry(
+            ranking_snapshot_id=ranking_snapshot.id,
+            rank=1,
+            score=9000,
+            player_name="Oversized Issue",
+            ocr_confidence=0.8,
+            raw_text="1 Oversized Issue 9000",
+            image_path="/tmp/oversized-issue.png",
+            is_valid=False,
+            validation_issue=oversized_issue,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
+        params={"validation_issue": oversized_issue},
+    )
+
+    assert response.status_code == 200
+    assert [entry["rank"] for entry in response.json()] == [1]
+
+
 def test_list_ranking_entries_supports_limit_and_offset(
     client,
     db_session: Session,
@@ -414,13 +486,12 @@ def test_list_ranking_entries_returns_422_for_invalid_sorting_params(
     assert invalid_order_response.json()["detail"]
 
 
-def test_list_ranking_entries_returns_422_for_invalid_validation_issue(
+def test_list_ranking_entries_returns_422_for_empty_validation_issue(
     client,
     ranking_snapshot: RankingSnapshot,
 ) -> None:
     response = client.get(
-        f"/ranking-snapshots/{ranking_snapshot.id}/entries",
-        params={"validation_issue": "not_a_real_issue"},
+        f"/ranking-snapshots/{ranking_snapshot.id}/entries?validation_issue="
     )
 
     assert response.status_code == 422

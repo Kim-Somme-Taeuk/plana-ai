@@ -17,7 +17,7 @@
     "psm": 6
   },
   "adb": {
-    "output_dir": "collector/capture_runs/sample_adb_capture",
+    "output_dir": "../capture_runs/sample_adb_capture",
     "page_count": 1
   }
 }

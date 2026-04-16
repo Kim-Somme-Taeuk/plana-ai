@@ -179,7 +179,7 @@ backend/.venv/bin/python collector/capture_import.py \
     "psm": 6
   },
   "adb": {
-    "output_dir": "collector/capture_runs/sample_adb_capture"
+    "output_dir": "../capture_runs/sample_adb_capture"
   }
 }
 ```
@@ -196,7 +196,7 @@ backend/.venv/bin/python collector/capture_import.py \
 ```json
 {
   "adb": {
-    "output_dir": "collector/capture_runs/sample_scroll_capture",
+    "output_dir": "../capture_runs/sample_scroll_capture",
     "page_count": 3,
     "swipe": {
       "start_x": 500,
@@ -216,6 +216,8 @@ backend/.venv/bin/python collector/capture_import.py \
 - `page_count>=2`이면 `adb.swipe`가 필수입니다.
 - 마지막 페이지 뒤에는 swipe를 실행하지 않습니다.
 - swipe 뒤에는 `settle_delay_ms`만큼 대기합니다.
+- `adb.output_dir`의 상대경로 기준은 요청 JSON 파일이 있는 디렉터리입니다.
+- 기존 파일이 남아 있는 output 디렉터리에는 새 캡처를 쓰지 않습니다. 매 실행마다 빈 디렉터리나 새 경로를 사용하세요.
 
 ### 실행 예시
 

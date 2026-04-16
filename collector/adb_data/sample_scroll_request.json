@@ -17,7 +17,7 @@
     "psm": 6
   },
   "adb": {
-    "output_dir": "collector/capture_runs/sample_scroll_capture",
+    "output_dir": "../capture_runs/sample_scroll_capture",
     "page_count": 3,
     "swipe": {
       "start_x": 500,

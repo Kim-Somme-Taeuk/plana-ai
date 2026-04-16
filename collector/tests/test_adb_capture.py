@@ -118,6 +118,26 @@ def test_capture_adb_screenshot_supports_multi_page_scroll(
     assert sleep_calls == [0.05, 0.05]
 
 
+def test_capture_adb_screenshot_rejects_non_empty_output_dir(tmp_path: Path) -> None:
+    request_path = _write_request(tmp_path)
+    output_dir = tmp_path / "captured"
+    output_dir.mkdir()
+    (output_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    request = load_adb_capture_request(
+        request_path,
+        output_dir=str(output_dir),
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"PNG"
+
+    with pytest.raises(MockImportError) as exc_info:
+        capture_adb_screenshot(request, FakeAdbClient())
+
+    assert "기존 capture 결과가 있는 output_dir" in str(exc_info.value)
+
+
 def test_adb_client_uses_serial_and_screencap_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -39,13 +39,7 @@ export type RankingEntry = {
   validation_issue: string | null;
 };
 
-export type ValidationIssueFilter =
-  | "invalid_rank"
-  | "invalid_score"
-  | "missing_player_name"
-  | "low_ocr_confidence"
-  | "duplicate_rank"
-  | "rank_order_violation";
+export type ValidationIssueFilter = string;
 
 export type RankingSnapshotValidationIssueCount = {
   code: string;
