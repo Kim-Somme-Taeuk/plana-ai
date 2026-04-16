@@ -185,6 +185,62 @@ def test_build_mock_payload_from_capture_parses_bracketed_score_and_confidence(
     assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.87)
 
 
+def test_build_mock_payload_from_capture_parses_pipe_separated_structured_line(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "No.2|Player 2|12,345,678점|O.87\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-pipe-structured-line-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries == [
+        {
+            "rank": 2,
+            "score": 12345678,
+            "player_name": "Player 2",
+            "ocr_confidence": pytest.approx(0.87),
+            "raw_text": "No.2|Player 2|12,345,678점|O.87",
+            "image_path": capture_import._build_entry_image_path(
+                (tmp_path / "page-001.png").resolve()
+            ),
+            "is_valid": True,
+            "validation_issue": None,
+        }
+    ]
+
+
+def test_build_mock_payload_from_capture_parses_fullwidth_pipe_structured_line(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "2 ｜ Arona ｜ 9 876 543pts ｜ 0.91\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-fullwidth-pipe-structured-line-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["rank"] == 2
+    assert mock_payload.entries[0]["player_name"] == "Arona"
+    assert mock_payload.entries[0]["score"] == 9876543
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.91)
+
+
 def test_parse_capture_payload_ignores_non_entry_lines(
     tmp_path: Path,
 ) -> None:
@@ -291,6 +347,29 @@ def test_parse_capture_payload_classifies_korean_header_footer_and_pagination_li
         {"reason": "footer_line", "count": 1},
         {"reason": "header_line", "count": 1},
         {"reason": "pagination_line", "count": 1},
+    ]
+
+
+def test_parse_capture_payload_classifies_pipe_separated_header_lines(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "순위|닉네임|점수\n1|Plana|12,345,678\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-pipe-header-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert len(parsed_payload.mock_payload.entries) == 1
+    assert summarize_ignored_lines(parsed_payload.ignored_lines) == [
+        {"reason": "header_line", "count": 1}
     ]
 
 

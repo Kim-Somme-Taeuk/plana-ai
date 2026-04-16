@@ -58,6 +58,7 @@ PAGINATION_RE = re.compile(
     r"^(?:page\s*)?\d+\s*(?:/|of)\s*\d+$",
     re.IGNORECASE,
 )
+STRUCTURED_COLUMN_SEPARATOR_RE = re.compile(r"\s*[|¦｜]\s*")
 COLLECTOR_SUMMARY_PREFIX = "collector: "
 COLLECTOR_JSON_PREFIX = "collector_json: "
 STALE_LAST_PAGE_NEW_RANK_RATIO_THRESHOLD = 0.25
@@ -739,7 +740,8 @@ def _parse_ocr_line(
     page_index: int,
     line_index: int,
 ) -> dict[str, Any]:
-    tab_parts = raw_line.split("\t")
+    normalized_line = _normalize_structured_ocr_line(raw_line)
+    tab_parts = normalized_line.split("\t")
     if len(tab_parts) in (3, 4):
         rank_text, player_name, score_text, *confidence_text = tab_parts
         ocr_confidence = (
@@ -749,7 +751,7 @@ def _parse_ocr_line(
         )
         return {
             "rank": _parse_int_token(rank_text, "rank", page_index, line_index),
-            "score": _parse_int_token(score_text, "score", page_index, line_index),
+            "score": _parse_score_text(score_text, page_index=page_index, line_index=line_index),
             "player_name": _normalize_player_name(player_name),
             "ocr_confidence": ocr_confidence,
             "raw_text": raw_line,
@@ -800,16 +802,17 @@ def _get_ignored_line_reason(raw_line: str) -> str | None:
 
     if _looks_like_separator_line(stripped):
         return "separator_line"
-    if _looks_like_header_line(stripped):
+    normalized = _normalize_structured_ocr_line(stripped)
+    if _looks_like_header_line(normalized):
         return "header_line"
-    if _looks_like_pagination_line(stripped):
+    if _looks_like_pagination_line(normalized):
         return "pagination_line"
-    if _looks_like_footer_line(stripped):
+    if _looks_like_footer_line(normalized):
         return "footer_line"
-    if _looks_like_metadata_line(stripped):
+    if _looks_like_metadata_line(normalized):
         return "metadata_line"
 
-    first_token = stripped.split()[0]
+    first_token = normalized.split()[0]
     if not _can_parse_rank_token(first_token):
         return "non_entry_line"
 
@@ -1008,6 +1011,21 @@ def _parse_whitespace_fallback_line(
     }
 
 
+def _normalize_structured_ocr_line(raw_line: str) -> str:
+    if not any(separator in raw_line for separator in ("|", "¦", "｜")):
+        return raw_line
+
+    columns = [
+        part.strip()
+        for part in STRUCTURED_COLUMN_SEPARATOR_RE.split(raw_line.strip())
+        if part.strip()
+    ]
+    if len(columns) in (3, 4):
+        return "\t".join(columns)
+
+    return raw_line
+
+
 def _looks_like_confidence_token(value: str) -> bool:
     stripped_original = value.strip()
     stripped = _normalize_float_ocr_token(value)
@@ -1080,6 +1098,23 @@ def _parse_grouped_score_tokens(
         )
 
     return int("".join(normalized_tokens))
+
+
+def _parse_score_text(
+    value: str,
+    *,
+    page_index: int,
+    line_index: int,
+) -> int:
+    score_tokens = value.split()
+    if len(score_tokens) <= 1:
+        return _parse_int_token(value, "score", page_index, line_index)
+
+    return _parse_grouped_score_tokens(
+        score_tokens,
+        page_index=page_index,
+        line_index=line_index,
+    )
 
 
 def _normalize_player_name(value: str) -> str:
