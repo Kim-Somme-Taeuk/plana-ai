@@ -11,6 +11,7 @@ import type {
   RankingSnapshotValidationReport,
   Season,
   SeasonCutoffSeries,
+  SeasonValidationSeries,
   SeasonValidationOverview,
 } from "../lib/types";
 
@@ -288,12 +289,20 @@ export function SnapshotValidationReportPanel({
           value={String(report.excluded_from_statistics_count)}
         />
         <StatCard
+          label="Invalid Ratio"
+          value={formatPercent(report.invalid_ratio)}
+        />
+        <StatCard
           label="Duplicate Ranks"
           value={String(report.duplicate_rank_count)}
         />
         <StatCard
           label="Rank Order"
           value={report.has_rank_order_violation ? "violation" : "normal"}
+        />
+        <StatCard
+          label="Top Issue"
+          value={report.top_validation_issue?.code ?? "-"}
         />
       </div>
     </section>
@@ -368,7 +377,99 @@ export function SeasonValidationOverviewPanel({
           label="Excluded From Stats"
           value={String(overview.excluded_from_statistics_count)}
         />
+        <StatCard
+          label="Invalid Ratio"
+          value={formatPercent(overview.invalid_ratio)}
+        />
+        <StatCard
+          label="Top Issue"
+          value={overview.top_validation_issue?.code ?? "-"}
+        />
       </div>
+    </section>
+  );
+}
+
+export function SeasonValidationSeriesPanel({
+  series,
+}: {
+  series: SeasonValidationSeries;
+}) {
+  const maxInvalidRatio =
+    series.points.reduce((currentMax, point) => {
+      return Math.max(currentMax, point.invalid_ratio);
+    }, 0) || 1;
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelTitle}>
+        <h2>Validation Series</h2>
+        <span className={styles.muted}>snapshot별 invalid 비율과 주요 issue</span>
+      </div>
+      {series.points.length === 0 ? (
+        <EmptyBox message="validation series를 표시할 snapshot이 없습니다." />
+      ) : (
+        <>
+          <div className={styles.seriesChart}>
+            {series.points.map((point) => {
+              const heightPercent =
+                point.invalid_ratio > 0
+                  ? Math.max((point.invalid_ratio / maxInvalidRatio) * 100, 12)
+                  : 10;
+              return (
+                <div key={point.snapshot_id} className={styles.seriesBar}>
+                  <div className={styles.seriesBarTrack}>
+                    <div
+                      className={`${styles.seriesBarFill} ${
+                        point.invalid_ratio === 0 ? styles.seriesBarMuted : ""
+                      }`}
+                      style={{ height: `${heightPercent}%` }}
+                    />
+                  </div>
+                  <span className={styles.seriesBarValue}>
+                    {formatPercent(point.invalid_ratio)}
+                  </span>
+                  <span className={styles.seriesBarLabel}>
+                    #{point.snapshot_id}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Snapshot</th>
+                  <th>Status</th>
+                  <th>Captured At</th>
+                  <th>Invalid Ratio</th>
+                  <th>Invalid Entries</th>
+                  <th>Top Issue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {series.points.map((point) => (
+                  <tr key={point.snapshot_id}>
+                    <td>
+                      <Link href={`/snapshots/${point.snapshot_id}`}>
+                        #{point.snapshot_id}
+                      </Link>
+                    </td>
+                    <td>
+                      <StatusBadge status={point.status} />
+                    </td>
+                    <td>{formatDate(point.captured_at)}</td>
+                    <td>{formatPercent(point.invalid_ratio)}</td>
+                    <td>{point.invalid_entry_count.toLocaleString()}</td>
+                    <td>{point.top_validation_issue?.code ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -795,6 +896,14 @@ function formatSignedNumber(value: number | null) {
   }
 
   return `${value > 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat("ko-KR", {
+    style: "percent",
+    maximumFractionDigits: 1,
+    minimumFractionDigits: value === 0 ? 0 : 1,
+  }).format(value);
 }
 
 function getTopValidationIssue(

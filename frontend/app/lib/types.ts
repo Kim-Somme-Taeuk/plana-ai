@@ -46,6 +46,11 @@ export type RankingSnapshotValidationIssueCount = {
   count: number;
 };
 
+export type ValidationTopIssue = {
+  code: string;
+  count: number;
+};
+
 export type RankingSnapshotValidationReport = {
   snapshot_id: number;
   status: string;
@@ -53,8 +58,10 @@ export type RankingSnapshotValidationReport = {
   valid_entry_count: number;
   invalid_entry_count: number;
   excluded_from_statistics_count: number;
+  invalid_ratio: number;
   duplicate_rank_count: number;
   has_rank_order_violation: boolean;
+  top_validation_issue: ValidationTopIssue | null;
   validation_issues: RankingSnapshotValidationIssueCount[];
 };
 
@@ -68,7 +75,25 @@ export type SeasonValidationOverview = {
   valid_entry_count: number;
   invalid_entry_count: number;
   excluded_from_statistics_count: number;
+  invalid_ratio: number;
+  top_validation_issue: ValidationTopIssue | null;
   validation_issues: RankingSnapshotValidationIssueCount[];
+};
+
+export type SeasonValidationSeriesPoint = {
+  snapshot_id: number;
+  captured_at: string;
+  status: string;
+  total_entry_count: number;
+  valid_entry_count: number;
+  invalid_entry_count: number;
+  invalid_ratio: number;
+  top_validation_issue: ValidationTopIssue | null;
+};
+
+export type SeasonValidationSeries = {
+  season_id: number;
+  points: SeasonValidationSeriesPoint[];
 };
 
 export type RankingSnapshotSummary = {

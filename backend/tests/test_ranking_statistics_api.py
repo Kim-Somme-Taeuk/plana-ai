@@ -208,8 +208,13 @@ def test_get_ranking_snapshot_validation_report_returns_expected_values(
         "valid_entry_count": 2,
         "invalid_entry_count": 1,
         "excluded_from_statistics_count": 1,
+        "invalid_ratio": 1 / 3,
         "duplicate_rank_count": 0,
         "has_rank_order_violation": True,
+        "top_validation_issue": {
+            "code": "low_ocr_confidence",
+            "count": 1,
+        },
         "validation_issues": [{"code": "low_ocr_confidence", "count": 1}],
     }
 
@@ -298,6 +303,11 @@ def test_get_season_validation_overview_returns_expected_values(
         "valid_entry_count": 1,
         "invalid_entry_count": 2,
         "excluded_from_statistics_count": 2,
+        "invalid_ratio": 2 / 3,
+        "top_validation_issue": {
+            "code": "missing_player_name",
+            "count": 1,
+        },
         "validation_issues": [
             {"code": "low_ocr_confidence", "count": 1},
             {"code": "missing_player_name", "count": 1},
@@ -309,6 +319,128 @@ def test_get_season_validation_overview_returns_404_for_missing_season(
     client,
 ) -> None:
     response = client.get("/seasons/999999/validation-overview")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Season not found"
+
+
+def test_get_season_validation_series_returns_expected_values(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    completed_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) - timedelta(hours=2),
+        source_type="mock_json",
+        status="completed",
+        total_rows_collected=2,
+        note="completed snapshot",
+    )
+    failed_snapshot = RankingSnapshot(
+        season_id=ranking_snapshot.season_id,
+        captured_at=datetime.now(UTC) - timedelta(hours=1),
+        source_type="mock_json",
+        status="failed",
+        total_rows_collected=1,
+        note="failed snapshot",
+    )
+    db_session.add_all([completed_snapshot, failed_snapshot])
+    db_session.flush()
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=completed_snapshot.id,
+                rank=1,
+                score=10000,
+                player_name="Valid",
+                ocr_confidence=0.99,
+                raw_text="1 Valid 10000",
+                image_path="/tmp/valid.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=completed_snapshot.id,
+                rank=2,
+                score=9000,
+                player_name="Invalid OCR",
+                ocr_confidence=0.2,
+                raw_text="2 Invalid OCR 9000",
+                image_path="/tmp/invalid-ocr.png",
+                is_valid=False,
+                validation_issue="low_ocr_confidence",
+            ),
+            RankingEntry(
+                ranking_snapshot_id=failed_snapshot.id,
+                rank=3,
+                score=8000,
+                player_name="Missing",
+                ocr_confidence=0.9,
+                raw_text="3 Missing 8000",
+                image_path="/tmp/missing.png",
+                is_valid=False,
+                validation_issue="missing_player_name",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/seasons/{ranking_snapshot.season_id}/validation-series")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["season_id"] == ranking_snapshot.season_id
+    assert payload["points"] == [
+        {
+            "snapshot_id": completed_snapshot.id,
+            "captured_at": completed_snapshot.captured_at.isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "status": "completed",
+            "total_entry_count": 2,
+            "valid_entry_count": 1,
+            "invalid_entry_count": 1,
+            "invalid_ratio": 0.5,
+            "top_validation_issue": {
+                "code": "low_ocr_confidence",
+                "count": 1,
+            },
+        },
+        {
+            "snapshot_id": failed_snapshot.id,
+            "captured_at": failed_snapshot.captured_at.isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "status": "failed",
+            "total_entry_count": 1,
+            "valid_entry_count": 0,
+            "invalid_entry_count": 1,
+            "invalid_ratio": 1.0,
+            "top_validation_issue": {
+                "code": "missing_player_name",
+                "count": 1,
+            },
+        },
+        {
+            "snapshot_id": ranking_snapshot.id,
+            "captured_at": ranking_snapshot.captured_at.isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "status": "collecting",
+            "total_entry_count": 0,
+            "valid_entry_count": 0,
+            "invalid_entry_count": 0,
+            "invalid_ratio": 0.0,
+            "top_validation_issue": None,
+        },
+    ]
+
+
+def test_get_season_validation_series_returns_404_for_missing_season(
+    client,
+) -> None:
+    response = client.get("/seasons/999999/validation-series")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Season not found"

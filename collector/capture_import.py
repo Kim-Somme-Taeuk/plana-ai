@@ -200,8 +200,8 @@ def parse_capture_payload(
                 "entry_count": len(page_entries),
                 "ignored_line_count": len(page_ignored_lines),
                 "ignored_line_reasons": summarize_ignored_lines(page_ignored_lines),
-                "first_rank": min(current_page_ranks),
-                "last_rank": max(current_page_ranks),
+                "first_rank": min(current_page_ranks) if current_page_ranks else None,
+                "last_rank": max(current_page_ranks) if current_page_ranks else None,
                 "overlap_with_previous_count": overlap_count,
                 "overlap_with_previous_ratio": round(overlap_ratio, 4),
                 "overlap_with_previous_ranks": overlap_ranks,
@@ -257,26 +257,52 @@ def build_ocr_stop_hints(
 
     hints: list[dict[str, Any]] = []
     last_page = page_summaries[-1]
+    last_page_entry_count = int(last_page.get("entry_count", 0))
+    last_page_ignored_line_count = int(last_page.get("ignored_line_count", 0))
+    last_page_overlap_count = int(last_page.get("overlap_with_previous_count", 0))
+    last_page_overlap_ratio = float(last_page.get("overlap_with_previous_ratio", 0.0))
 
-    if len(page_summaries) >= 2 and last_page["entry_count"] <= 3:
+    if len(page_summaries) >= 2 and last_page_entry_count == 0:
+        hints.append(
+            {
+                "reason": "empty_last_page",
+                "page_index": last_page["page_index"],
+            }
+        )
+
+    if len(page_summaries) >= 2 and last_page_entry_count <= 3:
         hints.append(
             {
                 "reason": "sparse_last_page",
                 "page_index": last_page["page_index"],
-                "entry_count": last_page["entry_count"],
+                "entry_count": last_page_entry_count,
             }
         )
 
     if (
-        last_page["ignored_line_count"] >= last_page["entry_count"]
-        and last_page["ignored_line_count"] > 0
+        len(page_summaries) >= 2
+        and last_page_entry_count > 0
+        and last_page_overlap_ratio >= 0.5
+    ):
+        hints.append(
+            {
+                "reason": "overlapping_last_page",
+                "page_index": last_page["page_index"],
+                "overlap_with_previous_count": last_page_overlap_count,
+                "overlap_with_previous_ratio": last_page_overlap_ratio,
+            }
+        )
+
+    if (
+        last_page_ignored_line_count >= last_page_entry_count
+        and last_page_ignored_line_count > 0
     ):
         hints.append(
             {
                 "reason": "noisy_last_page",
                 "page_index": last_page["page_index"],
-                "ignored_line_count": last_page["ignored_line_count"],
-                "entry_count": last_page["entry_count"],
+                "ignored_line_count": last_page_ignored_line_count,
+                "entry_count": last_page_entry_count,
             }
         )
 
@@ -509,11 +535,6 @@ def _parse_page_entries(
             line_index=line_index,
         )
         entries.append(entry)
-
-    if not entries:
-        raise MockImportError(
-            f"page {page_index}에서 파싱 가능한 OCR entry가 없습니다: {image_path}"
-        )
 
     return entries, ignored_lines
 

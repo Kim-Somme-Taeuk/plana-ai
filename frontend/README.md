@@ -22,8 +22,9 @@
 - `GET /seasons/{season_id}/ranking-snapshots`
 - `GET /seasons/{season_id}/cutoff-series?rank=...`
 - `GET /seasons/{season_id}/validation-overview`
+- `GET /seasons/{season_id}/validation-series`
 - 시즌 요약
-- season validation overview / issue 집계
+- season validation overview / validation series / issue 집계
 - snapshot 목록
 - snapshot status / source 필터
 - snapshot compare 패널

@@ -8,6 +8,11 @@ class RankingSnapshotValidationIssueCountRead(BaseModel):
     count: int
 
 
+class ValidationTopIssueRead(BaseModel):
+    code: str
+    count: int
+
+
 class RankingSnapshotSummaryRead(BaseModel):
     snapshot_id: int
     season_id: int
@@ -28,8 +33,10 @@ class RankingSnapshotValidationReportRead(BaseModel):
     valid_entry_count: int
     invalid_entry_count: int
     excluded_from_statistics_count: int
+    invalid_ratio: float
     duplicate_rank_count: int
     has_rank_order_violation: bool
+    top_validation_issue: ValidationTopIssueRead | None = None
     validation_issues: list[RankingSnapshotValidationIssueCountRead]
 
 
@@ -43,7 +50,25 @@ class SeasonValidationOverviewRead(BaseModel):
     valid_entry_count: int
     invalid_entry_count: int
     excluded_from_statistics_count: int
+    invalid_ratio: float
+    top_validation_issue: ValidationTopIssueRead | None = None
     validation_issues: list[RankingSnapshotValidationIssueCountRead]
+
+
+class SeasonValidationSeriesPointRead(BaseModel):
+    snapshot_id: int
+    captured_at: datetime
+    status: str
+    total_entry_count: int
+    valid_entry_count: int
+    invalid_entry_count: int
+    invalid_ratio: float
+    top_validation_issue: ValidationTopIssueRead | None = None
+
+
+class SeasonValidationSeriesRead(BaseModel):
+    season_id: int
+    points: list[SeasonValidationSeriesPointRead]
 
 
 class RankingSnapshotCutoffRead(BaseModel):

@@ -269,6 +269,51 @@ def test_parse_capture_payload_reports_multi_page_summaries(
     ]
 
 
+def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12345678\t0.99\n",
+    )
+    _write_capture_page(
+        tmp_path,
+        "page-002.png",
+        "\n-----\n총 참여 인원 999\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-empty-last-page-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+        ],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert parsed_payload.page_summaries[1] == {
+        "page_index": 2,
+        "image_path": capture_import._build_entry_image_path(
+            (tmp_path / "page-002.png").resolve()
+        ),
+        "entry_count": 0,
+        "ignored_line_count": 3,
+        "ignored_line_reasons": [
+            {"reason": "blank_line", "count": 1},
+            {"reason": "non_entry_line", "count": 1},
+            {"reason": "separator_line", "count": 1},
+        ],
+        "first_rank": None,
+        "last_rank": None,
+        "overlap_with_previous_count": 0,
+        "overlap_with_previous_ratio": 0.0,
+        "overlap_with_previous_ranks": [],
+    }
+
+
 def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
     page_summaries = [
         {
@@ -298,6 +343,62 @@ def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:
         "should_stop": True,
         "reasons": ["sparse_last_page", "noisy_last_page"],
     }
+
+
+def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
+    assert build_ocr_stop_hints(
+        [
+            {
+                "page_index": 1,
+                "entry_count": 20,
+                "ignored_line_count": 0,
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+            },
+            {
+                "page_index": 2,
+                "entry_count": 0,
+                "ignored_line_count": 2,
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+            },
+        ]
+    ) == [
+        {"reason": "empty_last_page", "page_index": 2},
+        {"reason": "sparse_last_page", "page_index": 2, "entry_count": 0},
+        {
+            "reason": "noisy_last_page",
+            "page_index": 2,
+            "ignored_line_count": 2,
+            "entry_count": 0,
+        },
+    ]
+
+    assert build_ocr_stop_hints(
+        [
+            {
+                "page_index": 1,
+                "entry_count": 20,
+                "ignored_line_count": 0,
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+            },
+            {
+                "page_index": 2,
+                "entry_count": 4,
+                "ignored_line_count": 1,
+                "overlap_with_previous_count": 3,
+                "overlap_with_previous_ratio": 0.75,
+            },
+        ]
+    ) == [
+        {
+            "reason": "overlapping_last_page",
+            "page_index": 2,
+            "overlap_with_previous_count": 3,
+            "overlap_with_previous_ratio": 0.75,
+        }
+    ]
 
 
 def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_duplicate_rank(

@@ -41,6 +41,9 @@ retry_curl "$BACKEND_URL/ranking-snapshots/$SMOKE_SNAPSHOT_ID/validation-report"
 echo "[smoke] backend season validation overview"
 retry_curl "$BACKEND_URL/seasons/$SMOKE_SEASON_ID/validation-overview"
 
+echo "[smoke] backend season validation series"
+retry_curl "$BACKEND_URL/seasons/$SMOKE_SEASON_ID/validation-series"
+
 echo "[smoke] frontend root"
 retry_curl "$FRONTEND_URL/"
 

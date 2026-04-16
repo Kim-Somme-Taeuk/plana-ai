@@ -152,6 +152,8 @@ backend/.venv/bin/python collector/capture_import.py \
 - rank로 시작하지 않는 OCR 잡음 줄은 import 전에 무시하고 결과에 `ignored_lines`로 남깁니다.
 - 빈 줄도 `blank_line` reason으로 집계합니다.
 - 구분선처럼 보이는 줄은 `separator_line` reason으로 집계합니다.
+- entry가 전혀 없는 마지막 페이지도 summary에 남기며, `empty_last_page` 종료 힌트 계산에 사용합니다.
+- 이전 페이지와 rank가 많이 겹치는 마지막 페이지는 `overlapping_last_page` 힌트로 표시합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
@@ -260,7 +262,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 - 로컬에 `adb` 명령이 있어야 합니다.
 - 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
 - 마지막 페이지 판정 2차는 screenshot 바이트 동일 또는 과거 프레임 재등장 여부 기반입니다.
-- OCR import 이후에는 `ocr_stop_hints`로 `sparse_last_page`, `noisy_last_page` 같은 후속 종료 힌트를 남깁니다.
+- OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page` 같은 후속 종료 힌트를 남깁니다.
 - `pipeline_stop_recommendation`은 capture 종료 사유와 OCR 종료 힌트를 합쳐 후속 자동화가 바로 쓸 수 있는 최종 stop 판단입니다.
 - OCR 실행과 backend import는 `capture_import.py`에서 이어집니다.
 - 생성 결과는 `capture_import.py` 입력 포맷과 호환됩니다.

@@ -7,6 +7,7 @@ import {
   ErrorBox,
   PageShell,
   SeasonValidationOverviewPanel,
+  SeasonValidationSeriesPanel,
   SeasonSummary,
   SnapshotComparisonPanel,
   SnapshotList,
@@ -19,6 +20,7 @@ import {
   getSnapshotSummary,
   getSeasonCutoffSeries,
   getSeasonSnapshots,
+  getSeasonValidationSeries,
   getSeasonValidationOverview,
 } from "../../lib/api";
 
@@ -56,12 +58,19 @@ export default async function SeasonDetailPage({
   const requestedCompareLeft = Number(resolvedSearchParams.compareLeft ?? "");
   const requestedCompareRight = Number(resolvedSearchParams.compareRight ?? "");
 
-  const [seasonResult, snapshotsResult, seriesResult, validationOverviewResult] =
+  const [
+    seasonResult,
+    snapshotsResult,
+    seriesResult,
+    validationOverviewResult,
+    validationSeriesResult,
+  ] =
     await Promise.all([
       getSeason(numericSeasonId),
       getSeasonSnapshots(numericSeasonId),
       getSeasonCutoffSeries(numericSeasonId, Number.isNaN(seriesRank) ? 10 : seriesRank),
       getSeasonValidationOverview(numericSeasonId),
+      getSeasonValidationSeries(numericSeasonId),
     ]);
 
   const season = seasonResult.data;
@@ -147,6 +156,17 @@ export default async function SeasonDetailPage({
                 <SeasonValidationOverviewPanel
                   overview={validationOverviewResult.data}
                 />
+                {validationSeriesResult.error || !validationSeriesResult.data ? (
+                  <ErrorBox
+                    message={`validation series를 불러오지 못했습니다. ${
+                      validationSeriesResult.error ?? "알 수 없는 오류입니다."
+                    }`}
+                  />
+                ) : (
+                  <SeasonValidationSeriesPanel
+                    series={validationSeriesResult.data}
+                  />
+                )}
                 <ValidationIssuesPanel
                   issues={validationOverviewResult.data.validation_issues}
                 />

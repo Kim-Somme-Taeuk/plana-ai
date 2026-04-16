@@ -16,7 +16,10 @@ from app.schemas.ranking_statistics import (
     RankingSnapshotSummaryRead,
     RankingSnapshotValidationReportRead,
     RankingSnapshotValidationIssueCountRead,
+    SeasonValidationSeriesPointRead,
+    SeasonValidationSeriesRead,
     SeasonValidationOverviewRead,
+    ValidationTopIssueRead,
     SeasonCutoffSeriesPointRead,
     SeasonCutoffSeriesRead,
 )
@@ -126,6 +129,24 @@ def _get_validation_issue_counts(
     ]
 
 
+def _get_top_validation_issue(
+    issues: list[RankingSnapshotValidationIssueCountRead],
+) -> ValidationTopIssueRead | None:
+    if not issues:
+        return None
+
+    top_issue = max(issues, key=lambda issue: (issue.count, issue.code))
+    return ValidationTopIssueRead(code=top_issue.code, count=top_issue.count)
+
+
+def _calculate_invalid_ratio(valid_entry_count: int, invalid_entry_count: int) -> float:
+    total_entry_count = valid_entry_count + invalid_entry_count
+    if total_entry_count == 0:
+        return 0.0
+
+    return invalid_entry_count / total_entry_count
+
+
 def _get_valid_scores(db: Session, snapshot_id: int) -> list[int]:
     return list(
         db.scalars(
@@ -167,6 +188,7 @@ def _build_snapshot_validation_report(
 ) -> RankingSnapshotValidationReportRead:
     valid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, True)
     invalid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, False)
+    validation_issues = _get_validation_issue_counts(db, snapshot.id)
     entry_rows = db.execute(
         select(RankingEntry.rank).where(
             RankingEntry.ranking_snapshot_id == snapshot.id,
@@ -183,9 +205,11 @@ def _build_snapshot_validation_report(
         valid_entry_count=valid_entry_count,
         invalid_entry_count=invalid_entry_count,
         excluded_from_statistics_count=invalid_entry_count,
+        invalid_ratio=_calculate_invalid_ratio(valid_entry_count, invalid_entry_count),
         duplicate_rank_count=len(validation_summary.duplicate_ranks),
         has_rank_order_violation=validation_summary.has_rank_order_violation,
-        validation_issues=_get_validation_issue_counts(db, snapshot.id),
+        top_validation_issue=_get_top_validation_issue(validation_issues),
+        validation_issues=validation_issues,
     )
 
 
@@ -339,6 +363,11 @@ def _build_season_validation_overview(
 
     snapshot_count = sum(snapshot_counts.values())
 
+    validation_issues = [
+        RankingSnapshotValidationIssueCountRead(code=code, count=count)
+        for code, count in issue_rows
+    ]
+
     return SeasonValidationOverviewRead(
         season_id=season.id,
         snapshot_count=snapshot_count,
@@ -349,10 +378,45 @@ def _build_season_validation_overview(
         valid_entry_count=valid_entry_count,
         invalid_entry_count=invalid_entry_count,
         excluded_from_statistics_count=invalid_entry_count,
-        validation_issues=[
-            RankingSnapshotValidationIssueCountRead(code=code, count=count)
-            for code, count in issue_rows
-        ],
+        invalid_ratio=_calculate_invalid_ratio(valid_entry_count, invalid_entry_count),
+        top_validation_issue=_get_top_validation_issue(validation_issues),
+        validation_issues=validation_issues,
+    )
+
+
+def _build_season_validation_series(
+    db: Session,
+    season: Season,
+) -> SeasonValidationSeriesRead:
+    snapshots = list(
+        db.scalars(
+            select(RankingSnapshot)
+            .where(RankingSnapshot.season_id == season.id)
+            .order_by(RankingSnapshot.captured_at.asc(), RankingSnapshot.id.asc())
+        ).all()
+    )
+
+    points: list[SeasonValidationSeriesPointRead] = []
+    for snapshot in snapshots:
+        valid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, True)
+        invalid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, False)
+        validation_issues = _get_validation_issue_counts(db, snapshot.id)
+        points.append(
+            SeasonValidationSeriesPointRead(
+                snapshot_id=snapshot.id,
+                captured_at=snapshot.captured_at,
+                status=snapshot.status,
+                total_entry_count=valid_entry_count + invalid_entry_count,
+                valid_entry_count=valid_entry_count,
+                invalid_entry_count=invalid_entry_count,
+                invalid_ratio=_calculate_invalid_ratio(valid_entry_count, invalid_entry_count),
+                top_validation_issue=_get_top_validation_issue(validation_issues),
+            )
+        )
+
+    return SeasonValidationSeriesRead(
+        season_id=season.id,
+        points=points,
     )
 
 
@@ -494,3 +558,15 @@ def get_season_validation_overview(
 ) -> SeasonValidationOverviewRead:
     season = _get_season_or_404(db, season_id)
     return _build_season_validation_overview(db, season)
+
+
+@router.get(
+    "/seasons/{season_id}/validation-series",
+    response_model=SeasonValidationSeriesRead,
+)
+def get_season_validation_series(
+    season_id: int,
+    db: Session = Depends(get_db),
+) -> SeasonValidationSeriesRead:
+    season = _get_season_or_404(db, season_id)
+    return _build_season_validation_series(db, season)
