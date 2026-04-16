@@ -1,0 +1,22 @@
+{
+  "season": {
+    "event_type": "total_assault",
+    "server": "kr",
+    "boss_name": "Binah",
+    "armor_type": "heavy",
+    "terrain": "outdoor",
+    "season_label": "capture-valid-season-20260416-a",
+    "started_at": "2026-04-16T09:00:00Z",
+    "ended_at": "2026-04-23T09:00:00Z"
+  },
+  "snapshot": {
+    "captured_at": "2026-04-16T10:20:00Z",
+    "source_type": "image_sidecar",
+    "note": "sample valid capture import"
+  },
+  "pages": [
+    {
+      "image_path": "page-001.png"
+    }
+  ]
+}
