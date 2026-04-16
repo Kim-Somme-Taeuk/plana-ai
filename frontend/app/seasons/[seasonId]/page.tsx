@@ -18,6 +18,7 @@ import {
   getSnapshotCutoffs,
   getSnapshotDistribution,
   getSnapshotSummary,
+  getSnapshotValidationReport,
   getSeasonCutoffSeries,
   getSeasonSnapshots,
   getSeasonValidationSeries,
@@ -141,6 +142,8 @@ export default async function SeasonDetailPage({
         getSnapshotCutoffs(selectedCompareRight.id),
         getSnapshotDistribution(selectedCompareLeft.id),
         getSnapshotDistribution(selectedCompareRight.id),
+        getSnapshotValidationReport(selectedCompareLeft.id),
+        getSnapshotValidationReport(selectedCompareRight.id),
       ])
     : null;
   const comparisonHasError =
@@ -386,6 +389,8 @@ export default async function SeasonDetailPage({
                 rightCutoffs={compareResults[3].data!}
                 leftDistribution={compareResults[4].data!}
                 rightDistribution={compareResults[5].data!}
+                leftValidationReport={compareResults[6].data!}
+                rightValidationReport={compareResults[7].data!}
               />
             )}
 

@@ -631,6 +631,8 @@ export function SnapshotComparisonPanel({
   rightCutoffs,
   leftDistribution,
   rightDistribution,
+  leftValidationReport,
+  rightValidationReport,
 }: {
   leftSnapshot: RankingSnapshot;
   rightSnapshot: RankingSnapshot;
@@ -640,6 +642,8 @@ export function SnapshotComparisonPanel({
   rightCutoffs: RankingSnapshotCutoffs;
   leftDistribution: RankingSnapshotDistribution;
   rightDistribution: RankingSnapshotDistribution;
+  leftValidationReport: RankingSnapshotValidationReport;
+  rightValidationReport: RankingSnapshotValidationReport;
 }) {
   const leftCutoffMap = new Map(
     leftCutoffs.cutoffs.map((cutoff) => [cutoff.rank, cutoff.score]),
@@ -661,6 +665,8 @@ export function SnapshotComparisonPanel({
   ).sort();
   const leftTopIssue = getTopValidationIssue(leftSummary.validation_issues);
   const rightTopIssue = getTopValidationIssue(rightSummary.validation_issues);
+  const leftCollectorDiagnostics = leftValidationReport.collector_diagnostics;
+  const rightCollectorDiagnostics = rightValidationReport.collector_diagnostics;
 
   return (
     <section className={styles.panel}>
@@ -740,6 +746,22 @@ export function SnapshotComparisonPanel({
           label="Right Invalid Ratio"
           value={formatPercent(calculateInvalidRatio(rightSummary))}
         />
+        <StatCard
+          label="Left Collector Stop"
+          value={formatCollectorStop(leftCollectorDiagnostics)}
+        />
+        <StatCard
+          label="Right Collector Stop"
+          value={formatCollectorStop(rightCollectorDiagnostics)}
+        />
+        <StatCard
+          label="Left Ignored OCR"
+          value={formatCollectorIgnoredCount(leftCollectorDiagnostics)}
+        />
+        <StatCard
+          label="Right Ignored OCR"
+          value={formatCollectorIgnoredCount(rightCollectorDiagnostics)}
+        />
       </div>
 
       <div className={styles.tableWrap}>
@@ -787,6 +809,21 @@ export function SnapshotComparisonPanel({
               label="Median Score"
               leftValue={leftDistribution.median_score}
               rightValue={rightDistribution.median_score}
+            />
+            <CompareRow
+              label="Ignored OCR Lines"
+              leftValue={leftCollectorDiagnostics?.ignored_line_count ?? null}
+              rightValue={rightCollectorDiagnostics?.ignored_line_count ?? null}
+            />
+            <CompareTextRow
+              label="Collector Pages"
+              leftValue={leftCollectorDiagnostics ? formatCollectorPages(leftCollectorDiagnostics) : "-"}
+              rightValue={rightCollectorDiagnostics ? formatCollectorPages(rightCollectorDiagnostics) : "-"}
+            />
+            <CompareTextRow
+              label="Collector Stop"
+              leftValue={formatCollectorStop(leftCollectorDiagnostics)}
+              rightValue={formatCollectorStop(rightCollectorDiagnostics)}
             />
           </tbody>
         </table>
@@ -1085,6 +1122,25 @@ function CompareRow({
   );
 }
 
+function CompareTextRow({
+  label,
+  leftValue,
+  rightValue,
+}: {
+  label: string;
+  leftValue: string;
+  rightValue: string;
+}) {
+  return (
+    <tr>
+      <td>{label}</td>
+      <td>{leftValue}</td>
+      <td>{rightValue}</td>
+      <td>{leftValue === rightValue ? "same" : "-"}</td>
+    </tr>
+  );
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     dateStyle: "medium",
@@ -1168,6 +1224,14 @@ function formatCollectorStop(diagnostics: CollectorDiagnostics | null) {
   }
 
   return "-";
+}
+
+function formatCollectorIgnoredCount(diagnostics: CollectorDiagnostics | null) {
+  if (!diagnostics) {
+    return "-";
+  }
+
+  return diagnostics.ignored_line_count.toLocaleString();
 }
 
 function formatCollectorDiagnosticsSummary(
