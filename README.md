@@ -282,11 +282,11 @@ JSON 파일만으로 아래 흐름을 검증합니다.
   - capture manifest 자동 생성
 - `run_capture_pipeline.py`
   - `adb_capture -> capture_import -> backend import`를 한 번에 실행
-  - `ocr_stop_hints`로 empty/sparse/noisy/overlap 마지막 페이지 힌트 제공
+  - `ocr_stop_hints`로 empty/sparse/noisy/overlap/duplicate 마지막 페이지 힌트 제공
   - `ocr_stop_recommendation`으로 hard/soft level과 primary reason이 포함된 stop 판단 제공
   - `pipeline_stop_recommendation`으로 capture 종료 사유와 OCR 종료 판단을 통합 제공
   - 필요하면 hard/any stop recommendation 시점에 backend import를 건너뛸 수 있음
-  - 필요하면 hard/any stop recommendation 시점에 남은 ADB 캡처도 조기 종료할 수 있음
+  - 기본적으로 hard stop recommendation 시점에는 남은 ADB 캡처를 조기 종료하고, 필요하면 끌 수 있음
   - `stop_capture_on_recommendation=any`는 soft OCR stop hint가 연속 반복될 때만 조기 종료
   - `pipeline.min_pages_before_ocr_stop`, `pipeline.soft_stop_repeat_threshold`로 OCR 기반 조기 종료 정책을 더 보수적으로 조절 가능
   - import된 snapshot note에도 collector 진단 요약을 남길 수 있음

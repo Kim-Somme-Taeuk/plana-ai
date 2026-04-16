@@ -158,6 +158,7 @@ backend/.venv/bin/python collector/capture_import.py \
 - 구분선처럼 보이는 줄은 `separator_line` reason으로 집계합니다.
 - entry가 전혀 없는 마지막 페이지도 summary에 남기며, `empty_last_page` 종료 힌트 계산에 사용합니다.
 - 이전 페이지와 rank가 많이 겹치는 마지막 페이지는 `overlapping_last_page` 힌트로 표시합니다.
+- 이전 페이지와 rank가 완전히 같은 마지막 페이지는 `duplicate_last_page` hard 종료 힌트로 표시합니다.
 - duplicate rank는 upload 전에 `duplicate_rank`로 실패합니다.
 - rank 순서 이상은 경고만 출력하고 import는 계속 진행합니다.
 
@@ -267,7 +268,7 @@ backend/.venv/bin/python collector/adb_capture.py \
 - 로컬에 `adb` 명령이 있어야 합니다.
 - 이 단계는 screenshot 캡처와 기본 scroll 반복까지만 수행합니다.
 - 마지막 페이지 판정 2차는 screenshot 바이트 동일 또는 과거 프레임 재등장 여부 기반입니다.
-- OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page` 같은 후속 종료 힌트를 남깁니다.
+- OCR import 이후에는 `ocr_stop_hints`로 `empty_last_page`, `sparse_last_page`, `noisy_last_page`, `overlapping_last_page`, `duplicate_last_page` 같은 후속 종료 힌트를 남깁니다.
 - `ocr_stop_recommendation`은 `hard` / `soft` level과 `primary_reason`을 함께 반환합니다.
 - `pipeline_stop_recommendation`은 capture 종료 사유와 OCR 종료 힌트를 합쳐 후속 자동화가 바로 쓸 수 있는 최종 stop 판단입니다.
 - import 시 snapshot `note`에는 기존 note를 유지한 채 collector 진단 요약이 자동으로 덧붙습니다.
@@ -316,7 +317,8 @@ backend/.venv/bin/python collector/run_capture_pipeline.py \
 - 요청 파일에 `ocr.provider`를 생략하면 통합 파이프라인에서는 `tesseract`를 기본값으로 사용합니다.
 - 요청 또는 CLI에서 `stop_on_recommendation`을 켜면 `hard` recommendation(`empty_last_page`, `noisy_last_page`, capture stop 사유)이 있을 때 backend import를 건너뜁니다.
 - `pipeline.stop_on_recommendation: "any"` 또는 `--stop-on-soft-recommendation`을 쓰면 `soft` recommendation(`sparse_last_page`, `overlapping_last_page`)까지 포함해서 import를 건너뜁니다.
-- 요청 또는 CLI에서 `stop_capture_on_recommendation`을 켜면 `hard` recommendation 시점에 남은 캡처를 조기 종료합니다.
+- 통합 파이프라인은 별도 설정이 없어도 `hard` recommendation 시점에 남은 캡처를 기본적으로 조기 종료합니다.
+- 요청 또는 CLI에서 `stop_capture_on_recommendation=false|off`를 주면 이 기본 동작을 끌 수 있습니다.
 - `pipeline.stop_capture_on_recommendation: "any"` 또는 `--stop-capture-on-soft-recommendation`을 쓰면 `soft` recommendation까지 포함해서 남은 캡처를 조기 종료합니다.
 - `pipeline.min_pages_before_ocr_stop`로 OCR 기반 조기 종료가 시작되기 전 최소 캡처 페이지 수를 조절할 수 있습니다. 기본값은 `2`입니다.
 - `pipeline.soft_stop_repeat_threshold`로 같은 soft OCR stop reason이 몇 번 연속 반복돼야 실제 조기 종료할지 조절할 수 있습니다. 기본값은 `2`입니다.

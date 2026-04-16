@@ -97,6 +97,7 @@ def run_capture_pipeline(
         requested_stop_on_recommendation=stop_capture_on_recommendation,
         request=request,
         key="stop_capture_on_recommendation",
+        default_mode="hard",
     )
 
     capture_result = capture_adb_screenshot(
@@ -132,6 +133,7 @@ def run_capture_pipeline(
         requested_stop_on_recommendation=stop_on_recommendation,
         request=request,
         key="stop_on_recommendation",
+        default_mode="off",
     )
     should_skip_import = _should_skip_import_on_recommendation(
         mode=stop_on_recommendation_mode,
@@ -209,9 +211,13 @@ def _resolve_stop_on_recommendation(
     requested_stop_on_recommendation: str | None,
     request,
     key: str,
+    default_mode: str = "off",
 ) -> str:
     if requested_stop_on_recommendation is not None:
         return requested_stop_on_recommendation
+
+    if key not in request.pipeline:
+        return default_mode
 
     raw_value = request.pipeline.get(key, False)
     if isinstance(raw_value, bool):
@@ -325,7 +331,8 @@ def _build_after_capture_page_callback(
                     "stopped_source": None,
                     "stopped_level": None,
                 },
-            )
+            ),
+            validate_snapshot_entries=False,
         )
         ocr_stop_recommendation = build_ocr_stop_recommendation(
             build_ocr_stop_hints(parsed_payload.page_summaries)
@@ -381,6 +388,7 @@ def _build_capture_stop_decision(
             reason=reason,
             source="ocr",
             level=level,
+            discard_last_page=(reason == "duplicate_last_page"),
         )
 
     if mode != "any":
@@ -397,6 +405,7 @@ def _build_capture_stop_decision(
         reason=reason,
         source="ocr",
         level=level,
+        discard_last_page=(reason == "duplicate_last_page"),
     )
 
 

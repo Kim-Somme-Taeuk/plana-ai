@@ -209,6 +209,8 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
             "overlap_with_previous_ranks": [],
+            "new_rank_count": 1,
+            "new_rank_ratio": 1.0,
         }
     ]
     assert parsed_payload.mock_payload.snapshot["note"] == (
@@ -280,6 +282,8 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
             "overlap_with_previous_ranks": [],
+            "new_rank_count": 2,
+            "new_rank_ratio": 1.0,
         },
         {
             "page_index": 2,
@@ -294,6 +298,8 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_count": 0,
             "overlap_with_previous_ratio": 0.0,
             "overlap_with_previous_ranks": [],
+            "new_rank_count": 2,
+            "new_rank_ratio": 1.0,
         },
     ]
     assert parsed_payload.mock_payload.snapshot["note"] == "capture import test fixture"
@@ -341,6 +347,8 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "overlap_with_previous_count": 0,
         "overlap_with_previous_ratio": 0.0,
         "overlap_with_previous_ranks": [],
+        "new_rank_count": 0,
+        "new_rank_ratio": 0.0,
     }
     assert parsed_payload.mock_payload.snapshot["note"] == (
         "capture import test fixture\n"
@@ -488,6 +496,38 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
         }
     ]
 
+    assert build_ocr_stop_hints(
+        [
+            {
+                "page_index": 1,
+                "entry_count": 4,
+                "ignored_line_count": 0,
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+            },
+            {
+                "page_index": 2,
+                "entry_count": 4,
+                "ignored_line_count": 0,
+                "overlap_with_previous_count": 4,
+                "overlap_with_previous_ratio": 1.0,
+            },
+        ]
+    ) == [
+        {
+            "reason": "overlapping_last_page",
+            "page_index": 2,
+            "overlap_with_previous_count": 4,
+            "overlap_with_previous_ratio": 1.0,
+        },
+        {
+            "reason": "duplicate_last_page",
+            "page_index": 2,
+            "overlap_with_previous_count": 4,
+            "overlap_with_previous_ratio": 1.0,
+        },
+    ]
+
     assert build_ocr_stop_recommendation(
         [
             {
@@ -502,6 +542,28 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
         "level": "soft",
         "primary_reason": "overlapping_last_page",
         "reasons": ["overlapping_last_page"],
+    }
+
+    assert build_ocr_stop_recommendation(
+        [
+            {
+                "reason": "overlapping_last_page",
+                "page_index": 2,
+                "overlap_with_previous_count": 4,
+                "overlap_with_previous_ratio": 1.0,
+            },
+            {
+                "reason": "duplicate_last_page",
+                "page_index": 2,
+                "overlap_with_previous_count": 4,
+                "overlap_with_previous_ratio": 1.0,
+            },
+        ]
+    ) == {
+        "should_stop": True,
+        "level": "hard",
+        "primary_reason": "duplicate_last_page",
+        "reasons": ["overlapping_last_page", "duplicate_last_page"],
     }
 
 

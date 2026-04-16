@@ -162,6 +162,8 @@ def build_mock_payload_from_capture(
 
 def parse_capture_payload(
     payload: CaptureImportPayload,
+    *,
+    validate_snapshot_entries: bool = True,
 ) -> ParsedCapturePayload:
     entries: list[dict[str, Any]] = []
     ignored_lines: list[IgnoredOcrLine] = []
@@ -207,11 +209,22 @@ def parse_capture_payload(
                 "overlap_with_previous_count": overlap_count,
                 "overlap_with_previous_ratio": round(overlap_ratio, 4),
                 "overlap_with_previous_ranks": overlap_ranks,
+                "new_rank_count": len(current_page_ranks - (previous_page_ranks or set())),
+                "new_rank_ratio": round(
+                    (
+                        len(current_page_ranks - (previous_page_ranks or set()))
+                        / len(current_page_ranks)
+                    ),
+                    4,
+                )
+                if current_page_ranks
+                else 0.0,
             }
         )
         previous_page_ranks = current_page_ranks
 
-    _validate_snapshot_entries(entries, page_summaries)
+    if validate_snapshot_entries:
+        _validate_snapshot_entries(entries, page_summaries)
     snapshot_note = _build_snapshot_note_with_collector_summary(
         snapshot=payload.snapshot,
         capture=payload.capture,
@@ -305,6 +318,20 @@ def build_ocr_stop_hints(
         )
 
     if (
+        len(page_summaries) >= 2
+        and last_page_entry_count > 0
+        and last_page_overlap_count == last_page_entry_count
+    ):
+        hints.append(
+            {
+                "reason": "duplicate_last_page",
+                "page_index": last_page["page_index"],
+                "overlap_with_previous_count": last_page_overlap_count,
+                "overlap_with_previous_ratio": last_page_overlap_ratio,
+            }
+        )
+
+    if (
         last_page_ignored_line_count >= last_page_entry_count
         and last_page_ignored_line_count > 0
     ):
@@ -326,6 +353,7 @@ def build_ocr_stop_recommendation(
     reason_levels = {
         "empty_last_page": "hard",
         "noisy_last_page": "hard",
+        "duplicate_last_page": "hard",
         "sparse_last_page": "soft",
         "overlapping_last_page": "soft",
     }

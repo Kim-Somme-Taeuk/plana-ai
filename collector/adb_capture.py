@@ -85,6 +85,7 @@ class AdbCaptureStopDecision:
     reason: str | None = None
     source: str | None = None
     level: str | None = None
+    discard_last_page: bool = False
 
 
 class AdbClient:
@@ -309,6 +310,12 @@ def capture_adb_screenshot(
         if page_number < request.adb.page_count and after_capture_page is not None:
             stop_decision = after_capture_page(list(image_paths))
             if not stop_decision.should_continue:
+                if stop_decision.discard_last_page and image_paths:
+                    last_image_path = image_paths.pop()
+                    try:
+                        last_image_path.unlink()
+                    except FileNotFoundError:
+                        pass
                 stopped_reason = stop_decision.reason
                 stopped_source = stop_decision.source
                 stopped_level = stop_decision.level
