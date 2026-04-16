@@ -241,6 +241,29 @@ def test_build_mock_payload_from_capture_parses_fullwidth_pipe_structured_line(
     assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.91)
 
 
+def test_build_mock_payload_from_capture_keeps_empty_player_in_structured_line(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1||12,345,678|\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-structured-empty-player-season",
+        pages=[{"image_path": "page-001.png"}],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert mock_payload.entries[0]["rank"] == 1
+    assert mock_payload.entries[0]["player_name"] == ""
+    assert mock_payload.entries[0]["score"] == 12345678
+    assert mock_payload.entries[0]["ocr_confidence"] is None
+
+
 def test_parse_capture_payload_ignores_non_entry_lines(
     tmp_path: Path,
 ) -> None:

@@ -1018,8 +1018,9 @@ def _normalize_structured_ocr_line(raw_line: str) -> str:
     columns = [
         part.strip()
         for part in STRUCTURED_COLUMN_SEPARATOR_RE.split(raw_line.strip())
-        if part.strip()
     ]
+    while columns and columns[-1] == "" and len(columns) > 3:
+        columns.pop()
     if len(columns) in (3, 4):
         return "\t".join(columns)
 
