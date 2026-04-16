@@ -21,6 +21,18 @@ class RankingSnapshotSummaryRead(BaseModel):
     validation_issues: list[RankingSnapshotValidationIssueCountRead]
 
 
+class RankingSnapshotValidationReportRead(BaseModel):
+    snapshot_id: int
+    status: str
+    total_entry_count: int
+    valid_entry_count: int
+    invalid_entry_count: int
+    excluded_from_statistics_count: int
+    duplicate_rank_count: int
+    has_rank_order_violation: bool
+    validation_issues: list[RankingSnapshotValidationIssueCountRead]
+
+
 class RankingSnapshotCutoffRead(BaseModel):
     rank: int
     score: int | None = None

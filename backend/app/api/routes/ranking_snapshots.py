@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.ranking_entry_validation import summarize_snapshot_entries
 from app.models.ranking_entry import RankingEntry
 from app.models.ranking_snapshot import RankingSnapshot
 from app.models.season import Season
@@ -13,6 +14,7 @@ from app.schemas.ranking_statistics import (
     RankingSnapshotCutoffsRead,
     RankingSnapshotDistributionRead,
     RankingSnapshotSummaryRead,
+    RankingSnapshotValidationReportRead,
     RankingSnapshotValidationIssueCountRead,
     SeasonCutoffSeriesPointRead,
     SeasonCutoffSeriesRead,
@@ -154,6 +156,34 @@ def _build_snapshot_summary(
         invalid_entry_count=invalid_entry_count,
         highest_score=highest_score,
         lowest_score=lowest_score,
+        validation_issues=_get_validation_issue_counts(db, snapshot.id),
+    )
+
+
+def _build_snapshot_validation_report(
+    db: Session,
+    snapshot: RankingSnapshot,
+) -> RankingSnapshotValidationReportRead:
+    valid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, True)
+    invalid_entry_count = _count_snapshot_entries_by_validity(db, snapshot.id, False)
+    entry_rows = db.execute(
+        select(RankingEntry.rank).where(
+            RankingEntry.ranking_snapshot_id == snapshot.id,
+        ).order_by(RankingEntry.id.asc())
+    ).all()
+    validation_summary = summarize_snapshot_entries(
+        [{"rank": rank} for rank, in entry_rows]
+    )
+
+    return RankingSnapshotValidationReportRead(
+        snapshot_id=snapshot.id,
+        status=snapshot.status,
+        total_entry_count=valid_entry_count + invalid_entry_count,
+        valid_entry_count=valid_entry_count,
+        invalid_entry_count=invalid_entry_count,
+        excluded_from_statistics_count=invalid_entry_count,
+        duplicate_rank_count=len(validation_summary.duplicate_ranks),
+        has_rank_order_violation=validation_summary.has_rank_order_violation,
         validation_issues=_get_validation_issue_counts(db, snapshot.id),
     )
 
@@ -328,6 +358,18 @@ def get_ranking_snapshot_summary(
 ) -> RankingSnapshotSummaryRead:
     snapshot = _get_ranking_snapshot_or_404(db, snapshot_id)
     return _build_snapshot_summary(db, snapshot)
+
+
+@router.get(
+    "/ranking-snapshots/{snapshot_id}/validation-report",
+    response_model=RankingSnapshotValidationReportRead,
+)
+def get_ranking_snapshot_validation_report(
+    snapshot_id: int,
+    db: Session = Depends(get_db),
+) -> RankingSnapshotValidationReportRead:
+    snapshot = _get_ranking_snapshot_or_404(db, snapshot_id)
+    return _build_snapshot_validation_report(db, snapshot)
 
 
 @router.get(

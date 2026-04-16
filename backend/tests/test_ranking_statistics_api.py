@@ -152,6 +152,77 @@ def test_get_ranking_snapshot_summary_groups_validation_issue_counts_from_api_en
     ]
 
 
+def test_get_ranking_snapshot_validation_report_returns_expected_values(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    db_session.add_all(
+        [
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=100,
+                score=7000,
+                player_name="Rank 100",
+                ocr_confidence=0.95,
+                raw_text="100 Rank 100 7000",
+                image_path="/tmp/rank-100.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=10,
+                score=9000,
+                player_name="Rank 10",
+                ocr_confidence=0.95,
+                raw_text="10 Rank 10 9000",
+                image_path="/tmp/rank-10.png",
+                is_valid=True,
+                validation_issue=None,
+            ),
+            RankingEntry(
+                ranking_snapshot_id=ranking_snapshot.id,
+                rank=20,
+                score=8000,
+                player_name="Invalid OCR",
+                ocr_confidence=0.2,
+                raw_text="20 Invalid OCR 8000",
+                image_path="/tmp/invalid-ocr.png",
+                is_valid=False,
+                validation_issue="low_ocr_confidence",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/ranking-snapshots/{ranking_snapshot.id}/validation-report"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "snapshot_id": ranking_snapshot.id,
+        "status": "collecting",
+        "total_entry_count": 3,
+        "valid_entry_count": 2,
+        "invalid_entry_count": 1,
+        "excluded_from_statistics_count": 1,
+        "duplicate_rank_count": 0,
+        "has_rank_order_violation": True,
+        "validation_issues": [{"code": "low_ocr_confidence", "count": 1}],
+    }
+
+
+def test_get_ranking_snapshot_validation_report_returns_404_for_missing_snapshot(
+    client,
+) -> None:
+    response = client.get("/ranking-snapshots/999999/validation-report")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Ranking snapshot not found"
+
+
 def test_get_ranking_snapshot_cutoffs_returns_scores_and_nulls(
     client,
     db_session: Session,
