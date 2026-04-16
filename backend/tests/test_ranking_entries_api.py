@@ -292,6 +292,63 @@ def test_get_ranking_entry(client, ranking_entry: RankingEntry) -> None:
     }
 
 
+def test_get_ranking_entry_allows_oversized_stored_values(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    entry = RankingEntry(
+        ranking_snapshot_id=ranking_snapshot.id,
+        rank=40,
+        score=4000,
+        player_name="P" * 101,
+        ocr_confidence=0.9,
+        raw_text="R" * 256,
+        image_path="I" * 256,
+        is_valid=False,
+        validation_issue="V" * 256,
+    )
+    db_session.add(entry)
+    db_session.commit()
+    db_session.refresh(entry)
+
+    response = client.get(f"/ranking-entries/{entry.id}")
+
+    assert response.status_code == 200
+    assert response.json()["player_name"] == "P" * 101
+    assert response.json()["raw_text"] == "R" * 256
+    assert response.json()["image_path"] == "I" * 256
+    assert response.json()["validation_issue"] == "V" * 256
+
+
+def test_list_ranking_entries_allows_oversized_stored_values(
+    client,
+    db_session: Session,
+    ranking_snapshot: RankingSnapshot,
+) -> None:
+    entry = RankingEntry(
+        ranking_snapshot_id=ranking_snapshot.id,
+        rank=40,
+        score=4000,
+        player_name="P" * 101,
+        ocr_confidence=0.9,
+        raw_text="R" * 256,
+        image_path="I" * 256,
+        is_valid=False,
+        validation_issue="V" * 256,
+    )
+    db_session.add(entry)
+    db_session.commit()
+
+    response = client.get(f"/ranking-snapshots/{ranking_snapshot.id}/entries")
+
+    assert response.status_code == 200
+    assert response.json()[0]["player_name"] == "P" * 101
+    assert response.json()[0]["raw_text"] == "R" * 256
+    assert response.json()[0]["image_path"] == "I" * 256
+    assert response.json()[0]["validation_issue"] == "V" * 256
+
+
 def test_create_ranking_entry_returns_404_for_missing_snapshot(client) -> None:
     response = client.post(
         "/ranking-snapshots/999999/entries",

@@ -6,16 +6,19 @@ from pydantic import BaseModel, ConfigDict, Field
 class RankingEntryBase(BaseModel):
     rank: int
     score: int
-    player_name: str | None = Field(default=None, max_length=100)
+    player_name: str | None = None
     ocr_confidence: float | None = None
-    raw_text: str | None = Field(default=None, max_length=255)
-    image_path: str | None = Field(default=None, max_length=255)
+    raw_text: str | None = None
+    image_path: str | None = None
     is_valid: bool = True
-    validation_issue: str | None = Field(default=None, max_length=255)
+    validation_issue: str | None = None
 
 
 class RankingEntryCreate(RankingEntryBase):
-    pass
+    player_name: str | None = Field(default=None, max_length=100)
+    raw_text: str | None = Field(default=None, max_length=255)
+    image_path: str | None = Field(default=None, max_length=255)
+    validation_issue: str | None = Field(default=None, max_length=255)
 
 
 class RankingEntryListParams(BaseModel):
