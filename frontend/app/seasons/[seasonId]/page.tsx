@@ -34,6 +34,8 @@ type SeasonPageProps = {
     status?: string;
     source?: string;
     collector?: string;
+    captureStopReason?: string;
+    ocrStopReason?: string;
     compareLeft?: string;
     compareRight?: string;
   }>;
@@ -67,6 +69,15 @@ export default async function SeasonDetailPage({
     resolvedSearchParams.collector && resolvedSearchParams.collector.trim()
       ? resolvedSearchParams.collector
       : "all";
+  const selectedCaptureStopReason =
+    resolvedSearchParams.captureStopReason &&
+    resolvedSearchParams.captureStopReason.trim()
+      ? resolvedSearchParams.captureStopReason
+      : "all";
+  const selectedOcrStopReason =
+    resolvedSearchParams.ocrStopReason && resolvedSearchParams.ocrStopReason.trim()
+      ? resolvedSearchParams.ocrStopReason
+      : "all";
   const requestedCompareLeft = Number(resolvedSearchParams.compareLeft ?? "");
   const requestedCompareRight = Number(resolvedSearchParams.compareRight ?? "");
   const selectedStatusFilter = SEASON_STATUS_FILTERS.includes(
@@ -97,11 +108,23 @@ export default async function SeasonDetailPage({
         status: selectedStatusFilter,
         sourceType: selectedSource === "all" ? undefined : selectedSource,
         collectorFilter: selectedCollectorFilter,
+        captureStopReason:
+          selectedCaptureStopReason === "all"
+            ? undefined
+            : selectedCaptureStopReason,
+        ocrStopReason:
+          selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
       }),
       getSeasonValidationSeries(numericSeasonId, {
         status: selectedStatusFilter,
         sourceType: selectedSource === "all" ? undefined : selectedSource,
         collectorFilter: selectedCollectorFilter,
+        captureStopReason:
+          selectedCaptureStopReason === "all"
+            ? undefined
+            : selectedCaptureStopReason,
+        ocrStopReason:
+          selectedOcrStopReason === "all" ? undefined : selectedOcrStopReason,
       }),
     ]);
 
@@ -118,7 +141,9 @@ export default async function SeasonDetailPage({
       return false;
     }
     if (
-      selectedCollector !== "all" &&
+      (selectedCollector !== "all" ||
+        selectedCaptureStopReason !== "all" ||
+        selectedOcrStopReason !== "all") &&
       validationSeriesResult.data &&
       !validationSeriesResult.data.points.some(
         (point) => point.snapshot_id === snapshot.id,
@@ -204,6 +229,12 @@ export default async function SeasonDetailPage({
               <>
                 <SeasonValidationOverviewPanel
                   overview={validationOverviewResult.data}
+                  seasonId={numericSeasonId}
+                  selectedStatus={selectedStatus}
+                  selectedSource={selectedSource}
+                  selectedCollector={selectedCollector}
+                  selectedCaptureStopReason={selectedCaptureStopReason}
+                  selectedOcrStopReason={selectedOcrStopReason}
                 />
                 {validationSeriesResult.error || !validationSeriesResult.data ? (
                   <ErrorBox
@@ -218,6 +249,10 @@ export default async function SeasonDetailPage({
                     selectedCompareRightId={selectedCompareRight?.id ?? null}
                     compareRank={seriesRank}
                     collectorFilter={selectedCollector}
+                    selectedStatus={selectedStatus}
+                    selectedSource={selectedSource}
+                    captureStopReason={selectedCaptureStopReason}
+                    ocrStopReason={selectedOcrStopReason}
                   />
                 )}
                 <ValidationIssuesPanel
@@ -276,6 +311,36 @@ export default async function SeasonDetailPage({
                       <option value="hard_ocr_stop">hard_ocr_stop</option>
                     </select>
                   </div>
+                  <div className={styles.field}>
+                    <label htmlFor="captureStopReason">Capture Stop Reason</label>
+                    <select
+                      id="captureStopReason"
+                      name="captureStopReason"
+                      defaultValue={selectedCaptureStopReason}
+                    >
+                      <option value="all">all</option>
+                      {validationOverviewResult.data?.capture_stop_reasons.map((row) => (
+                        <option key={row.reason} value={row.reason}>
+                          {row.reason}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="ocrStopReason">OCR Stop Reason</label>
+                    <select
+                      id="ocrStopReason"
+                      name="ocrStopReason"
+                      defaultValue={selectedOcrStopReason}
+                    >
+                      <option value="all">all</option>
+                      {validationOverviewResult.data?.ocr_stop_reasons.map((row) => (
+                        <option key={row.reason} value={row.reason}>
+                          {row.reason}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <input type="hidden" name="rank" value={String(seriesRank)} />
                   {selectedCompareLeft ? (
                     <input
@@ -330,6 +395,21 @@ export default async function SeasonDetailPage({
                   </div>
                   <input type="hidden" name="status" value={selectedStatus} />
                   <input type="hidden" name="source" value={selectedSource} />
+                  <input
+                    type="hidden"
+                    name="collector"
+                    value={selectedCollector}
+                  />
+                  <input
+                    type="hidden"
+                    name="captureStopReason"
+                    value={selectedCaptureStopReason}
+                  />
+                  <input
+                    type="hidden"
+                    name="ocrStopReason"
+                    value={selectedOcrStopReason}
+                  />
                   {selectedCompareLeft ? (
                     <input
                       type="hidden"
@@ -397,6 +477,21 @@ export default async function SeasonDetailPage({
                     <input type="hidden" name="rank" value={String(seriesRank)} />
                     <input type="hidden" name="status" value={selectedStatus} />
                     <input type="hidden" name="source" value={selectedSource} />
+                    <input
+                      type="hidden"
+                      name="collector"
+                      value={selectedCollector}
+                    />
+                    <input
+                      type="hidden"
+                      name="captureStopReason"
+                      value={selectedCaptureStopReason}
+                    />
+                    <input
+                      type="hidden"
+                      name="ocrStopReason"
+                      value={selectedOcrStopReason}
+                    />
                     <button type="submit" className={styles.button}>
                       비교
                     </button>

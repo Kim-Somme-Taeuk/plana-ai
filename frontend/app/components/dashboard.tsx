@@ -407,9 +407,57 @@ export function ValidationIssuesPanel({
 
 export function SeasonValidationOverviewPanel({
   overview,
+  seasonId,
+  selectedStatus,
+  selectedSource,
+  selectedCollector,
+  selectedCaptureStopReason,
+  selectedOcrStopReason,
 }: {
   overview: SeasonValidationOverview;
+  seasonId: number;
+  selectedStatus?: string;
+  selectedSource?: string;
+  selectedCollector?: string;
+  selectedCaptureStopReason?: string;
+  selectedOcrStopReason?: string;
 }) {
+  const buildSeasonReasonHref = (
+    reasonType: "capture" | "ocr",
+    reason: string,
+  ) => {
+    const params = new URLSearchParams();
+
+    if (selectedStatus && selectedStatus !== "all") {
+      params.set("status", selectedStatus);
+    }
+    if (selectedSource && selectedSource !== "all") {
+      params.set("source", selectedSource);
+    }
+
+    if (reasonType === "capture") {
+      params.set("collector", "capture_stop");
+      params.set("captureStopReason", reason);
+      if (selectedOcrStopReason && selectedOcrStopReason !== "all") {
+        params.set("ocrStopReason", selectedOcrStopReason);
+      }
+    } else if (reasonType === "ocr") {
+      params.set(
+        "collector",
+        selectedCollector && selectedCollector !== "all"
+          ? selectedCollector
+          : "with_diagnostics",
+      );
+      params.set("ocrStopReason", reason);
+      if (selectedCaptureStopReason && selectedCaptureStopReason !== "all") {
+        params.set("captureStopReason", selectedCaptureStopReason);
+      }
+    }
+
+    const query = params.toString();
+    return `/seasons/${seasonId}${query ? `?${query}` : ""}`;
+  };
+
   return (
     <section className={styles.panel}>
       <div className={styles.panelTitle}>
@@ -464,11 +512,13 @@ export function SeasonValidationOverviewPanel({
           title="Capture Stop Reasons"
           rows={overview.capture_stop_reasons}
           emptyMessage="집계된 capture stop reason이 없습니다."
+          getHref={(reason) => buildSeasonReasonHref("capture", reason)}
         />
         <ReasonSummaryPanel
           title="OCR Stop Reasons"
           rows={overview.ocr_stop_reasons}
           emptyMessage="집계된 OCR stop reason이 없습니다."
+          getHref={(reason) => buildSeasonReasonHref("ocr", reason)}
         />
         <ReasonSummaryPanel
           title="Ignored OCR Reasons"
@@ -486,12 +536,20 @@ export function SeasonValidationSeriesPanel({
   selectedCompareRightId,
   compareRank,
   collectorFilter,
+  selectedStatus,
+  selectedSource,
+  captureStopReason,
+  ocrStopReason,
 }: {
   series: SeasonValidationSeries;
   selectedCompareLeftId?: number | null;
   selectedCompareRightId?: number | null;
   compareRank?: number;
   collectorFilter?: string;
+  selectedStatus?: string;
+  selectedSource?: string;
+  captureStopReason?: string;
+  ocrStopReason?: string;
 }) {
   const maxInvalidRatio =
     series.points.reduce((currentMax, point) => {
@@ -610,8 +668,24 @@ export function SeasonValidationSeriesPanel({
                                 href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
                                   compareRank ? `&rank=${compareRank}` : ""
                                 }${
+                                  selectedStatus && selectedStatus !== "all"
+                                    ? `&status=${selectedStatus}`
+                                    : ""
+                                }${
+                                  selectedSource && selectedSource !== "all"
+                                    ? `&source=${encodeURIComponent(selectedSource)}`
+                                    : ""
+                                }${
                                   collectorFilter && collectorFilter !== "all"
                                     ? `&collector=${collectorFilter}`
+                                    : ""
+                                }${
+                                  captureStopReason && captureStopReason !== "all"
+                                    ? `&captureStopReason=${encodeURIComponent(captureStopReason)}`
+                                    : ""
+                                }${
+                                  ocrStopReason && ocrStopReason !== "all"
+                                    ? `&ocrStopReason=${encodeURIComponent(ocrStopReason)}`
                                     : ""
                                 }`}
                                 className={styles.linkButton}
@@ -1093,10 +1167,12 @@ function ReasonSummaryPanel({
   title,
   rows,
   emptyMessage,
+  getHref,
 }: {
   title: string;
   rows: Array<{ reason: string; count: number }>;
   emptyMessage: string;
+  getHref?: (reason: string) => string;
 }) {
   return (
     <div className={styles.subPanel}>
@@ -1117,7 +1193,15 @@ function ReasonSummaryPanel({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.reason}>
-                  <td>{row.reason}</td>
+                  <td>
+                    {getHref ? (
+                      <Link href={getHref(row.reason)} className={styles.issueCodeLink}>
+                        <span className={styles.issueCode}>{row.reason}</span>
+                      </Link>
+                    ) : (
+                      row.reason
+                    )}
+                  </td>
                   <td>{row.count.toLocaleString()}</td>
                 </tr>
               ))}

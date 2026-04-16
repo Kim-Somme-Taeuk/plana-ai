@@ -63,6 +63,10 @@ retry_curl "$BACKEND_URL/seasons/$SMOKE_SEASON_ID/validation-overview"
 echo "[ci-smoke] backend season validation series"
 retry_curl "$BACKEND_URL/seasons/$SMOKE_SEASON_ID/validation-series?collector_filter=with_diagnostics"
 
+echo "[ci-smoke] backend season validation reason filters"
+retry_curl "$BACKEND_URL/seasons/$SMOKE_SEASON_ID/validation-overview?collector_filter=capture_stop&capture_stop_reason=noisy_last_page"
+retry_curl "$BACKEND_URL/seasons/$SMOKE_SEASON_ID/validation-series?ocr_stop_reason=sparse_last_page"
+
 echo "[ci-smoke] frontend root"
 retry_curl "$FRONTEND_URL/"
 
@@ -71,6 +75,9 @@ retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID"
 
 echo "[ci-smoke] frontend season collector filter"
 retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID?collector=with_diagnostics"
+
+echo "[ci-smoke] frontend season reason drilldown"
+retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID?collector=capture_stop&captureStopReason=noisy_last_page"
 
 echo "[ci-smoke] frontend season compare"
 retry_curl "$FRONTEND_URL/seasons/$SMOKE_SEASON_ID?compareLeft=$SMOKE_COMPARE_LEFT_ID&compareRight=$SMOKE_COMPARE_RIGHT_ID&collector=with_diagnostics"
