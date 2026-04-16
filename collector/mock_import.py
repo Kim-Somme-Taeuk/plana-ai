@@ -125,6 +125,17 @@ class ApiClient:
             ) from exc
 
 
+def _mark_snapshot_failed(
+    client: ApiClient,
+    snapshot_id: int,
+) -> str | None:
+    try:
+        client.update_snapshot_status(snapshot_id, "failed")
+    except ApiError as exc:
+        return f"snapshot failed 처리도 실패했습니다. status={exc.status_code}, detail={exc.detail}"
+    return None
+
+
 def load_mock_payload(path: str | Path) -> MockImportPayload:
     payload_path = Path(path)
     try:
@@ -161,6 +172,8 @@ def import_mock_payload(
     payload: MockImportPayload,
     client: ApiClient,
 ) -> ImportResult:
+    snapshot_id: int | None = None
+
     try:
         season = client.create_season(_build_season_payload(payload.season))
     except ApiError as exc:
@@ -175,6 +188,7 @@ def import_mock_payload(
             season["id"],
             _build_snapshot_payload(payload.snapshot),
         )
+        snapshot_id = snapshot["id"]
     except ApiError as exc:
         raise MockImportError(
             f"snapshot 생성에 실패했습니다. status={exc.status_code}, detail={exc.detail}"
@@ -188,18 +202,30 @@ def import_mock_payload(
                 _build_entry_payload(entry),
             )
         except ApiError as exc:
+            failed_transition_error = _mark_snapshot_failed(client, snapshot_id)
             raise MockImportError(
                 "ranking entry 생성에 실패했습니다. "
                 f"entry_index={index}, status={exc.status_code}, detail={exc.detail}"
+                + (
+                    f" {failed_transition_error}"
+                    if failed_transition_error is not None
+                    else ""
+                )
             ) from exc
         entry_ids.append(created_entry["id"])
 
     try:
         completed_snapshot = client.update_snapshot_status(snapshot["id"], "completed")
     except ApiError as exc:
+        failed_transition_error = _mark_snapshot_failed(client, snapshot_id)
         raise MockImportError(
             "snapshot completed 처리에 실패했습니다. "
             f"status={exc.status_code}, detail={exc.detail}"
+            + (
+                f" {failed_transition_error}"
+                if failed_transition_error is not None
+                else ""
+            )
         ) from exc
 
     return ImportResult(

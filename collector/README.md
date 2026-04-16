@@ -68,5 +68,6 @@ python3 collector/mock_import.py \
 - 이 스크립트는 기존 backend API를 그대로 호출합니다.
 - 같은 파일을 다시 넣으면 `season_label` 중복으로 실패합니다.
 - 기본 동작은 덮어쓰기/업서트가 아닙니다.
-- season 생성 이후 중간 단계에서 실패하면 부분적으로 데이터가 남을 수 있습니다.
+- season 생성 이후 entry 입력 또는 completed 처리 단계에서 실패하면 snapshot은 `failed`로 전환을 시도합니다.
+- season 생성 이후 snapshot 생성 전 단계에서 실패하면 일부 데이터가 남지 않습니다.
 - 실제 OCR, ADB, 스크롤 자동화는 이번 단계에서 구현하지 않습니다.

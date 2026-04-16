@@ -109,3 +109,85 @@ def test_import_mock_payload_stops_on_duplicate_season():
 
     assert "season 생성에 실패했습니다" in str(exc_info.value)
     assert "season_label" in str(exc_info.value)
+
+
+def test_import_mock_payload_marks_snapshot_failed_when_entry_creation_fails():
+    class EntryFailureClient:
+        def __init__(self):
+            self.calls: list[tuple[str, dict[str, object] | str]] = []
+
+        def create_season(self, payload):
+            self.calls.append(("create_season", payload))
+            return {"id": 301, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            self.calls.append(("create_snapshot", {"season_id": season_id, **payload}))
+            return {"id": 401, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            self.calls.append(("create_entry", {"snapshot_id": snapshot_id, **payload}))
+            raise ApiError(409, "Rank already exists for this ranking snapshot")
+
+        def update_snapshot_status(self, snapshot_id, status):
+            self.calls.append(
+                ("update_snapshot_status", {"snapshot_id": snapshot_id, "status": status})
+            )
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 0,
+            }
+
+    payload = load_mock_payload("collector/mock_data/sample_valid_snapshot.json")
+    client = EntryFailureClient()
+
+    with pytest.raises(MockImportError) as exc_info:
+        import_mock_payload(payload, client)
+
+    assert "ranking entry 생성에 실패했습니다" in str(exc_info.value)
+    assert client.calls[-1] == (
+        "update_snapshot_status",
+        {"snapshot_id": 401, "status": "failed"},
+    )
+
+
+def test_import_mock_payload_marks_snapshot_failed_when_completion_fails():
+    class CompletionFailureClient:
+        def __init__(self):
+            self.calls: list[tuple[str, dict[str, object] | str]] = []
+
+        def create_season(self, payload):
+            self.calls.append(("create_season", payload))
+            return {"id": 501, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            self.calls.append(("create_snapshot", {"season_id": season_id, **payload}))
+            return {"id": 601, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            self.calls.append(("create_entry", {"snapshot_id": snapshot_id, **payload}))
+            return {"id": len([call for call in self.calls if call[0] == "create_entry"])}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            self.calls.append(
+                ("update_snapshot_status", {"snapshot_id": snapshot_id, "status": status})
+            )
+            if status == "completed":
+                raise ApiError(500, "temporary backend error")
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 0,
+            }
+
+    payload = load_mock_payload("collector/mock_data/sample_valid_snapshot.json")
+    client = CompletionFailureClient()
+
+    with pytest.raises(MockImportError) as exc_info:
+        import_mock_payload(payload, client)
+
+    assert "snapshot completed 처리에 실패했습니다" in str(exc_info.value)
+    assert client.calls[-1] == (
+        "update_snapshot_status",
+        {"snapshot_id": 601, "status": "failed"},
+    )
