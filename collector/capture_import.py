@@ -278,6 +278,33 @@ def import_parsed_capture_payload(
     return import_mock_payload(parsed_payload.mock_payload, client)
 
 
+def enrich_parsed_capture_payload_collector_details(
+    parsed_payload: ParsedCapturePayload,
+    *,
+    extra_details: dict[str, Any] | None = None,
+) -> ParsedCapturePayload:
+    note = parsed_payload.mock_payload.snapshot.get("note")
+    if not isinstance(note, str) or not note.strip():
+        return parsed_payload
+
+    merged_note = _merge_collector_details_into_note(note, extra_details)
+    if merged_note == note:
+        return parsed_payload
+
+    return ParsedCapturePayload(
+        mock_payload=MockImportPayload(
+            season=parsed_payload.mock_payload.season,
+            snapshot={
+                **parsed_payload.mock_payload.snapshot,
+                "note": merged_note,
+            },
+            entries=parsed_payload.mock_payload.entries,
+        ),
+        ignored_lines=parsed_payload.ignored_lines,
+        page_summaries=parsed_payload.page_summaries,
+    )
+
+
 def summarize_ignored_lines(
     ignored_lines: list[IgnoredOcrLine],
 ) -> list[dict[str, Any]]:
@@ -486,9 +513,10 @@ def _build_snapshot_note_with_collector_summary(
     capture: dict[str, Any] | None,
     ignored_lines: list[IgnoredOcrLine],
     page_summaries: list[dict[str, Any]],
+    extra_collector_details: dict[str, Any] | None = None,
 ) -> str | None:
     existing_note = snapshot.get("note")
-    existing_note_text = existing_note.strip() if isinstance(existing_note, str) else ""
+    existing_note_text = _strip_collector_note_lines(existing_note)
 
     summary_parts: list[str] = []
     if capture:
@@ -523,7 +551,11 @@ def _build_snapshot_note_with_collector_summary(
         return existing_note_text or None
 
     collector_summary = COLLECTOR_SUMMARY_PREFIX + "; ".join(summary_parts)
-    collector_details = _build_collector_details_line(page_summaries)
+    collector_details = _build_collector_details_line(
+        page_summaries,
+        existing_note=existing_note if isinstance(existing_note, str) else None,
+        extra_details=extra_collector_details,
+    )
     if existing_note_text:
         return "\n".join(
             line
@@ -543,11 +575,36 @@ def _build_ignored_reason_count_map(
     }
 
 
-def _build_collector_details_line(page_summaries: list[dict[str, Any]]) -> str | None:
-    if not page_summaries:
+def _build_collector_details_line(
+    page_summaries: list[dict[str, Any]],
+    *,
+    existing_note: str | None = None,
+    extra_details: dict[str, Any] | None = None,
+) -> str | None:
+    payload = _build_collector_details_payload(
+        page_summaries,
+        existing_note=existing_note,
+        extra_details=extra_details,
+    )
+    if not payload:
         return None
 
-    payload = {
+    return COLLECTOR_JSON_PREFIX + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _build_collector_details_payload(
+    page_summaries: list[dict[str, Any]],
+    *,
+    existing_note: str | None = None,
+    extra_details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = _extract_collector_details_payload(existing_note)
+    payload.update({
         "page_summaries": [
             {
                 "page_index": summary["page_index"],
@@ -568,13 +625,76 @@ def _build_collector_details_line(page_summaries: list[dict[str, Any]]) -> str |
         "ocr_stop_recommendation": build_ocr_stop_recommendation(
             build_ocr_stop_hints(page_summaries)
         ),
-    }
-    return COLLECTOR_JSON_PREFIX + json.dumps(
-        payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
+    })
+    if extra_details:
+        payload.update(extra_details)
+    return payload
+
+
+def _merge_collector_details_into_note(
+    note: str,
+    extra_details: dict[str, Any] | None = None,
+) -> str:
+    base_note = _strip_collector_details_lines(note)
+    existing_payload = _extract_collector_details_payload(note)
+    if extra_details:
+        existing_payload.update(extra_details)
+
+    collector_details = None
+    if existing_payload:
+        collector_details = COLLECTOR_JSON_PREFIX + json.dumps(
+            existing_payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+    return "\n".join(
+        line for line in (base_note, collector_details) if line
     )
+
+
+def _strip_collector_note_lines(note: object) -> str:
+    if not isinstance(note, str):
+        return ""
+
+    return "\n".join(
+        line.strip()
+        for line in note.splitlines()
+        if line.strip()
+        and not line.strip().startswith(COLLECTOR_SUMMARY_PREFIX)
+        and not line.strip().startswith(COLLECTOR_JSON_PREFIX)
+    )
+
+
+def _strip_collector_details_lines(note: str) -> str:
+    return "\n".join(
+        line.strip()
+        for line in note.splitlines()
+        if line.strip() and not line.strip().startswith(COLLECTOR_JSON_PREFIX)
+    )
+
+
+def _extract_collector_details_payload(note: str | None) -> dict[str, Any]:
+    if not isinstance(note, str) or not note.strip():
+        return {}
+
+    for raw_line in reversed(note.splitlines()):
+        line = raw_line.strip()
+        if not line.startswith(COLLECTOR_JSON_PREFIX):
+            continue
+        raw_json = line.removeprefix(COLLECTOR_JSON_PREFIX).strip()
+        if not raw_json:
+            return {}
+        try:
+            parsed = json.loads(raw_json)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, dict):
+            return parsed
+        return {}
+
+    return {}
 
 
 def _resolve_manifest_path(path: str | Path) -> Path:

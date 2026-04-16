@@ -88,6 +88,19 @@ export type CollectorStopRecommendation = {
   reasons: string[];
 };
 
+export type CollectorPipelineStopRecommendation = {
+  should_stop: boolean;
+  level: string | null;
+  source: string | null;
+  primary_reason: string | null;
+  reasons: string[];
+};
+
+export type CollectorStopPolicy = {
+  min_pages_before_ocr_stop: number;
+  soft_stop_repeat_threshold: number;
+};
+
 export type CollectorDiagnostics = {
   raw_summary: string;
   captured_page_count: number | null;
@@ -108,6 +121,8 @@ export type CollectorDiagnostics = {
   page_summaries: CollectorPageSummary[];
   ocr_stop_hints: CollectorStopHint[];
   ocr_stop_recommendation: CollectorStopRecommendation | null;
+  pipeline_stop_recommendation: CollectorPipelineStopRecommendation | null;
+  stop_policy: CollectorStopPolicy | null;
 };
 
 export type ValidationTopIssue = {

@@ -287,6 +287,8 @@ def test_get_ranking_snapshot_validation_report_includes_collector_diagnostics(
         "page_summaries": [],
         "ocr_stop_hints": [],
         "ocr_stop_recommendation": None,
+        "pipeline_stop_recommendation": None,
+        "stop_policy": None,
     }
 
 
@@ -298,7 +300,7 @@ def test_get_ranking_snapshot_validation_report_parses_collector_json_details(
     ranking_snapshot.note = (
         "collector: pages=2/3; ignored=1(header_line=1); "
         "ocr_stop=duplicate_last_page(hard)\n"
-        'collector_json: {"ocr_stop_hints":[{"reason":"duplicate_last_page","page_index":2,"entry_count":3,"overlap_with_previous_count":3,"overlap_with_previous_ratio":1.0,"new_rank_count":0,"new_rank_ratio":0.0}],"ocr_stop_recommendation":{"should_stop":true,"level":"hard","primary_reason":"duplicate_last_page","reasons":["duplicate_last_page"]},"page_summaries":[{"page_index":1,"image_path":"page-001.png","entry_count":3,"ignored_line_count":1,"ignored_line_reasons":[{"reason":"header_line","count":1}],"first_rank":1,"last_rank":3,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":3,"new_rank_ratio":1.0},{"page_index":2,"image_path":"page-002.png","entry_count":3,"ignored_line_count":0,"ignored_line_reasons":[],"first_rank":1,"last_rank":3,"overlap_with_previous_count":3,"overlap_with_previous_ratio":1.0,"new_rank_count":0,"new_rank_ratio":0.0}]}'
+        'collector_json: {"ocr_stop_hints":[{"reason":"duplicate_last_page","page_index":2,"entry_count":3,"overlap_with_previous_count":3,"overlap_with_previous_ratio":1.0,"new_rank_count":0,"new_rank_ratio":0.0}],"ocr_stop_recommendation":{"should_stop":true,"level":"hard","primary_reason":"duplicate_last_page","reasons":["duplicate_last_page"]},"page_summaries":[{"page_index":1,"image_path":"page-001.png","entry_count":3,"ignored_line_count":1,"ignored_line_reasons":[{"reason":"header_line","count":1}],"first_rank":1,"last_rank":3,"overlap_with_previous_count":0,"overlap_with_previous_ratio":0.0,"new_rank_count":3,"new_rank_ratio":1.0},{"page_index":2,"image_path":"page-002.png","entry_count":3,"ignored_line_count":0,"ignored_line_reasons":[],"first_rank":1,"last_rank":3,"overlap_with_previous_count":3,"overlap_with_previous_ratio":1.0,"new_rank_count":0,"new_rank_ratio":0.0}],"pipeline_stop_recommendation":{"should_stop":true,"level":"hard","source":"ocr","primary_reason":"duplicate_last_page","reasons":["duplicate_last_page"]},"stop_policy":{"min_pages_before_ocr_stop":2,"soft_stop_repeat_threshold":2}}'
     )
     db_session.add(ranking_snapshot)
     db_session.commit()
@@ -312,6 +314,17 @@ def test_get_ranking_snapshot_validation_report_parses_collector_json_details(
         "level": "hard",
         "primary_reason": "duplicate_last_page",
         "reasons": ["duplicate_last_page"],
+    }
+    assert collector_diagnostics["pipeline_stop_recommendation"] == {
+        "should_stop": True,
+        "level": "hard",
+        "source": "ocr",
+        "primary_reason": "duplicate_last_page",
+        "reasons": ["duplicate_last_page"],
+    }
+    assert collector_diagnostics["stop_policy"] == {
+        "min_pages_before_ocr_stop": 2,
+        "soft_stop_repeat_threshold": 2,
     }
     assert collector_diagnostics["empty_page_count"] == 0
     assert collector_diagnostics["sparse_page_count"] == 2
@@ -950,6 +963,8 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
                 "page_summaries": [],
                 "ocr_stop_hints": [],
                 "ocr_stop_recommendation": None,
+                "pipeline_stop_recommendation": None,
+                "stop_policy": None,
             },
         },
         {
@@ -991,6 +1006,8 @@ def test_get_season_validation_endpoints_include_collector_diagnostics_aggregate
                 "page_summaries": [],
                 "ocr_stop_hints": [],
                 "ocr_stop_recommendation": None,
+                "pipeline_stop_recommendation": None,
+                "stop_policy": None,
             },
         },
     ]

@@ -181,6 +181,82 @@ def test_run_capture_pipeline_defaults_to_tesseract_without_explicit_provider(
     assert result.ocr_provider == "tesseract"
 
 
+def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-note-details-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class FakeApiClient:
+        def __init__(self):
+            self.snapshot_payload: dict[str, object] | None = None
+
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            self.snapshot_payload = {"season_id": season_id, **payload}
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 1,
+            }
+
+    def fake_run(args, capture_output, text, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="RANK PLAYER SCORE\n1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    api_client = FakeApiClient()
+    run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=api_client,
+    )
+
+    assert api_client.snapshot_payload is not None
+    snapshot_note = api_client.snapshot_payload["note"]
+    assert isinstance(snapshot_note, str)
+    collector_json_line = next(
+        line
+        for line in snapshot_note.splitlines()
+        if line.startswith("collector_json:")
+    )
+    collector_details = json.loads(collector_json_line.removeprefix("collector_json:").strip())
+    assert collector_details["pipeline_stop_recommendation"] == {
+        "should_stop": True,
+        "level": "hard",
+        "source": "ocr",
+        "primary_reason": "noisy_last_page",
+        "reasons": ["noisy_last_page"],
+    }
+    assert collector_details["stop_policy"] == {
+        "min_pages_before_ocr_stop": 2,
+        "soft_stop_repeat_threshold": 2,
+    }
+
+
 def test_run_capture_pipeline_preserves_explicit_sidecar_provider(
     tmp_path: Path,
 ) -> None:

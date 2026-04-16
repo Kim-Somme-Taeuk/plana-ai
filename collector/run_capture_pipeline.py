@@ -33,6 +33,7 @@ from collector.capture_import import (
     OcrConfig,
     build_ocr_stop_hints,
     build_ocr_stop_recommendation,
+    enrich_parsed_capture_payload_collector_details,
     import_parsed_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
@@ -128,6 +129,16 @@ def run_capture_pipeline(
         capture_stopped_source=capture_result.stopped_source,
         capture_stopped_level=capture_result.stopped_level,
         ocr_stop_recommendation=ocr_stop_recommendation,
+    )
+    parsed_payload = enrich_parsed_capture_payload_collector_details(
+        parsed_payload,
+        extra_details={
+            "pipeline_stop_recommendation": pipeline_stop_recommendation,
+            "stop_policy": {
+                "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
+                "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
+            },
+        },
     )
     stop_on_recommendation_mode = _resolve_stop_on_recommendation(
         requested_stop_on_recommendation=stop_on_recommendation,

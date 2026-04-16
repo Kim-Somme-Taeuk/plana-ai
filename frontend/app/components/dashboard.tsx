@@ -358,6 +358,10 @@ export function SnapshotValidationReportPanel({
           value={collectorSummary.stop}
         />
         <StatCard
+          label="파이프라인 중단"
+          value={formatPipelineStop(collectorDiagnostics)}
+        />
+        <StatCard
           label="무시된 OCR 줄"
           value={collectorSummary.ignored}
         />
@@ -499,44 +503,107 @@ export function SnapshotValidationReportPanel({
             />
             <div className={styles.subPanel}>
               <div className={styles.panelTitle}>
-                <h3>OCR 중단 권장</h3>
+                <h3>OCR / 파이프라인 중단 권장</h3>
               </div>
-              {collectorDiagnostics.ocr_stop_recommendation ? (
+              {collectorDiagnostics.ocr_stop_recommendation ||
+              collectorDiagnostics.pipeline_stop_recommendation ||
+              collectorDiagnostics.stop_policy ? (
                 <div className={styles.keyValueList}>
                   <div className={styles.keyValueRow}>
-                    <span>중단 권장</span>
+                    <span>OCR 중단 권장</span>
                     <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation.should_stop
+                      {collectorDiagnostics.ocr_stop_recommendation?.should_stop
                         ? "예"
                         : "아니오"}
                     </strong>
                   </div>
                   <div className={styles.keyValueRow}>
-                    <span>레벨</span>
+                    <span>OCR 레벨</span>
                     <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation.level ?? "-"}
+                      {collectorDiagnostics.ocr_stop_recommendation?.level ?? "-"}
                     </strong>
                   </div>
                   <div className={styles.keyValueRow}>
-                    <span>주요 사유</span>
+                    <span>OCR 주요 사유</span>
                     <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation.primary_reason ??
+                      {collectorDiagnostics.ocr_stop_recommendation?.primary_reason ??
                         "-"}
                     </strong>
                   </div>
                   <div className={styles.keyValueRow}>
-                    <span>사유 목록</span>
+                    <span>OCR 사유 목록</span>
                     <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation.reasons.length > 0
+                      {collectorDiagnostics.ocr_stop_recommendation &&
+                      collectorDiagnostics.ocr_stop_recommendation.reasons.length > 0
                         ? collectorDiagnostics.ocr_stop_recommendation.reasons.join(
                             ", ",
                           )
                         : "-"}
                     </strong>
                   </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 중단</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation
+                        ? collectorDiagnostics.pipeline_stop_recommendation
+                            .should_stop
+                          ? "예"
+                          : "아니오"
+                        : "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>판단 소스</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation?.source ??
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 레벨</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation?.level ??
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 주요 사유</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation
+                        ?.primary_reason ?? "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 사유 목록</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation &&
+                      collectorDiagnostics.pipeline_stop_recommendation.reasons
+                        .length > 0
+                        ? collectorDiagnostics.pipeline_stop_recommendation.reasons.join(
+                            ", ",
+                          )
+                        : "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>최소 OCR 판정 페이지</span>
+                    <strong>
+                      {collectorDiagnostics.stop_policy
+                        ? collectorDiagnostics.stop_policy.min_pages_before_ocr_stop.toLocaleString()
+                        : "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>Soft stop 반복 기준</span>
+                    <strong>
+                      {collectorDiagnostics.stop_policy
+                        ? collectorDiagnostics.stop_policy.soft_stop_repeat_threshold.toLocaleString()
+                        : "-"}
+                    </strong>
+                  </div>
                 </div>
               ) : (
-                <EmptyBox message="저장된 OCR 중단 권장 정보가 없습니다." />
+                <EmptyBox message="저장된 중단 권장 정보가 없습니다." />
               )}
             </div>
             <div className={styles.subPanel}>
@@ -1932,6 +1999,21 @@ function formatCollectorStop(diagnostics: CollectorDiagnostics | null) {
   }
 
   return "-";
+}
+
+function formatPipelineStop(diagnostics: CollectorDiagnostics | null) {
+  if (!diagnostics?.pipeline_stop_recommendation) {
+    return "-";
+  }
+
+  const recommendation = diagnostics.pipeline_stop_recommendation;
+  if (!recommendation.should_stop) {
+    return "권장 없음";
+  }
+
+  const source = recommendation.source ? `${recommendation.source}:` : "";
+  const level = recommendation.level ? `(${recommendation.level})` : "";
+  return `${source}${recommendation.primary_reason ?? "-"}${level}`;
 }
 
 function formatCollectorIgnoredCount(diagnostics: CollectorDiagnostics | null) {

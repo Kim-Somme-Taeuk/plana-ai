@@ -15,7 +15,9 @@ from app.schemas.ranking_statistics import (
     CollectorDiagnosticsRead,
     CollectorIgnoredReasonCountRead,
     CollectorPageSummaryRead,
+    CollectorPipelineStopRecommendationRead,
     CollectorReasonCountRead,
+    CollectorStopPolicyRead,
     CollectorStopHintRead,
     CollectorStopRecommendationRead,
     RankingSnapshotCutoffRead,
@@ -245,6 +247,16 @@ def _build_collector_diagnostics_read(
         ocr_stop_recommendation=(
             CollectorStopRecommendationRead(**summary.ocr_stop_recommendation)
             if summary.ocr_stop_recommendation is not None
+            else None
+        ),
+        pipeline_stop_recommendation=(
+            CollectorPipelineStopRecommendationRead(**summary.pipeline_stop_recommendation)
+            if summary.pipeline_stop_recommendation is not None
+            else None
+        ),
+        stop_policy=(
+            CollectorStopPolicyRead(**summary.stop_policy)
+            if summary.stop_policy is not None
             else None
         ),
     )

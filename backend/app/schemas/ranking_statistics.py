@@ -50,6 +50,19 @@ class CollectorStopRecommendationRead(BaseModel):
     reasons: list[str]
 
 
+class CollectorPipelineStopRecommendationRead(BaseModel):
+    should_stop: bool
+    level: str | None = None
+    source: str | None = None
+    primary_reason: str | None = None
+    reasons: list[str]
+
+
+class CollectorStopPolicyRead(BaseModel):
+    min_pages_before_ocr_stop: int
+    soft_stop_repeat_threshold: int
+
+
 class CollectorDiagnosticsRead(BaseModel):
     raw_summary: str
     captured_page_count: int | None = None
@@ -70,6 +83,8 @@ class CollectorDiagnosticsRead(BaseModel):
     page_summaries: list[CollectorPageSummaryRead]
     ocr_stop_hints: list[CollectorStopHintRead]
     ocr_stop_recommendation: CollectorStopRecommendationRead | None = None
+    pipeline_stop_recommendation: CollectorPipelineStopRecommendationRead | None = None
+    stop_policy: CollectorStopPolicyRead | None = None
 
 
 class ValidationTopIssueRead(BaseModel):

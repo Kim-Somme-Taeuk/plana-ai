@@ -31,6 +31,8 @@ class CollectorDiagnosticsSummary:
     page_summaries: tuple[dict[str, object], ...]
     ocr_stop_hints: tuple[dict[str, object], ...]
     ocr_stop_recommendation: dict[str, object] | None
+    pipeline_stop_recommendation: dict[str, object] | None
+    stop_policy: dict[str, object] | None
 
 
 def parse_collector_diagnostics_summary(
@@ -89,6 +91,10 @@ def parse_collector_diagnostics_summary(
         ocr_stop_recommendation=_parse_simple_object(
             details_payload.get("ocr_stop_recommendation")
         ),
+        pipeline_stop_recommendation=_parse_simple_object(
+            details_payload.get("pipeline_stop_recommendation")
+        ),
+        stop_policy=_parse_simple_object(details_payload.get("stop_policy")),
     )
 
 
