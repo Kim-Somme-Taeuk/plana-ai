@@ -218,6 +218,13 @@
   border: 1px solid rgba(102, 128, 97, 0.12);
 }
 
+.compareActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
 .statCard {
   padding: 14px;
   border-radius: 16px;

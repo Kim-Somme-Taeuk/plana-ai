@@ -398,9 +398,18 @@ export function SnapshotComparisonPanel({
   const rightCutoffMap = new Map(
     rightCutoffs.cutoffs.map((cutoff) => [cutoff.rank, cutoff.score]),
   );
+  const leftIssueMap = new Map(
+    leftSummary.validation_issues.map((issue) => [issue.code, issue.count]),
+  );
+  const rightIssueMap = new Map(
+    rightSummary.validation_issues.map((issue) => [issue.code, issue.count]),
+  );
   const cutoffRanks = Array.from(
     new Set([...leftCutoffMap.keys(), ...rightCutoffMap.keys()]),
   ).sort((left, right) => left - right);
+  const issueCodes = Array.from(
+    new Set([...leftIssueMap.keys(), ...rightIssueMap.keys()]),
+  ).sort();
 
   return (
     <section className={styles.panel}>
@@ -412,6 +421,15 @@ export function SnapshotComparisonPanel({
       <div className={styles.compareHeaderGrid}>
         <SnapshotCompareHeader snapshot={leftSnapshot} sideLabel="Left" />
         <SnapshotCompareHeader snapshot={rightSnapshot} sideLabel="Right" />
+      </div>
+
+      <div className={styles.compareActions}>
+        <Link href={`/snapshots/${leftSnapshot.id}`} className={styles.linkButton}>
+          Left 상세
+        </Link>
+        <Link href={`/snapshots/${rightSnapshot.id}`} className={styles.linkButton}>
+          Right 상세
+        </Link>
       </div>
 
       <div className={styles.tableWrap}>
@@ -486,6 +504,33 @@ export function SnapshotComparisonPanel({
           </tbody>
         </table>
       </div>
+
+      {issueCodes.length === 0 ? (
+        <EmptyBox message="두 snapshot 모두 집계된 validation issue가 없습니다." />
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Validation Issue</th>
+                <th>Left</th>
+                <th>Right</th>
+                <th>Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {issueCodes.map((code) => (
+                <CompareRow
+                  key={code}
+                  label={code}
+                  leftValue={leftIssueMap.get(code) ?? 0}
+                  rightValue={rightIssueMap.get(code) ?? 0}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
