@@ -221,3 +221,33 @@ def test_load_mock_payload_rejects_duplicate_ranks(tmp_path):
         load_mock_payload(mock_file)
 
     assert "duplicate_rank" in str(exc_info.value)
+
+
+def test_load_mock_payload_rejects_duplicate_integer_like_string_ranks(tmp_path):
+    mock_file = tmp_path / "duplicate-string-rank.json"
+    mock_file.write_text(
+        json.dumps(
+            {
+                "season": {
+                    "event_type": "raid",
+                    "server": "kr",
+                    "boss_name": "Binah",
+                    "terrain": "outdoor",
+                    "season_label": "collector-duplicate-string-rank-test",
+                },
+                "snapshot": {
+                    "captured_at": "2026-04-16T10:00:00Z",
+                },
+                "entries": [
+                    {"rank": "1", "score": 1000},
+                    {"rank": 1.0, "score": 900},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MockImportError) as exc_info:
+        load_mock_payload(mock_file)
+
+    assert "duplicate_rank" in str(exc_info.value)

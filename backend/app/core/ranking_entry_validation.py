@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable, Mapping
 
+from pydantic import TypeAdapter, ValidationError
+
 
 LOW_OCR_CONFIDENCE_THRESHOLD = 0.5
+INT_VALUE_ADAPTER = TypeAdapter(int)
 
 
 class ValidationIssueCode(str, Enum):
@@ -58,8 +61,8 @@ def summarize_snapshot_entries(
     has_rank_order_violation = False
 
     for entry in entries:
-        rank = entry.get("rank")
-        if not isinstance(rank, int):
+        rank = _normalize_rank_for_snapshot_validation(entry.get("rank"))
+        if rank is None:
             continue
 
         if rank in seen_ranks:
@@ -101,3 +104,10 @@ def _get_entry_validation_issue(
         return ValidationIssueCode.LOW_OCR_CONFIDENCE.value
 
     return None
+
+
+def _normalize_rank_for_snapshot_validation(value: object) -> int | None:
+    try:
+        return INT_VALUE_ADAPTER.validate_python(value)
+    except ValidationError:
+        return None

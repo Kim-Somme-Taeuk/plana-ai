@@ -53,3 +53,16 @@ def test_summarize_snapshot_entries_reports_rank_order_violation() -> None:
 
     assert summary.duplicate_ranks == ()
     assert summary.has_rank_order_violation is True
+
+
+def test_summarize_snapshot_entries_normalizes_integer_like_ranks() -> None:
+    summary = summarize_snapshot_entries(
+        [
+            {"rank": "1", "score": 1000},
+            {"rank": 1.0, "score": 900},
+            {"rank": "2", "score": 800},
+        ]
+    )
+
+    assert summary.duplicate_ranks == (1,)
+    assert summary.has_rank_order_violation is False
