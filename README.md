@@ -183,7 +183,8 @@ entry 조회 사용성:
 - `cutoff-series`는 `ranking_snapshots.status=completed` snapshot만 사용
 - `cutoff-series`는 optional `source_type` 필터 지원
 - `validation-overview`, `validation-series`는 `status`, `source_type` 필터를 지원
-- collector가 snapshot `note`에 남긴 진단 요약은 `validation-report`, `validation-overview`, `validation-series`에도 구조화되어 노출됩니다.
+- collector가 snapshot `note`에 남긴 진단 요약과 `collector_json` 상세는 `validation-report`, `validation-overview`, `validation-series`에도 구조화되어 노출됩니다.
+- snapshot 상세에서는 page별 entry 수, ignored OCR reason, overlap/new rank 비율, OCR stop recommendation까지 다시 확인할 수 있습니다.
 - `validation-overview`, `validation-series`는 추가로 `collector_filter=with_diagnostics|capture_stop|hard_ocr_stop`을 지원합니다.
 - `validation-overview`, `validation-series`는 추가로 `capture_stop_reason`, `ocr_stop_reason` query로 특정 collector reason만 drilldown할 수 있습니다.
 - `validation-overview`, `validation-series`는 `ignored_reason`, `ocr_stop_level` query로 ignored OCR reason / stop severity 기준 drilldown도 지원합니다.
@@ -312,6 +313,13 @@ docker compose ps
 
 - backend: `http://localhost:8000`
 - frontend: `http://localhost:3000`
+- db host bind: `localhost:5432`
+
+포트가 충돌하면 host bind만 따로 바꿀 수 있습니다.
+
+```bash
+POSTGRES_HOST_PORT=55432 BACKEND_PORT=58000 FRONTEND_PORT=53000 docker compose up -d --build
+```
 
 health check:
 
