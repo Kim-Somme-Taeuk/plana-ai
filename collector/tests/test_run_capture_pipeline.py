@@ -94,6 +94,12 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.ignored_line_count == 0
     assert result.ocr_stop_hints == []
     assert result.ocr_stop_recommendation == {"should_stop": False, "reasons": []}
+    assert result.pipeline_stop_recommendation == {
+        "should_stop": False,
+        "source": None,
+        "primary_reason": None,
+        "reasons": [],
+    }
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
     assert [call[0] for call in api_client.calls] == [
@@ -325,6 +331,12 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
         "should_stop": True,
         "reasons": ["sparse_last_page"],
     }
+    assert result.pipeline_stop_recommendation == {
+        "should_stop": True,
+        "source": "capture",
+        "primary_reason": "repeated_frame",
+        "reasons": ["repeated_frame"],
+    }
 
 
 def test_run_capture_pipeline_tracks_ignored_lines(
@@ -381,6 +393,12 @@ def test_run_capture_pipeline_tracks_ignored_lines(
     assert result.ocr_stop_hints == [{"reason": "noisy_last_page", "page_index": 1, "ignored_line_count": 1, "entry_count": 1}]
     assert result.ocr_stop_recommendation == {
         "should_stop": True,
+        "reasons": ["noisy_last_page"],
+    }
+    assert result.pipeline_stop_recommendation == {
+        "should_stop": True,
+        "source": "ocr",
+        "primary_reason": "noisy_last_page",
         "reasons": ["noisy_last_page"],
     }
     assert result.page_summaries == [

@@ -52,6 +52,7 @@ class CapturePipelineResult:
     page_summaries: list[dict[str, Any]]
     ocr_stop_hints: list[dict[str, Any]]
     ocr_stop_recommendation: dict[str, Any]
+    pipeline_stop_recommendation: dict[str, Any]
 
 
 def run_capture_pipeline(
@@ -94,6 +95,10 @@ def run_capture_pipeline(
     parsed_payload = parse_capture_payload(capture_payload)
     ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
     ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
+    pipeline_stop_recommendation = _build_pipeline_stop_recommendation(
+        capture_stopped_reason=capture_result.stopped_reason,
+        ocr_stop_recommendation=ocr_stop_recommendation,
+    )
     import_result = import_parsed_capture_payload(
         parsed_payload,
         api_client or ApiClient(base_url),
@@ -117,6 +122,7 @@ def run_capture_pipeline(
         page_summaries=parsed_payload.page_summaries,
         ocr_stop_hints=ocr_stop_hints,
         ocr_stop_recommendation=ocr_stop_recommendation,
+        pipeline_stop_recommendation=pipeline_stop_recommendation,
     )
 
 
@@ -140,6 +146,38 @@ def _resolve_pipeline_ocr_provider(
         return None
 
     return "tesseract"
+
+
+def _build_pipeline_stop_recommendation(
+    *,
+    capture_stopped_reason: str | None,
+    ocr_stop_recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    if capture_stopped_reason is not None:
+        return {
+            "should_stop": True,
+            "source": "capture",
+            "primary_reason": capture_stopped_reason,
+            "reasons": [capture_stopped_reason],
+        }
+
+    if ocr_stop_recommendation["should_stop"]:
+        reasons = list(ocr_stop_recommendation["reasons"])
+        return {
+            "should_stop": True,
+            "source": "ocr",
+            "primary_reason": reasons[0],
+            "reasons": reasons,
+        }
+
+    return {
+        "should_stop": False,
+        "source": None,
+        "primary_reason": None,
+        "reasons": [],
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="ADB capture부터 OCR import까지 한 번에 수행합니다.",
@@ -231,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
                 "page_summaries": result.page_summaries,
                 "ocr_stop_hints": result.ocr_stop_hints,
                 "ocr_stop_recommendation": result.ocr_stop_recommendation,
+                "pipeline_stop_recommendation": result.pipeline_stop_recommendation,
             },
             ensure_ascii=False,
         )
