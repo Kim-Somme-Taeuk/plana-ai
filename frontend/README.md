@@ -1,8 +1,8 @@
 # frontend
 
-`plana-ai`의 Next.js 기반 대시보드입니다.
+`plana-ai`의 Next.js 기반 운영 대시보드입니다.
 
-현재 frontend는 backend API를 직접 읽어서 시즌, snapshot, 통계, entry 데이터를 탐색하는 1차 화면을 제공합니다.
+현재 frontend는 backend API를 직접 읽어서 시즌, snapshot, 통계, validation, collector diagnostics를 탐색하는 운영용 화면을 제공합니다.
 
 ## 현재 구현 화면
 
@@ -18,53 +18,69 @@
 
 시즌 상세 페이지입니다.
 
+사용 API:
+
 - `GET /seasons/{season_id}`
 - `GET /seasons/{season_id}/ranking-snapshots`
 - `GET /seasons/{season_id}/cutoff-series?rank=...`
 - `GET /seasons/{season_id}/validation-overview`
 - `GET /seasons/{season_id}/validation-series`
+
+주요 UI:
+
 - 시즌 요약
-- season validation overview / validation series / issue 집계
-- season validation overview / validation series에서 collector 진단 집계와 stop 힌트 표시
-- season 상세에서 `collector=with_diagnostics|capture_stop|hard_ocr_stop` 필터로 품질 패널과 compare 후보를 좁혀볼 수 있음
-- season 상세에서 `captureStopReason`, `ocrStopReason` query로 특정 collector reason 기준 drilldown 가능
-- season 상세에서 `ignoredReason`, `ocrStopLevel` query로 ignored OCR reason / stop severity 기준 drilldown 가능
-- season validation overview에서 capture stop / OCR stop / ignored OCR reason 집계를 테이블로 확인 가능
-- capture stop / OCR stop reason row를 클릭하면 해당 reason으로 시즌 상세를 다시 여는 drilldown 링크로 이동
-- ignored OCR reason row도 해당 reason으로 시즌 상세를 다시 여는 drilldown 링크로 이동
+- validation overview
+- validation series
+- validation issue 집계
+- page quality signal 집계
+- collector stop / ignored OCR / pipeline stop 집계
 - snapshot 목록
-- snapshot 목록에서 invalid ratio / top issue / collector stop / ignored OCR count 표시
-- snapshot status / source 필터
-- snapshot compare 패널
-- snapshot compare에서 validation issue delta 비교
-- snapshot compare에서 collector stop / ignored OCR line 비교
-- snapshot compare에서 left/right invalid, top issue drilldown 링크 제공
-- snapshot 상세 validation report에서 collector stop / ignored OCR reason 기준으로 시즌 상세 drilldown 가능
-- validation series에서 바로 이전 snapshot과 compare 링크 제공
-- validation series에서 invalid entry / top issue / snapshot 상세로 바로 drilldown
-- season validation overview / validation series는 현재 선택된 `status` / `source` 필터와 같이 움직임
-- snapshot compare 후보와 cutoff-series도 현재 선택된 `source` 필터 기준으로 좁혀짐
-- cutoff-series 표시
-- 로딩 / 에러 / 빈 상태 처리
+- snapshot compare
+- cutoff series
+- 빠른 이동
+
+현재 drilldown 범위:
+
+- `status`
+- `source`
+- `collector`
+- `captureStopReason`
+- `ocrStopReason`
+- `pipelineStopReason`
+- `pipelineStopSource`
+- `pipelineStopLevel`
+- `ignoredReason`
+- `ignoredGroup`
+- `pageSignal`
+- `ocrStopLevel`
+
+즉, season 상세 하나에서 validation/collector 품질 신호를 여러 기준으로 계속 좁혀볼 수 있습니다.
 
 ### `/snapshots/[snapshotId]`
 
 snapshot 상세 페이지입니다.
 
+사용 API:
+
 - `GET /ranking-snapshots/{snapshot_id}`
 - `GET /ranking-snapshots/{snapshot_id}/summary`
 - `GET /ranking-snapshots/{snapshot_id}/validation-report`
-  - snapshot 상세에서 collector page summary, ignored OCR breakdown, OCR stop recommendation까지 함께 표시합니다.
 - `GET /ranking-snapshots/{snapshot_id}/cutoffs`
 - `GET /ranking-snapshots/{snapshot_id}/distribution`
 - `GET /ranking-snapshots/{snapshot_id}/entries`
-- summary / cutoffs / distribution / entries 표시
-- validation report 표시
-- validation report에 collector 진단 요약 표시
-- `is_valid`, `validation_issue`, `sort_by`, `order`, `limit`, `offset` 기반 entry 조회 제어
-- validation issue 집계 패널 표시
-- snapshot 상세에서 issue code 클릭 시 해당 issue로 바로 필터링
-- 로딩 / 에러 / 빈 상태 처리
+
+주요 UI:
+
+- summary
+- validation report
+- collector diagnostics
+- page quality signal
+- cutoffs
+- distribution
+- entries table
+- `is_valid`, `validation_issue`, `limit`, `offset`, `sort_by`, `order` 기반 탐색
+
+snapshot 상세에서는 issue code, collector stop, ignored group, page signal 기준으로 다시 시즌 상세 drilldown도 가능합니다.
 
 ## API 연결 방식
 
@@ -81,7 +97,6 @@ frontend는 server component 기반 fetch helper를 사용합니다.
 
 - 로컬 host 개발 환경에서는 기본적으로 `localhost:8000`
 - docker compose 환경에서는 `backend:8000`
-를 사용할 수 있습니다.
 
 ## 실행
 
@@ -103,15 +118,15 @@ npm run lint
 npm run build
 ```
 
-루트 기준 smoke 검증:
+## smoke
+
+로컬 smoke:
 
 ```bash
 bash scripts/smoke.sh
 ```
 
-`smoke.sh`는 seed 데이터를 자동으로 넣은 뒤 시즌 상세, compare, snapshot 상세까지 함께 확인합니다.
-
-빈 DB를 seed한 뒤 docker 경로까지 확인하는 CI용 smoke:
+CI/빈 DB smoke:
 
 ```bash
 bash scripts/ci_smoke.sh
@@ -131,9 +146,22 @@ bash scripts/ci_smoke.sh
   backend fetch helper
 - `app/lib/types.ts`
   frontend API 타입 정의
+- `app/dashboard.module.css`
+  dashboard 전용 스타일
+
+## 현재 UX 성격
+
+현재 화면은 일반 사용자 소비형 UI보다 운영자/개발자용 탐색 UI에 가깝습니다.
+
+즉, 아래를 우선합니다.
+
+- 스냅샷 품질 비교
+- invalid issue drilldown
+- collector stop/ignored OCR 신호 확인
+- 모바일 포함 기본 반응형 운영 화면
 
 ## 주의사항
 
-- 이 frontend는 현재 backend API 스펙에 강하게 맞춰져 있습니다.
-- 통계 정책은 backend를 따르므로, invalid entry는 표시될 수 있어도 통계 계산에서는 제외됩니다.
-- 별도 상태관리 라이브러리는 도입하지 않았고, 1차 버전은 단순한 서버 렌더링 중심 구조입니다.
+- 이 frontend는 현재 backend API 응답 구조에 직접 의존합니다.
+- 통계 정책은 backend를 따르므로 invalid entry는 표시될 수 있어도 통계 계산에서는 제외됩니다.
+- 별도 상태관리 라이브러리는 도입하지 않았고, 서버 렌더링 중심 구조입니다.
