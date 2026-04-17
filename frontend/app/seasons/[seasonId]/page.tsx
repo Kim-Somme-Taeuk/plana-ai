@@ -414,37 +414,6 @@ export default async function SeasonDetailPage({
 	                )}
 	              </div>
 
-	              <section className={styles.panel}>
-	                <div className={styles.panelTitle}>
-	                  <h2>빠른 이동</h2>
-	                  <span className={styles.muted}>
-	                    시즌 상세에서 자주 오가는 구간을 한 번에 엽니다.
-	                  </span>
-	                </div>
-	                <div className={styles.quickLinkGrid}>
-	                  <Link href="#validation-overview" className={styles.linkButton}>
-	                    검증 개요
-	                  </Link>
-	                  <Link href="#validation-series" className={styles.linkButton}>
-	                    검증 시계열
-	                  </Link>
-	                  <Link href="#validation-issues" className={styles.linkButton}>
-	                    검증 이슈
-	                  </Link>
-	                  <Link href="#snapshot-list" className={styles.linkButton}>
-	                    스냅샷 목록
-	                  </Link>
-	                  <Link href="#cutoff-series" className={styles.linkButton}>
-	                    컷오프 시계열
-	                  </Link>
-	                  {filteredCompareCandidates.length >= 2 ? (
-	                    <Link href="#snapshot-compare" className={styles.linkButton}>
-	                      스냅샷 비교
-	                    </Link>
-	                  ) : null}
-	                </div>
-	              </section>
-
 	              <div id="validation-series" className={styles.anchorTarget}>
 	                {validationSeriesResult.error || !validationSeriesResult.data ? (
 	                  <ErrorBox
@@ -473,14 +442,6 @@ export default async function SeasonDetailPage({
                   />
                 )}
               </div>
-
-              {validationOverviewResult.error || !validationOverviewResult.data ? null : (
-                <div id="validation-issues" className={styles.anchorTarget}>
-                  <ValidationIssuesPanel
-                    issues={validationOverviewResult.data.validation_issues}
-                  />
-                </div>
-              )}
 
               <div id="snapshot-list" className={styles.anchorTarget}>
                 <section className={styles.panel}>
@@ -524,6 +485,45 @@ export default async function SeasonDetailPage({
 	                <div id="season-summary" className={styles.anchorTarget}>
 	                  <SeasonSummary season={season} />
 	                </div>
+
+                  <section className={styles.panel}>
+                    <div className={styles.panelTitle}>
+                      <h2>빠른 이동</h2>
+                      <span className={styles.muted}>
+                        자주 보는 구간을 오른쪽에서 바로 엽니다.
+                      </span>
+                    </div>
+                    <div className={styles.quickLinkGrid}>
+                      <Link href="#validation-overview" className={styles.linkButton}>
+                        검증 개요
+                      </Link>
+                      <Link href="#validation-series" className={styles.linkButton}>
+                        검증 시계열
+                      </Link>
+                      <Link href="#validation-issues" className={styles.linkButton}>
+                        검증 이슈
+                      </Link>
+                      <Link href="#snapshot-list" className={styles.linkButton}>
+                        스냅샷 목록
+                      </Link>
+                      <Link href="#cutoff-series" className={styles.linkButton}>
+                        컷오프 시계열
+                      </Link>
+                      {filteredCompareCandidates.length >= 2 ? (
+                        <Link href="#snapshot-compare" className={styles.linkButton}>
+                          스냅샷 비교
+                        </Link>
+                      ) : null}
+                    </div>
+                  </section>
+
+                  {validationOverviewResult.error || !validationOverviewResult.data ? null : (
+                    <div id="validation-issues" className={styles.anchorTarget}>
+                      <ValidationIssuesPanel
+                        issues={validationOverviewResult.data.validation_issues}
+                      />
+                    </div>
+                  )}
 
 	                <section className={styles.panel}>
 	                  <div className={styles.panelTitle}>
