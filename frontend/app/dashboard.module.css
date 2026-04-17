@@ -542,6 +542,10 @@
   padding: 0 14px 12px;
 }
 
+.rightRail .filterGrid {
+  grid-template-columns: 1fr;
+}
+
 .filterGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
