@@ -1997,6 +1997,11 @@ def test_parse_blue_archive_fixed_rows_assembles_entries(
 ) -> None:
     monkeypatch.setattr(
         capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, None, None),
+    )
+    monkeypatch.setattr(
+        capture_import,
         "_ocr_blue_archive_row_rank",
         lambda **kwargs: {0.02: 12001, 0.35: 12002, 0.69: 12003}[kwargs["top_ratio"]],
     )

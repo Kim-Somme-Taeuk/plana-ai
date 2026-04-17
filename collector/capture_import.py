@@ -1371,8 +1371,8 @@ def _ocr_blue_archive_row_combined_fields(
 ) -> tuple[int | None, str | None, int | None]:
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
-        x_ratios=(0.0, 0.78),
-        y_ratios=(top_ratio, min(bottom_ratio, top_ratio + 0.28)),
+        x_ratios=(0.22, 0.86),
+        y_ratios=_build_blue_archive_row_y_ratios(top_ratio, bottom_ratio, 0.0, 0.72),
         attempts=[
             OcrRegionAttempt(
                 language="eng",
@@ -1431,8 +1431,8 @@ def _ocr_blue_archive_row_rank(
 ) -> int | None:
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
-        x_ratios=(0.0, 0.38),
-        y_ratios=(top_ratio, min(bottom_ratio, top_ratio + 0.23)),
+        x_ratios=(0.26, 0.66),
+        y_ratios=_build_blue_archive_row_y_ratios(top_ratio, bottom_ratio, 0.0, 0.42),
         attempts=[
             OcrRegionAttempt(
                 language="eng",
@@ -1467,8 +1467,8 @@ def _ocr_blue_archive_row_difficulty(
 ) -> str | None:
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
-        x_ratios=(0.14, 0.52),
-        y_ratios=(top_ratio + 0.12, min(bottom_ratio, top_ratio + 0.28)),
+        x_ratios=(0.28, 0.58),
+        y_ratios=_build_blue_archive_row_y_ratios(top_ratio, bottom_ratio, 0.32, 0.72),
         attempts=[
             OcrRegionAttempt(
                 language="eng",
@@ -1509,8 +1509,8 @@ def _ocr_blue_archive_row_score(
 ) -> int | None:
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
-        x_ratios=(0.34, 0.82),
-        y_ratios=(top_ratio + 0.1, min(bottom_ratio, top_ratio + 0.28)),
+        x_ratios=(0.50, 0.88),
+        y_ratios=_build_blue_archive_row_y_ratios(top_ratio, bottom_ratio, 0.28, 0.72),
         attempts=[
             OcrRegionAttempt(
                 language="eng",
@@ -1533,6 +1533,19 @@ def _ocr_blue_archive_row_score(
         except MockImportError:
             continue
     return None
+
+
+def _build_blue_archive_row_y_ratios(
+    top_ratio: float,
+    bottom_ratio: float,
+    start_ratio: float,
+    end_ratio: float,
+) -> tuple[float, float]:
+    row_height = bottom_ratio - top_ratio
+    return (
+        top_ratio + (row_height * start_ratio),
+        top_ratio + (row_height * end_ratio),
+    )
 
 
 def _parse_tesseract_tsv_words(tsv_text: str) -> list[TesseractTsvWord]:
