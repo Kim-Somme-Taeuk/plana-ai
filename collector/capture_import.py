@@ -114,6 +114,7 @@ class OcrConfig:
     psm: int | None
     extra_args: tuple[str, ...]
     crop: "OcrCrop | None"
+    upscale_ratio: float
     reuse_cached_sidecar: bool
     persist_sidecar: bool
 
@@ -1006,30 +1007,46 @@ def _prepare_image_for_ocr(
         return image_path, (lambda: None)
 
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
     except ImportError as exc:
         raise MockImportError(
             "ocr.crop을 사용하려면 Pillow가 필요합니다. requirements를 다시 설치하세요."
         ) from exc
 
+    if ocr.crop is None and ocr.upscale_ratio == 1.0:
+        return image_path, (lambda: None)
+
     with Image.open(image_path) as image:
         width, height = image.size
-        left = max(0, int(width * ocr.crop.left_ratio))
-        top = max(0, int(height * ocr.crop.top_ratio))
-        right = min(width, int(width * ocr.crop.right_ratio))
-        bottom = min(height, int(height * ocr.crop.bottom_ratio))
-        if left >= right or top >= bottom:
-            raise MockImportError(
-                f"ocr.crop이 유효한 영역을 만들지 못했습니다: image_path={image_path}"
+        processed = image
+        if ocr.crop is not None:
+            left = max(0, int(width * ocr.crop.left_ratio))
+            top = max(0, int(height * ocr.crop.top_ratio))
+            right = min(width, int(width * ocr.crop.right_ratio))
+            bottom = min(height, int(height * ocr.crop.bottom_ratio))
+            if left >= right or top >= bottom:
+                raise MockImportError(
+                    f"ocr.crop이 유효한 영역을 만들지 못했습니다: image_path={image_path}"
+                )
+            processed = processed.crop((left, top, right, bottom))
+
+        processed = ImageOps.grayscale(processed)
+        processed = ImageOps.autocontrast(processed)
+        if ocr.upscale_ratio > 1.0:
+            processed = processed.resize(
+                (
+                    max(1, int(processed.width * ocr.upscale_ratio)),
+                    max(1, int(processed.height * ocr.upscale_ratio)),
+                ),
+                Image.Resampling.LANCZOS,
             )
-        cropped = image.crop((left, top, right, bottom))
         with tempfile.NamedTemporaryFile(
             suffix=image_path.suffix,
             prefix="plana-ocr-crop-",
             delete=False,
         ) as temp_file:
             temp_path = Path(temp_file.name)
-        cropped.save(temp_path)
+        processed.save(temp_path)
 
     def cleanup() -> None:
         try:
@@ -1112,6 +1129,7 @@ def _build_ocr_config(
         psm=psm,
         extra_args=extra_args,
         crop=_build_ocr_crop(ocr_mapping.get("crop")),
+        upscale_ratio=_build_ocr_upscale_ratio(ocr_mapping.get("upscale_ratio", 1.0)),
         reuse_cached_sidecar=reuse_cached_sidecar,
         persist_sidecar=persist_sidecar,
     )
@@ -1145,6 +1163,16 @@ def _build_ocr_crop(raw_crop: Any) -> OcrCrop | None:
         right_ratio=parsed["right_ratio"],
         bottom_ratio=parsed["bottom_ratio"],
     )
+
+
+def _build_ocr_upscale_ratio(raw_value: Any) -> float:
+    try:
+        parsed = float(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise MockImportError("ocr.upscale_ratio는 1 이상의 숫자여야 합니다.") from exc
+    if parsed < 1.0:
+        raise MockImportError("ocr.upscale_ratio는 1 이상의 숫자여야 합니다.")
+    return parsed
 
 
 def _parse_tesseract_layout_entries(

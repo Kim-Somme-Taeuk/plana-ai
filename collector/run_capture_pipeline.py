@@ -688,6 +688,7 @@ def _build_runtime_ocr_config(
         psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
         extra_args=tuple(request.ocr.get("extra_args", [])),
         crop=_build_ocr_crop(request.ocr.get("crop")),
+        upscale_ratio=float(request.ocr.get("upscale_ratio", 1.0)),
         reuse_cached_sidecar=True,
         persist_sidecar=True,
     )
