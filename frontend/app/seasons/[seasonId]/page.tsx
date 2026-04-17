@@ -248,6 +248,7 @@ export default async function SeasonDetailPage({
         selectedPipelineStopSource !== "all" ||
         selectedPipelineStopLevel !== "all" ||
         selectedIgnoredReason !== "all" ||
+        selectedIgnoredGroup !== "all" ||
         selectedPageSignal !== "all" ||
         selectedOcrStopLevel !== "all") &&
       validationSeriesResult.data &&
@@ -366,10 +367,10 @@ export default async function SeasonDetailPage({
       ) : (
         <div className={styles.grid}>
           <div className={`${styles.grid} ${styles.twoColumn}`}>
-            <div className={`${styles.grid} ${styles.mainColumn}`}>
-              <div id="validation-overview" className={styles.anchorTarget}>
-                {validationOverviewResult.error || !validationOverviewResult.data ? (
-                  <ErrorBox
+	            <div className={`${styles.grid} ${styles.mainColumn}`}>
+	              <div id="validation-overview" className={styles.anchorTarget}>
+	                {validationOverviewResult.error || !validationOverviewResult.data ? (
+	                  <ErrorBox
                     message={`검증 개요를 불러오지 못했습니다. ${
                       validationOverviewResult.error ?? "알 수 없는 오류입니다."
                     }`}
@@ -390,13 +391,44 @@ export default async function SeasonDetailPage({
                     selectedIgnoredGroup={selectedIgnoredGroup}
                     selectedPageSignal={selectedPageSignal}
                     selectedOcrStopLevel={selectedOcrStopLevel}
-                  />
-                )}
-              </div>
+	                  />
+	                )}
+	              </div>
 
-              <div id="validation-series" className={styles.anchorTarget}>
-                {validationSeriesResult.error || !validationSeriesResult.data ? (
-                  <ErrorBox
+	              <section className={styles.panel}>
+	                <div className={styles.panelTitle}>
+	                  <h2>빠른 이동</h2>
+	                  <span className={styles.muted}>
+	                    시즌 상세에서 자주 오가는 구간을 한 번에 엽니다.
+	                  </span>
+	                </div>
+	                <div className={styles.quickLinkGrid}>
+	                  <Link href="#validation-overview" className={styles.linkButton}>
+	                    검증 개요
+	                  </Link>
+	                  <Link href="#validation-series" className={styles.linkButton}>
+	                    검증 시계열
+	                  </Link>
+	                  <Link href="#validation-issues" className={styles.linkButton}>
+	                    검증 이슈
+	                  </Link>
+	                  <Link href="#snapshot-list" className={styles.linkButton}>
+	                    스냅샷 목록
+	                  </Link>
+	                  <Link href="#cutoff-series" className={styles.linkButton}>
+	                    컷오프 시계열
+	                  </Link>
+	                  {filteredCompareCandidates.length >= 2 ? (
+	                    <Link href="#snapshot-compare" className={styles.linkButton}>
+	                      스냅샷 비교
+	                    </Link>
+	                  ) : null}
+	                </div>
+	              </section>
+
+	              <div id="validation-series" className={styles.anchorTarget}>
+	                {validationSeriesResult.error || !validationSeriesResult.data ? (
+	                  <ErrorBox
                     message={`검증 시계열을 불러오지 못했습니다. ${
                       validationSeriesResult.error ?? "알 수 없는 오류입니다."
                     }`}
@@ -466,47 +498,16 @@ export default async function SeasonDetailPage({
                   )}
                 </section>
               </div>
-            </div>
+	            </div>
 
-            <div className={styles.sidebarColumn}>
-              <div className={styles.sidebarStack}>
-                <div id="season-summary" className={styles.anchorTarget}>
-                  <SeasonSummary season={season} />
-                </div>
+	            <div className={styles.sidebarColumn}>
+	              <div className={`${styles.sidebarStack} ${styles.rightRail}`}>
+	                <div id="season-summary" className={styles.anchorTarget}>
+	                  <SeasonSummary season={season} />
+	                </div>
 
-                <section className={styles.panel}>
-                  <div className={styles.panelTitle}>
-                    <h2>빠른 이동</h2>
-                    <span className={styles.muted}>
-                      자주 보는 구간으로 바로 이동합니다.
-                    </span>
-                  </div>
-                  <div className={styles.quickLinkGrid}>
-                    <Link href="#validation-overview" className={styles.linkButton}>
-                      검증 개요
-                    </Link>
-                    <Link href="#validation-series" className={styles.linkButton}>
-                      검증 시계열
-                    </Link>
-                    <Link href="#snapshot-list" className={styles.linkButton}>
-                      스냅샷 목록
-                    </Link>
-                    <Link href="#cutoff-series" className={styles.linkButton}>
-                      컷오프 시계열
-                    </Link>
-                    {filteredCompareCandidates.length >= 2 ? (
-                      <Link href="#snapshot-compare" className={styles.linkButton}>
-                        스냅샷 비교
-                      </Link>
-                    ) : null}
-                    <Link href="/" className={styles.linkButton}>
-                      시즌 목록
-                    </Link>
-                  </div>
-                </section>
-
-                <section className={styles.panel}>
-                  <div className={styles.panelTitle}>
+	                <section className={styles.panel}>
+	                  <div className={styles.panelTitle}>
                     <h2>스냅샷 필터</h2>
                     <span className={styles.muted}>
                       compare, validation, diagnostics 흐름을 같은 조건으로 좁힙니다.

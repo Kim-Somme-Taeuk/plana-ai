@@ -183,6 +183,17 @@
   line-height: 1.6;
 }
 
+.sectionStack {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.sectionStack > * {
+  min-width: 0;
+}
+
 .muted {
   color: #617163;
   font-size: 14px;
@@ -532,8 +543,9 @@
 }
 
 .paginationLinks {
-  display: inline-flex;
+  display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .quickLinkGrid {

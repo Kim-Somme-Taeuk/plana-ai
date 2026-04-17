@@ -334,64 +334,207 @@ export function SnapshotValidationReportPanel({
           value={formatPercent(report.invalid_ratio)}
         />
         <StatCard
-          label="중복 순위"
-          value={String(report.duplicate_rank_count)}
+          label="주요 이슈"
+          value={report.top_validation_issue?.code ?? "-"}
         />
         <StatCard
           label="순위 정렬"
           value={report.has_rank_order_violation ? "이상" : "정상"}
         />
         <StatCard
-          label="주요 이슈"
-          value={report.top_validation_issue?.code ?? "-"}
-        />
-        <StatCard
-          label="수집 페이지"
-          value={
-            report.collector_diagnostics
-              ? formatCollectorPages(report.collector_diagnostics)
-              : "-"
-          }
-        />
-        <StatCard
-          label="수집 중단"
-          value={collectorSummary.stop}
-        />
-        <StatCard
-          label="파이프라인 중단"
-          value={formatPipelineStop(collectorDiagnostics)}
-        />
-        <StatCard
-          label="무시된 OCR 줄"
-          value={collectorSummary.ignored}
-        />
-        <StatCard
-          label="오버레이 OCR 줄"
-          value={collectorDiagnostics?.overlay_ignored_line_count.toLocaleString() ?? "-"}
-        />
-        <StatCard
-          label="헤더 OCR 줄"
-          value={collectorDiagnostics?.header_ignored_line_count.toLocaleString() ?? "-"}
-        />
-        <StatCard
-          label="비정상 엔트리 OCR"
-          value={collectorDiagnostics?.malformed_entry_line_count.toLocaleString() ?? "-"}
+          label="중복 순위"
+          value={String(report.duplicate_rank_count)}
         />
       </div>
-      {collectorDiagnostics?.raw_summary ? (
-        <div className={styles.longformBlock}>
-          <div className={styles.panelTitle}>
-            <h3>수집 요약 원문</h3>
-          </div>
-          <p className={styles.longformText}>{collectorDiagnostics.raw_summary}</p>
-        </div>
-      ) : null}
       {collectorDiagnostics ? (
-        <>
+        <div className={styles.sectionStack}>
+          <div className={styles.threeColumnGrid}>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>수집 진단 요약</h3>
+              </div>
+              <div className={styles.keyValueList}>
+                <div className={styles.keyValueRow}>
+                  <span>수집 페이지</span>
+                  <strong>{formatCollectorPages(collectorDiagnostics)}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>수집 중단</span>
+                  <strong>{collectorSummary.stop}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>파이프라인 중단</span>
+                  <strong>{formatPipelineStop(collectorDiagnostics)}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>무시된 OCR 줄</span>
+                  <strong>{collectorSummary.ignored}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>오버레이 OCR 줄</span>
+                  <strong>
+                    {collectorDiagnostics.overlay_ignored_line_count.toLocaleString()}
+                  </strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>헤더 OCR 줄</span>
+                  <strong>
+                    {collectorDiagnostics.header_ignored_line_count.toLocaleString()}
+                  </strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>비정상 엔트리 OCR</span>
+                  <strong>
+                    {collectorDiagnostics.malformed_entry_line_count.toLocaleString()}
+                  </strong>
+                </div>
+              </div>
+            </div>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>페이지 품질 신호</h3>
+              </div>
+              <div className={styles.keyValueList}>
+                <div className={styles.keyValueRow}>
+                  <span>빈 페이지</span>
+                  <strong>{collectorDiagnostics.empty_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>Sparse 페이지</span>
+                  <strong>{collectorDiagnostics.sparse_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>중복 페이지</span>
+                  <strong>{collectorDiagnostics.overlapping_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>Stale 페이지</span>
+                  <strong>{collectorDiagnostics.stale_page_count.toLocaleString()}</strong>
+                </div>
+                <div className={styles.keyValueRow}>
+                  <span>Noise 페이지</span>
+                  <strong>{collectorDiagnostics.noisy_page_count.toLocaleString()}</strong>
+                </div>
+              </div>
+            </div>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>OCR / 파이프라인 중단 권장</h3>
+              </div>
+              {collectorDiagnostics.ocr_stop_recommendation ||
+              collectorDiagnostics.pipeline_stop_recommendation ||
+              collectorDiagnostics.stop_policy ? (
+                <div className={styles.keyValueList}>
+                  <div className={styles.keyValueRow}>
+                    <span>OCR 중단 권장</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation?.should_stop
+                        ? "예"
+                        : "아니오"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>OCR 레벨</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation?.level ?? "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>OCR 주요 사유</span>
+                    <strong>
+                      {collectorDiagnostics.ocr_stop_recommendation?.primary_reason ??
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 중단</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation
+                        ? collectorDiagnostics.pipeline_stop_recommendation
+                            .should_stop
+                          ? "예"
+                          : "아니오"
+                        : "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>판단 소스</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation?.source ??
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 레벨</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation?.level ??
+                        "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>파이프라인 주요 사유</span>
+                    <strong>
+                      {collectorDiagnostics.pipeline_stop_recommendation
+                        ?.primary_reason ?? "-"}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                <EmptyBox message="저장된 중단 권장 정보가 없습니다." />
+              )}
+            </div>
+          </div>
           <div className={styles.threeColumnGrid}>
             <div className={styles.subPanel}>
               <div className={styles.panelTitle}>
                 <h3>수집 중단 드릴다운</h3>
+              </div>
+              <div className={styles.paginationLinks}>
+                {collectorDiagnostics.capture_stop_reason ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=capture_stop&captureStopReason=${encodeURIComponent(
+                      collectorDiagnostics.capture_stop_reason,
+                    )}`}
+                    className={styles.linkButton}
+                  >
+                    캡처 중단
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.ocr_stop_reason ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&ocrStopReason=${encodeURIComponent(
+                      collectorDiagnostics.ocr_stop_reason,
+                    )}${
+                      collectorDiagnostics.ocr_stop_level
+                        ? `&ocrStopLevel=${encodeURIComponent(collectorDiagnostics.ocr_stop_level)}`
+                        : ""
+                    }`}
+                    className={styles.linkButton}
+                  >
+                    OCR 중단
+                  </Link>
+                ) : null}
+                {collectorDiagnostics.pipeline_stop_recommendation?.source ? (
+                  <Link
+                    href={`/seasons/${seasonId}?collector=with_diagnostics&pipelineStopSource=${encodeURIComponent(
+                      collectorDiagnostics.pipeline_stop_recommendation.source,
+                    )}${
+                      collectorDiagnostics.pipeline_stop_recommendation.level
+                        ? `&pipelineStopLevel=${encodeURIComponent(
+                            collectorDiagnostics.pipeline_stop_recommendation.level,
+                          )}`
+                        : ""
+                    }`}
+                    className={styles.linkButton}
+                  >
+                    파이프라인 중단
+                  </Link>
+                ) : null}
+                {!collectorDiagnostics.capture_stop_reason &&
+                !collectorDiagnostics.ocr_stop_reason &&
+                !collectorDiagnostics.pipeline_stop_recommendation?.source ? (
+                  <span className={styles.muted}>수집 중단 신호가 없습니다.</span>
+                ) : null}
               </div>
               <div className={styles.paginationLinks}>
                 {collectorDiagnostics.empty_page_count > 0 ? (
@@ -434,6 +577,13 @@ export function SnapshotValidationReportPanel({
                     Noise
                   </Link>
                 ) : null}
+              </div>
+            </div>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>OCR 그룹 드릴다운</h3>
+              </div>
+              <div className={styles.paginationLinks}>
                 {collectorDiagnostics.overlay_ignored_line_count > 0 ? (
                   <Link
                     href={`/seasons/${seasonId}?collector=with_diagnostics&ignoredGroup=overlay`}
@@ -459,249 +609,78 @@ export function SnapshotValidationReportPanel({
                   </Link>
                 ) : null}
               </div>
-              <div className={styles.paginationLinks}>
-                {collectorDiagnostics.capture_stop_reason ? (
-                  <Link
-                    href={`/seasons/${seasonId}?collector=capture_stop&captureStopReason=${encodeURIComponent(
-                      collectorDiagnostics.capture_stop_reason,
-                    )}`}
-                    className={styles.linkButton}
-                  >
-                    캡처 중단: {collectorDiagnostics.capture_stop_reason}
-                  </Link>
-                ) : null}
-                {collectorDiagnostics.ocr_stop_reason ? (
-                  <Link
-                    href={`/seasons/${seasonId}?collector=with_diagnostics&ocrStopReason=${encodeURIComponent(
-                      collectorDiagnostics.ocr_stop_reason,
-                    )}${
-                      collectorDiagnostics.ocr_stop_level
-                        ? `&ocrStopLevel=${encodeURIComponent(collectorDiagnostics.ocr_stop_level)}`
-                        : ""
-                    }`}
-                    className={styles.linkButton}
-                  >
-                    OCR 중단: {collectorDiagnostics.ocr_stop_reason}
-                    {collectorDiagnostics.ocr_stop_level
-                      ? ` (${collectorDiagnostics.ocr_stop_level})`
-                      : ""}
-                  </Link>
-                ) : null}
-                {collectorDiagnostics.pipeline_stop_recommendation?.source ? (
-                  <Link
-                    href={`/seasons/${seasonId}?collector=with_diagnostics&pipelineStopSource=${encodeURIComponent(
-                      collectorDiagnostics.pipeline_stop_recommendation.source,
-                    )}${
-                      collectorDiagnostics.pipeline_stop_recommendation.level
-                        ? `&pipelineStopLevel=${encodeURIComponent(
-                            collectorDiagnostics.pipeline_stop_recommendation.level,
-                          )}`
-                        : ""
-                    }`}
-                    className={styles.linkButton}
-                  >
-                    파이프라인 중단:{" "}
-                    {collectorDiagnostics.pipeline_stop_recommendation.source}
-                    {collectorDiagnostics.pipeline_stop_recommendation.level
-                      ? ` (${collectorDiagnostics.pipeline_stop_recommendation.level})`
-                      : ""}
-                  </Link>
-                ) : null}
-                {!collectorDiagnostics.capture_stop_reason &&
-                !collectorDiagnostics.ocr_stop_reason &&
-                !collectorDiagnostics.pipeline_stop_recommendation?.source ? (
-                  <span className={styles.muted}>수집 중단 신호가 없습니다.</span>
-                ) : null}
-              </div>
+              {collectorDiagnostics.raw_summary ? (
+                <p className={styles.panelLead}>
+                  {collectorDiagnostics.raw_summary}
+                </p>
+              ) : (
+                <span className={styles.muted}>저장된 수집 요약이 없습니다.</span>
+              )}
             </div>
             <ReasonSummaryPanel
-              title="무시된 OCR 사유 드릴다운"
+              title="무시된 OCR 사유"
               rows={collectorDiagnostics.ignored_reasons}
               emptyMessage="무시된 OCR 사유가 없습니다."
               getHref={(reason) =>
                 `/seasons/${seasonId}?collector=with_diagnostics&ignoredReason=${encodeURIComponent(reason)}`
               }
             />
-            <div className={styles.subPanel}>
-              <div className={styles.panelTitle}>
-                <h3>OCR / 파이프라인 중단 권장</h3>
-              </div>
-              {collectorDiagnostics.ocr_stop_recommendation ||
-              collectorDiagnostics.pipeline_stop_recommendation ||
-              collectorDiagnostics.stop_policy ? (
-                <div className={styles.keyValueList}>
-                  <div className={styles.keyValueRow}>
-                    <span>OCR 중단 권장</span>
-                    <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation?.should_stop
-                        ? "예"
-                        : "아니오"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>OCR 레벨</span>
-                    <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation?.level ?? "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>OCR 주요 사유</span>
-                    <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation?.primary_reason ??
-                        "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>OCR 사유 목록</span>
-                    <strong>
-                      {collectorDiagnostics.ocr_stop_recommendation &&
-                      collectorDiagnostics.ocr_stop_recommendation.reasons.length > 0
-                        ? collectorDiagnostics.ocr_stop_recommendation.reasons.join(
-                            ", ",
-                          )
-                        : "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>파이프라인 중단</span>
-                    <strong>
-                      {collectorDiagnostics.pipeline_stop_recommendation
-                        ? collectorDiagnostics.pipeline_stop_recommendation
-                            .should_stop
-                          ? "예"
-                          : "아니오"
-                        : "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>판단 소스</span>
-                    <strong>
-                      {collectorDiagnostics.pipeline_stop_recommendation?.source ??
-                        "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>파이프라인 레벨</span>
-                    <strong>
-                      {collectorDiagnostics.pipeline_stop_recommendation?.level ??
-                        "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>파이프라인 주요 사유</span>
-                    <strong>
-                      {collectorDiagnostics.pipeline_stop_recommendation
-                        ?.primary_reason ?? "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>파이프라인 사유 목록</span>
-                    <strong>
-                      {collectorDiagnostics.pipeline_stop_recommendation &&
-                      collectorDiagnostics.pipeline_stop_recommendation.reasons
-                        .length > 0
-                        ? collectorDiagnostics.pipeline_stop_recommendation.reasons.join(
-                            ", ",
-                          )
-                        : "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>최소 OCR 판정 페이지</span>
-                    <strong>
-                      {collectorDiagnostics.stop_policy
-                        ? collectorDiagnostics.stop_policy.min_pages_before_ocr_stop.toLocaleString()
-                        : "-"}
-                    </strong>
-                  </div>
-                  <div className={styles.keyValueRow}>
-                    <span>Soft stop 반복 기준</span>
-                    <strong>
-                      {collectorDiagnostics.stop_policy
-                        ? collectorDiagnostics.stop_policy.soft_stop_repeat_threshold.toLocaleString()
-                        : "-"}
-                    </strong>
-                  </div>
-                </div>
-              ) : (
-                <EmptyBox message="저장된 중단 권장 정보가 없습니다." />
-              )}
-            </div>
-            <div className={styles.subPanel}>
-              <div className={styles.panelTitle}>
-                <h3>페이지 품질 신호</h3>
-              </div>
-              <div className={styles.keyValueList}>
-                <div className={styles.keyValueRow}>
-                  <span>빈 페이지</span>
-                  <strong>{collectorDiagnostics.empty_page_count.toLocaleString()}</strong>
-                </div>
-                <div className={styles.keyValueRow}>
-                  <span>Sparse 페이지</span>
-                  <strong>{collectorDiagnostics.sparse_page_count.toLocaleString()}</strong>
-                </div>
-                <div className={styles.keyValueRow}>
-                  <span>중복 페이지</span>
-                  <strong>{collectorDiagnostics.overlapping_page_count.toLocaleString()}</strong>
-                </div>
-                <div className={styles.keyValueRow}>
-                  <span>Stale 페이지</span>
-                  <strong>{collectorDiagnostics.stale_page_count.toLocaleString()}</strong>
-                </div>
-                <div className={styles.keyValueRow}>
-                  <span>Noise 페이지</span>
-                  <strong>{collectorDiagnostics.noisy_page_count.toLocaleString()}</strong>
-                </div>
-              </div>
-            </div>
           </div>
           {collectorDiagnostics.page_summaries.length > 0 ? (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>페이지</th>
-                    <th>엔트리</th>
-                    <th>무시된 OCR</th>
-                    <th>순위 범위</th>
-                    <th>새 순위</th>
-                    <th>중복 비율</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {collectorDiagnostics.page_summaries.map((pageSummary) => (
-                    <tr key={pageSummary.page_index}>
-                      <td>#{pageSummary.page_index}</td>
-                      <td>{pageSummary.entry_count.toLocaleString()}</td>
-                      <td className={styles.cellWrap}>
-                        {pageSummary.ignored_line_count.toLocaleString()}
-                        {pageSummary.ignored_line_reasons.length > 0
-                          ? ` (${pageSummary.ignored_line_reasons
-                              .map((row) => `${row.reason}=${row.count}`)
-                              .join(", ")})`
-                          : ""}
-                      </td>
-                      <td>
-                        {formatRankRange(
-                          pageSummary.first_rank,
-                          pageSummary.last_rank,
-                        )}
-                      </td>
-                      <td>
-                        {pageSummary.new_rank_count.toLocaleString()} (
-                        {formatPercent(pageSummary.new_rank_ratio)})
-                      </td>
-                      <td>
-                        {pageSummary.overlap_with_previous_count.toLocaleString()} (
-                        {formatPercent(pageSummary.overlap_with_previous_ratio)})
-                      </td>
+            <div className={styles.subPanel}>
+              <div className={styles.panelTitle}>
+                <h3>페이지별 상세</h3>
+                <span className={styles.muted}>
+                  페이지마다 새 순위 유입과 중복/무시 OCR 비율을 함께 봅니다.
+                </span>
+              </div>
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>페이지</th>
+                      <th>엔트리</th>
+                      <th>무시된 OCR</th>
+                      <th>순위 범위</th>
+                      <th>새 순위</th>
+                      <th>중복 비율</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {collectorDiagnostics.page_summaries.map((pageSummary) => (
+                      <tr key={pageSummary.page_index}>
+                        <td>#{pageSummary.page_index}</td>
+                        <td>{pageSummary.entry_count.toLocaleString()}</td>
+                        <td className={styles.cellWrap}>
+                          {pageSummary.ignored_line_count.toLocaleString()}
+                          {pageSummary.ignored_line_reasons.length > 0
+                            ? ` (${pageSummary.ignored_line_reasons
+                                .map((row) => `${row.reason}=${row.count}`)
+                                .join(", ")})`
+                            : ""}
+                        </td>
+                        <td>
+                          {formatRankRange(
+                            pageSummary.first_rank,
+                            pageSummary.last_rank,
+                          )}
+                        </td>
+                        <td>
+                          {pageSummary.new_rank_count.toLocaleString()} (
+                          {formatPercent(pageSummary.new_rank_ratio)})
+                        </td>
+                        <td>
+                          {pageSummary.overlap_with_previous_count.toLocaleString()} (
+                          {formatPercent(pageSummary.overlap_with_previous_ratio)})
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
-        </>
+        </div>
       ) : null}
     </section>
   );
@@ -1102,137 +1081,152 @@ export function SeasonValidationOverviewPanel({
           label="주요 이슈"
           value={overview.top_validation_issue?.code ?? "-"}
         />
-        <StatCard
-          label="진단 포함 스냅샷"
-          value={String(overview.snapshots_with_collector_diagnostics_count)}
-        />
-        <StatCard
-          label="캡처 중단"
-          value={String(overview.snapshots_with_capture_stop_count)}
-        />
-        <StatCard
-          label="강한 OCR 중단"
-          value={String(overview.snapshots_with_hard_ocr_stop_count)}
-        />
-        <StatCard
-          label="파이프라인 중단"
-          value={String(overview.snapshots_with_pipeline_stop_count)}
-        />
-        <StatCard
-          label="무시된 OCR 줄"
-          value={String(overview.total_ignored_line_count)}
-        />
-        <StatCard
-          label="오버레이 OCR 줄"
-          value={String(overview.overlay_ignored_line_count)}
-        />
-        <StatCard
-          label="헤더 OCR 줄"
-          value={String(overview.header_ignored_line_count)}
-        />
-        <StatCard
-          label="비정상 엔트리 OCR"
-          value={String(overview.malformed_entry_line_count)}
-        />
       </div>
-      <div className={styles.paginationLinks}>
-        {overview.overlay_ignored_line_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("ignored-group", "overlay")}
-            className={styles.linkButton}
-          >
-            오버레이 OCR 보기
-          </Link>
-        ) : null}
-        {overview.header_ignored_line_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("ignored-group", "header")}
-            className={styles.linkButton}
-          >
-            헤더 OCR 보기
-          </Link>
-        ) : null}
-        {overview.malformed_entry_line_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("ignored-group", "malformed")}
-            className={styles.linkButton}
-          >
-            비정상 엔트리 OCR 보기
-          </Link>
-        ) : null}
-      </div>
-      <div className={styles.threeColumnGrid}>
-        <div className={styles.subPanel}>
-          <div className={styles.panelTitle}>
-            <h3>페이지 품질 신호</h3>
+      <div className={styles.sectionStack}>
+        <div className={styles.threeColumnGrid}>
+          <div className={styles.subPanel}>
+            <div className={styles.panelTitle}>
+              <h3>수집 진단 요약</h3>
+            </div>
+            <div className={styles.keyValueList}>
+              <div className={styles.keyValueRow}>
+                <span>진단 포함 스냅샷</span>
+                <strong>
+                  {overview.snapshots_with_collector_diagnostics_count.toLocaleString()}
+                </strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>캡처 중단</span>
+                <strong>{overview.snapshots_with_capture_stop_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>강한 OCR 중단</span>
+                <strong>{overview.snapshots_with_hard_ocr_stop_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>파이프라인 중단</span>
+                <strong>{overview.snapshots_with_pipeline_stop_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>무시된 OCR 줄</span>
+                <strong>{overview.total_ignored_line_count.toLocaleString()}</strong>
+              </div>
+            </div>
           </div>
-          <div className={styles.keyValueList}>
-            <div className={styles.keyValueRow}>
-              <span>빈 페이지</span>
-              <strong>{overview.empty_page_count.toLocaleString()}</strong>
+          <div className={styles.subPanel}>
+            <div className={styles.panelTitle}>
+              <h3>페이지 품질 신호</h3>
             </div>
-            <div className={styles.keyValueRow}>
-              <span>Sparse 페이지</span>
-              <strong>{overview.sparse_page_count.toLocaleString()}</strong>
+            <div className={styles.keyValueList}>
+              <div className={styles.keyValueRow}>
+                <span>빈 페이지</span>
+                <strong>{overview.empty_page_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>Sparse 페이지</span>
+                <strong>{overview.sparse_page_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>중복 페이지</span>
+                <strong>{overview.overlapping_page_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>Stale 페이지</span>
+                <strong>{overview.stale_page_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>Noise 페이지</span>
+                <strong>{overview.noisy_page_count.toLocaleString()}</strong>
+              </div>
             </div>
-            <div className={styles.keyValueRow}>
-              <span>중복 페이지</span>
-              <strong>{overview.overlapping_page_count.toLocaleString()}</strong>
+          </div>
+          <div className={styles.subPanel}>
+            <div className={styles.panelTitle}>
+              <h3>빠른 드릴다운</h3>
             </div>
-            <div className={styles.keyValueRow}>
-              <span>Stale 페이지</span>
-              <strong>{overview.stale_page_count.toLocaleString()}</strong>
+            <div className={styles.paginationLinks}>
+              {overview.overlay_ignored_line_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("ignored-group", "overlay")}
+                  className={styles.linkButton}
+                >
+                  오버레이 OCR
+                </Link>
+              ) : null}
+              {overview.header_ignored_line_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("ignored-group", "header")}
+                  className={styles.linkButton}
+                >
+                  헤더 OCR
+                </Link>
+              ) : null}
+              {overview.malformed_entry_line_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("ignored-group", "malformed")}
+                  className={styles.linkButton}
+                >
+                  비정상 엔트리 OCR
+                </Link>
+              ) : null}
+              {overview.empty_page_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("page-signal", "empty")}
+                  className={styles.linkButton}
+                >
+                  빈 페이지
+                </Link>
+              ) : null}
+              {overview.sparse_page_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("page-signal", "sparse")}
+                  className={styles.linkButton}
+                >
+                  Sparse
+                </Link>
+              ) : null}
+              {overview.overlapping_page_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("page-signal", "overlapping")}
+                  className={styles.linkButton}
+                >
+                  중복 페이지
+                </Link>
+              ) : null}
+              {overview.stale_page_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("page-signal", "stale")}
+                  className={styles.linkButton}
+                >
+                  Stale
+                </Link>
+              ) : null}
+              {overview.noisy_page_count > 0 ? (
+                <Link
+                  href={buildSeasonReasonHref("page-signal", "noisy")}
+                  className={styles.linkButton}
+                >
+                  Noise
+                </Link>
+              ) : null}
             </div>
-            <div className={styles.keyValueRow}>
-              <span>Noise 페이지</span>
-              <strong>{overview.noisy_page_count.toLocaleString()}</strong>
+            <div className={styles.keyValueList}>
+              <div className={styles.keyValueRow}>
+                <span>오버레이 OCR 줄</span>
+                <strong>{overview.overlay_ignored_line_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>헤더 OCR 줄</span>
+                <strong>{overview.header_ignored_line_count.toLocaleString()}</strong>
+              </div>
+              <div className={styles.keyValueRow}>
+                <span>비정상 엔트리 OCR</span>
+                <strong>{overview.malformed_entry_line_count.toLocaleString()}</strong>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div className={styles.paginationLinks}>
-        {overview.empty_page_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("page-signal", "empty")}
-            className={styles.linkButton}
-          >
-            빈 페이지 보기
-          </Link>
-        ) : null}
-        {overview.sparse_page_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("page-signal", "sparse")}
-            className={styles.linkButton}
-          >
-            Sparse 보기
-          </Link>
-        ) : null}
-        {overview.overlapping_page_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("page-signal", "overlapping")}
-            className={styles.linkButton}
-          >
-            중복 페이지 보기
-          </Link>
-        ) : null}
-        {overview.stale_page_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("page-signal", "stale")}
-            className={styles.linkButton}
-          >
-            Stale 보기
-          </Link>
-        ) : null}
-        {overview.noisy_page_count > 0 ? (
-          <Link
-            href={buildSeasonReasonHref("page-signal", "noisy")}
-            className={styles.linkButton}
-          >
-            Noise 보기
-          </Link>
-        ) : null}
-      </div>
-      <div className={styles.threeColumnGrid}>
+        <div className={styles.threeColumnGrid}>
         <ReasonSummaryPanel
           title="캡처 중단 사유"
           rows={overview.capture_stop_reasons}
@@ -1269,6 +1263,7 @@ export function SeasonValidationOverviewPanel({
           emptyMessage="집계된 무시된 OCR 사유가 없습니다."
           getHref={(reason) => buildSeasonReasonHref("ignored", reason)}
         />
+        </div>
       </div>
     </section>
   );
