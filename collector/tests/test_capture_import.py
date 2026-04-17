@@ -1980,6 +1980,18 @@ def test_resolve_anchor_ranks_drops_inconsistent_outlier_rank() -> None:
     assert capture_import._resolve_anchor_ranks([1, None, 341]) == [1, 2, 3]
 
 
+def test_normalize_tesseract_page_entry_ranks_resolves_duplicate_rank() -> None:
+    entries = [
+        {"rank": 1, "score": 53404105, "player_name": "Lunatic"},
+        {"rank": 1, "score": 53393930, "player_name": "Lunatic"},
+        {"rank": 3, "score": 53393544, "player_name": "Lunatic"},
+    ]
+
+    normalized = capture_import._normalize_tesseract_page_entry_ranks(entries)
+
+    assert [entry["rank"] for entry in normalized] == [1, 2, 3]
+
+
 def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:
     assert capture_import._find_score_anchor_value(": be 8 53,393,544  (noise)") == 53393544
 

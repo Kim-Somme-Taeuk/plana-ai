@@ -1198,7 +1198,7 @@ def _parse_tesseract_layout_entries(
                         entries.append(entry)
 
             if entries:
-                return entries
+                return _normalize_tesseract_page_entry_ranks(entries)
 
             for line_words in _group_tesseract_words_by_line(words):
                 entry = _parse_tesseract_layout_line(
@@ -1211,7 +1211,7 @@ def _parse_tesseract_layout_entries(
                     entries.append(entry)
 
             if entries:
-                return entries
+                return _normalize_tesseract_page_entry_ranks(entries)
         finally:
             cleanup()
 
@@ -1958,7 +1958,7 @@ def _parse_tesseract_score_anchor_lines(
             }
         )
 
-    return entries
+    return _normalize_tesseract_page_entry_ranks(entries)
 
 
 def _resolve_anchor_ranks(detected_ranks: list[int | None]) -> list[int]:
@@ -2007,6 +2007,32 @@ def _resolve_anchor_ranks(detected_ranks: list[int | None]) -> list[int]:
                 rank = index + 1
         resolved.append(rank)
     return resolved
+
+
+def _normalize_tesseract_page_entry_ranks(
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if len(entries) <= 1:
+        return entries
+
+    detected_ranks: list[int | None] = []
+    for entry in entries:
+        rank = entry.get("rank")
+        detected_ranks.append(rank if isinstance(rank, int) and rank > 0 else None)
+
+    resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    if [entry.get("rank") for entry in entries] == resolved_ranks:
+        return entries
+
+    normalized_entries: list[dict[str, Any]] = []
+    for entry, rank in zip(entries, resolved_ranks):
+        normalized_entries.append(
+            {
+                **entry,
+                "rank": rank,
+            }
+        )
+    return normalized_entries
 
 
 def _drop_inconsistent_detected_ranks(ranks: list[int | None]) -> list[int | None]:
