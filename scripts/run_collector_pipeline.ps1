@@ -1,5 +1,5 @@
 param(
-    [string]$DeviceSerial = "emulator-5554",
+    [string]$DeviceSerial = "",
     [string]$RequestPath = "collector\adb_data\sample_request.json",
     [string]$PythonPath = ".collector-venv\Scripts\python.exe",
     [string]$AdbPath = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe",
@@ -52,10 +52,13 @@ foreach ($RequiredPath in @(
 $CommandArgs = @(
     "collector\run_capture_pipeline.py",
     "--output-dir", $ResolvedOutputDir,
-    "--device-serial", $DeviceSerial,
     "--adb-command", $ResolvedAdbPath,
     "--ocr-command", $ResolvedTesseractPath
 )
+
+if (-not [string]::IsNullOrWhiteSpace($DeviceSerial)) {
+    $CommandArgs += @("--device-serial", $DeviceSerial)
+}
 
 if ($ResumeOnly) {
     $CommandArgs += "--resume-only"
@@ -70,7 +73,7 @@ Write-Host "Running collector pipeline..."
 Write-Host "Python:      $ResolvedPythonPath"
 Write-Host "ADB:         $ResolvedAdbPath"
 Write-Host "Tesseract:   $ResolvedTesseractPath"
-Write-Host "Device:      $DeviceSerial"
+Write-Host "Device:      $(if ([string]::IsNullOrWhiteSpace($DeviceSerial)) { '<auto>' } else { $DeviceSerial })"
 Write-Host "Request:     $ResolvedRequestPath"
 Write-Host "OutputDir:   $ResolvedOutputDir"
 
