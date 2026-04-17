@@ -5,11 +5,11 @@
     "boss_name": "Binah",
     "armor_type": "heavy",
     "terrain": "outdoor",
-    "season_label": "adb-capture-sample-season-20260416-a"
+    "season_label": "adb-capture-emulator-sample-season-20260418-a"
   },
   "snapshot": {
     "captured_at": "2026-04-16T12:00:00Z",
-    "note": "sample adb screenshot capture"
+    "note": "sample android studio emulator screenshot capture"
   },
   "ocr": {
     "provider": "tesseract",

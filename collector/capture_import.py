@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import difflib
 import json
 import os
@@ -75,6 +76,11 @@ DIFFICULTY_LABELS = (
 DIFFICULTY_BY_NORMALIZED_TOKEN = {
     re.sub(r"[^A-Z0-9]+", "", label.upper()): label
     for label in DIFFICULTY_LABELS
+}
+DIFFICULTY_PRIORITY = {
+    "Lunatic": 3,
+    "Torment": 2,
+    "Insane": 1,
 }
 DIFFICULTY_ALIAS_BY_NORMALIZED_TOKEN = {
     "GINATIE": "Lunatic",
@@ -364,6 +370,39 @@ def enrich_parsed_capture_payload_collector_details(
     )
 
 
+def rebuild_parsed_capture_payload_snapshot_note(
+    parsed_payload: ParsedCapturePayload,
+    *,
+    snapshot: dict[str, Any],
+    capture: dict[str, Any] | None,
+    extra_details: dict[str, Any] | None = None,
+    ocr_stop_recommendation_override: dict[str, Any] | None = None,
+) -> ParsedCapturePayload:
+    note = _build_snapshot_note_with_collector_summary(
+        snapshot=snapshot,
+        capture=capture,
+        ignored_lines=parsed_payload.ignored_lines,
+        page_summaries=parsed_payload.page_summaries,
+        extra_collector_details=extra_details,
+        ocr_stop_recommendation_override=ocr_stop_recommendation_override,
+    )
+    if note == parsed_payload.mock_payload.snapshot.get("note"):
+        return parsed_payload
+
+    return ParsedCapturePayload(
+        mock_payload=MockImportPayload(
+            season=parsed_payload.mock_payload.season,
+            snapshot={
+                **parsed_payload.mock_payload.snapshot,
+                "note": note,
+            },
+            entries=parsed_payload.mock_payload.entries,
+        ),
+        ignored_lines=parsed_payload.ignored_lines,
+        page_summaries=parsed_payload.page_summaries,
+    )
+
+
 def summarize_ignored_lines(
     ignored_lines: list[IgnoredOcrLine],
 ) -> list[dict[str, Any]]:
@@ -573,6 +612,7 @@ def _build_snapshot_note_with_collector_summary(
     ignored_lines: list[IgnoredOcrLine],
     page_summaries: list[dict[str, Any]],
     extra_collector_details: dict[str, Any] | None = None,
+    ocr_stop_recommendation_override: dict[str, Any] | None = None,
 ) -> str | None:
     existing_note = snapshot.get("note")
     existing_note_text = _strip_collector_note_lines(existing_note)
@@ -595,8 +635,10 @@ def _build_snapshot_note_with_collector_summary(
         )
         summary_parts.append(f"ignored={ignored_line_count}({ignored_summary})")
 
-    ocr_stop_recommendation = build_ocr_stop_recommendation(
-        build_ocr_stop_hints(page_summaries)
+    ocr_stop_recommendation = (
+        ocr_stop_recommendation_override
+        if ocr_stop_recommendation_override is not None
+        else build_ocr_stop_recommendation(build_ocr_stop_hints(page_summaries))
     )
     if ocr_stop_recommendation["should_stop"] and (
         ocr_stop_recommendation["level"] == "hard" or bool(capture)
@@ -614,6 +656,7 @@ def _build_snapshot_note_with_collector_summary(
         page_summaries,
         existing_note=existing_note if isinstance(existing_note, str) else None,
         extra_details=extra_collector_details,
+        ocr_stop_recommendation_override=ocr_stop_recommendation_override,
     )
     if existing_note_text:
         note = "\n".join(
@@ -641,11 +684,13 @@ def _build_collector_details_line(
     *,
     existing_note: str | None = None,
     extra_details: dict[str, Any] | None = None,
+    ocr_stop_recommendation_override: dict[str, Any] | None = None,
 ) -> str | None:
     payload = _build_collector_details_payload(
         page_summaries,
         existing_note=existing_note,
         extra_details=extra_details,
+        ocr_stop_recommendation_override=ocr_stop_recommendation_override,
     )
     if not payload:
         return None
@@ -663,10 +708,15 @@ def _build_collector_details_payload(
     *,
     existing_note: str | None = None,
     extra_details: dict[str, Any] | None = None,
+    ocr_stop_recommendation_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = _extract_collector_details_payload(existing_note)
     ocr_stop_hints = build_ocr_stop_hints(page_summaries)
-    ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
+    ocr_stop_recommendation = (
+        ocr_stop_recommendation_override
+        if ocr_stop_recommendation_override is not None
+        else build_ocr_stop_recommendation(ocr_stop_hints)
+    )
     if extra_details:
         payload.update(_compact_extra_collector_details(extra_details))
     else:
@@ -1163,9 +1213,24 @@ def _parse_tesseract_layout_entries(
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> list[dict[str, Any]]:
+    prefer_blue_archive_fixed_rows = _is_blue_archive_fixed_layout_image(
+        image_path=image_path,
+        ocr=ocr,
+    )
     for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
         prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
         try:
+            if prefer_blue_archive_fixed_rows:
+                entries = _parse_blue_archive_fixed_rows(
+                    prepared_image_path=prepared_image_path,
+                    image_path=image_path,
+                    ocr=attempt_ocr,
+                    default_ocr_confidence=default_ocr_confidence,
+                    page_index=page_index,
+                )
+                if entries:
+                    return _normalize_tesseract_page_entry_ranks(entries)
+
             try:
                 tsv_text = _run_tesseract_command(
                     prepared_image_path=prepared_image_path,
@@ -1226,6 +1291,43 @@ def _parse_tesseract_layout_entries(
             cleanup()
 
     return []
+
+
+def _is_blue_archive_fixed_layout_image(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> bool:
+    try:
+        from PIL import Image
+    except ImportError:
+        return False
+
+    try:
+        with Image.open(image_path) as image:
+            width, height = image.size
+    except OSError:
+        return False
+
+    if width < 1000 or height < 450:
+        return False
+
+    aspect_ratio = width / height
+    if not (2.0 <= aspect_ratio <= 2.35):
+        return False
+
+    crop = ocr.crop
+    if crop is None:
+        return False
+
+    crop_width_ratio = crop.right_ratio - crop.left_ratio
+    crop_height_ratio = crop.bottom_ratio - crop.top_ratio
+    return (
+        0.14 <= crop_width_ratio <= 0.30
+        and 0.45 <= crop_height_ratio <= 0.70
+        and 0.30 <= crop.left_ratio <= 0.45
+        and 0.30 <= crop.top_ratio <= 0.40
+    )
 
 
 def _iter_tesseract_layout_ocr_attempts(ocr: OcrConfig) -> list[OcrConfig]:
@@ -1291,13 +1393,13 @@ def _parse_blue_archive_fixed_rows(
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> list[dict[str, Any]]:
-    row_bands = (
+    row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
         (0.02, 0.31),
         (0.35, 0.65),
         (0.69, 0.98),
     )
 
-    entries: list[dict[str, Any]] = []
+    raw_rows: list[dict[str, Any]] = []
     detected_ranks: list[int | None] = []
 
     for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
@@ -1332,11 +1434,11 @@ def _parse_blue_archive_fixed_rows(
                 page_index=page_index,
             )
 
-        if difficulty is None or score is None:
+        if score is None:
             continue
 
         detected_ranks.append(rank)
-        entries.append(
+        raw_rows.append(
             {
                 "rank": rank if rank is not None else row_index,
                 "score": score,
@@ -1349,6 +1451,19 @@ def _parse_blue_archive_fixed_rows(
             }
         )
 
+    if not raw_rows:
+        return []
+
+    page_difficulty = _resolve_blue_archive_page_difficulty(raw_rows)
+    entries = [
+        {
+            **entry,
+            "player_name": entry["player_name"] or page_difficulty,
+        }
+        for entry in raw_rows
+        if entry["player_name"] is not None or page_difficulty is not None
+    ]
+
     if not entries:
         return []
 
@@ -1358,7 +1473,100 @@ def _parse_blue_archive_fixed_rows(
     for entry in entries:
         normalized_entries.append({**entry, "rank": resolved_ranks[rank_index]})
         rank_index += 1
+    if not _blue_archive_scores_are_non_increasing(normalized_entries):
+        return []
     return normalized_entries
+
+
+def _resolve_blue_archive_page_difficulty(
+    entries: list[dict[str, Any]],
+) -> str | None:
+    counts: dict[str, int] = {}
+    for entry in entries:
+        difficulty = entry.get("player_name")
+        if isinstance(difficulty, str) and difficulty.strip():
+            counts[difficulty] = counts.get(difficulty, 0) + 1
+    if not counts:
+        return None
+    return max(
+        counts.items(),
+        key=lambda item: (item[1], DIFFICULTY_PRIORITY.get(item[0], 0), item[0]),
+    )[0]
+
+
+def _blue_archive_scores_are_non_increasing(
+    entries: list[dict[str, Any]],
+) -> bool:
+    scores = [
+        entry["score"]
+        for entry in entries
+        if isinstance(entry.get("score"), int)
+    ]
+    if len(scores) <= 1:
+        return True
+    return all(previous >= current for previous, current in zip(scores, scores[1:]))
+
+
+def _detect_blue_archive_row_bands(
+    prepared_image_path: Path,
+) -> tuple[tuple[float, float], ...]:
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return ()
+
+    try:
+        with Image.open(prepared_image_path) as image:
+            grayscale = ImageOps.grayscale(image)
+            width, height = grayscale.size
+            pixels = grayscale.load()
+    except OSError:
+        return ()
+
+    if width <= 0 or height <= 0:
+        return ()
+
+    dark_profile: list[float] = []
+    for y in range(height):
+        dark_pixels = 0
+        for x in range(width):
+            if pixels[x, y] < 232:
+                dark_pixels += 1
+        dark_profile.append(dark_pixels / width)
+
+    smoothed_profile: list[float] = []
+    for index in range(height):
+        start = max(0, index - 3)
+        end = min(height, index + 4)
+        smoothed_profile.append(sum(dark_profile[start:end]) / (end - start))
+
+    runs: list[tuple[int, int]] = []
+    in_run = False
+    run_start = 0
+    for index, value in enumerate(smoothed_profile):
+        if value > 0.08 and not in_run:
+            in_run = True
+            run_start = index
+            continue
+        if in_run and value <= 0.08:
+            if index - run_start >= 25:
+                runs.append((run_start, index - 1))
+            in_run = False
+    if in_run and height - run_start >= 25:
+        runs.append((run_start, height - 1))
+
+    if len(runs) >= 6:
+        paired_rows = []
+        for index in range(0, min(len(runs), 6), 2):
+            top = runs[index][0]
+            bottom = runs[index + 1][1]
+            paired_rows.append((top / height, bottom / height))
+        return tuple(paired_rows)
+
+    if len(runs) >= 3:
+        return tuple((top / height, bottom / height) for top, bottom in runs[:3])
+
+    return ()
 
 
 def _ocr_blue_archive_row_combined_fields(
@@ -1449,13 +1657,14 @@ def _ocr_blue_archive_row_rank(
         ],
         base_ocr=ocr,
     )
+    parsed_ranks: list[int] = []
     for candidate in candidates:
-        normalized = _normalize_rank_ocr_token(candidate)
-        if normalized.isdigit():
-            rank = int(normalized)
-            if 0 < rank <= 100000:
-                return rank
-    return None
+        rank = _parse_blue_archive_rank_candidate(candidate)
+        if rank is not None:
+            parsed_ranks.append(rank)
+    if not parsed_ranks:
+        return None
+    return Counter(parsed_ranks).most_common(1)[0][0]
 
 
 def _ocr_blue_archive_row_difficulty(
@@ -1491,12 +1700,15 @@ def _ocr_blue_archive_row_difficulty(
         ],
         base_ocr=ocr,
     )
+    parsed_difficulties: list[str] = []
     for candidate in candidates:
         normalized = re.sub(r"[^A-Z0-9]+", "", _normalize_unicode_ocr_text(candidate).upper())
         difficulty = _resolve_difficulty_label(normalized)
         if difficulty is not None:
-            return difficulty
-    return None
+            parsed_difficulties.append(difficulty)
+    if not parsed_difficulties:
+        return None
+    return Counter(parsed_difficulties).most_common(1)[0][0]
 
 
 def _ocr_blue_archive_row_score(
@@ -1527,12 +1739,17 @@ def _ocr_blue_archive_row_score(
         ],
         base_ocr=ocr,
     )
+    parsed_scores: list[int] = []
     for candidate in candidates:
         try:
-            return _parse_score_text(candidate, page_index=page_index, line_index=1)
+            parsed_scores.append(
+                _parse_score_text(candidate, page_index=page_index, line_index=1)
+            )
         except MockImportError:
             continue
-    return None
+    if not parsed_scores:
+        return None
+    return Counter(parsed_scores).most_common(1)[0][0]
 
 
 def _build_blue_archive_row_y_ratios(
@@ -2630,11 +2847,8 @@ def _extract_rank_candidates_from_text(raw_line: str) -> list[int]:
                 or stripped_candidate.endswith("위")
             ):
                 continue
-            normalized = _normalize_rank_ocr_token(candidate)
-            if not normalized.isdigit():
-                continue
-            rank = int(normalized)
-            if rank <= 0 or rank > 100000:
+            rank = _parse_blue_archive_rank_candidate(candidate)
+            if rank is None:
                 continue
             candidates.append(rank)
             break
@@ -2874,6 +3088,35 @@ def _normalize_rank_ocr_token(value: str) -> str:
     if match is not None:
         normalized = match.group(1)
     return normalized.strip(".:- ")
+
+
+def _parse_blue_archive_rank_candidate(value: str) -> int | None:
+    normalized = _normalize_rank_ocr_token(value)
+    if normalized.isdigit():
+        rank = int(normalized)
+        if 0 < rank <= 100000:
+            return rank
+
+    if not normalized.isdigit() or len(normalized) < 5:
+        return None
+
+    for trim, allowed_suffixes in (
+        (2, {"47", "91", "71"}),
+        (1, {"7", "1"}),
+    ):
+        if len(normalized) <= trim:
+            continue
+        suffix = normalized[-trim:]
+        if suffix not in allowed_suffixes:
+            continue
+        trimmed = normalized[:-trim]
+        if not trimmed.isdigit():
+            continue
+        rank = int(trimmed)
+        if 0 < rank <= 100000:
+            return rank
+
+    return None
 
 
 def _normalize_float_ocr_token(value: str) -> str:

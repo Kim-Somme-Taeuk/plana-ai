@@ -1,5 +1,5 @@
 param(
-    [string]$DeviceSerial = "R3CR60SGTND",
+    [string]$DeviceSerial = "emulator-5554",
     [string]$RequestPath = "collector\adb_data\sample_request.json",
     [string]$PythonPath = ".collector-venv\Scripts\python.exe",
     [string]$AdbPath = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe",

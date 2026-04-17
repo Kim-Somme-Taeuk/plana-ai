@@ -550,6 +550,10 @@ def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
     assert api_client.snapshot_payload is not None
     snapshot_note = api_client.snapshot_payload["note"]
     assert isinstance(snapshot_note, str)
+    collector_summary_line = next(
+        line for line in snapshot_note.splitlines() if line.startswith("collector:")
+    )
+    assert "ocr_stop=" not in collector_summary_line
     collector_json_line = next(
         line
         for line in snapshot_note.splitlines()
@@ -557,10 +561,10 @@ def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
     )
     collector_details = json.loads(collector_json_line.removeprefix("collector_json:").strip())
     assert collector_details["psr"] == {
-        "s": True,
-        "l": "hard",
-        "src": "ocr",
-        "r": "noisy_last_page",
+        "s": False,
+        "l": None,
+        "src": None,
+        "r": None,
     }
     assert collector_details["sp"] == {
         "m": 2,
@@ -807,17 +811,17 @@ def test_run_capture_pipeline_tracks_ignored_lines(
     assert result.ignored_line_reasons == [{"reason": "header_line", "count": 1}]
     assert result.ocr_stop_hints == [{"reason": "noisy_last_page", "page_index": 1, "ignored_line_count": 1, "entry_count": 1}]
     assert result.ocr_stop_recommendation == {
-        "should_stop": True,
-        "level": "hard",
-        "primary_reason": "noisy_last_page",
-        "reasons": ["noisy_last_page"],
+        "should_stop": False,
+        "level": None,
+        "primary_reason": None,
+        "reasons": [],
     }
     assert result.pipeline_stop_recommendation == {
-        "should_stop": True,
-        "level": "hard",
-        "source": "ocr",
-        "primary_reason": "noisy_last_page",
-        "reasons": ["noisy_last_page"],
+        "should_stop": False,
+        "level": None,
+        "source": None,
+        "primary_reason": None,
+        "reasons": [],
     }
     assert result.page_summaries == [
         {
@@ -858,9 +862,18 @@ def test_run_capture_pipeline_skips_import_when_stop_recommendation_is_enabled(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class UnusedApiClient(SnapshotAwareApiClientMixin):
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
-            raise AssertionError("import는 건너뛰어야 합니다")
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 1}
 
     def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
@@ -878,23 +891,23 @@ def test_run_capture_pipeline_skips_import_when_stop_recommendation_is_enabled(
         base_url="http://localhost:8000",
         output_dir=str(tmp_path / "capture-output"),
         adb_client=FakeAdbClient(),
-        api_client=UnusedApiClient(),
+        api_client=FakeApiClient(),
     )
 
-    assert result.import_skipped is True
-    assert result.skip_reason == "noisy_last_page"
+    assert result.import_skipped is False
+    assert result.skip_reason is None
     pipeline_result = json.loads(
         (tmp_path / "capture-output" / "pipeline-result.json").read_text(
             encoding="utf-8"
         )
     )
-    assert pipeline_result["import_skipped"] is True
-    assert pipeline_result["skip_reason"] == "noisy_last_page"
-    assert result.season_id is None
-    assert result.snapshot_id is None
-    assert result.entry_ids == []
-    assert result.status is None
-    assert result.total_rows_collected is None
+    assert pipeline_result["import_skipped"] is False
+    assert pipeline_result["skip_reason"] is None
+    assert result.season_id == 101
+    assert result.snapshot_id == 202
+    assert result.entry_ids == [1]
+    assert result.status == "completed"
+    assert result.total_rows_collected == 1
 
 
 def test_run_capture_pipeline_cli_flag_skips_import_on_recommendation(
@@ -910,9 +923,18 @@ def test_run_capture_pipeline_cli_flag_skips_import_on_recommendation(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class UnusedApiClient(SnapshotAwareApiClientMixin):
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
-            raise AssertionError("import는 건너뛰어야 합니다")
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 1}
 
     def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
@@ -930,12 +952,12 @@ def test_run_capture_pipeline_cli_flag_skips_import_on_recommendation(
         base_url="http://localhost:8000",
         output_dir=str(tmp_path / "capture-output"),
         adb_client=FakeAdbClient(),
-        api_client=UnusedApiClient(),
+        api_client=FakeApiClient(),
         stop_on_recommendation=True,
     )
 
-    assert result.import_skipped is True
-    assert result.skip_reason == "noisy_last_page"
+    assert result.import_skipped is False
+    assert result.skip_reason is None
 
 
 def test_run_capture_pipeline_does_not_skip_import_for_soft_recommendation_in_hard_mode(

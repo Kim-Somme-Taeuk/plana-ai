@@ -1980,6 +1980,13 @@ def test_resolve_anchor_ranks_drops_inconsistent_outlier_rank() -> None:
     assert capture_import._resolve_anchor_ranks([1, None, 341]) == [1, 2, 3]
 
 
+def test_parse_blue_archive_rank_candidate_trims_common_ui_suffix_noise() -> None:
+    assert capture_import._parse_blue_archive_rank_candidate("1200147") == 12001
+    assert capture_import._parse_blue_archive_rank_candidate("1200291") == 12002
+    assert capture_import._parse_blue_archive_rank_candidate("1200347") == 12003
+    assert capture_import._parse_blue_archive_rank_candidate("1611091") == 16110
+
+
 def test_normalize_tesseract_page_entry_ranks_resolves_duplicate_rank() -> None:
     entries = [
         {"rank": 1, "score": 53404105, "player_name": "Lunatic"},
@@ -2039,6 +2046,332 @@ def test_parse_blue_archive_fixed_rows_assembles_entries(
         (12002, "Torment", 40040720),
         (12003, "Torment", 40040641),
     ]
+
+
+def test_parse_blue_archive_fixed_rows_propagates_page_difficulty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, None, None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 12001, 0.35: 12002, 0.69: 12003}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment" if kwargs["top_ratio"] == 0.02 else None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: {
+            0.02: 40040720,
+            0.35: 40040720,
+            0.69: 40040641,
+        }[kwargs["top_ratio"]],
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        prepared_image_path=Path("page.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in entries] == [
+        (12001, "Torment", 40040720),
+        (12002, "Torment", 40040720),
+        (12003, "Torment", 40040641),
+    ]
+
+
+def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
+    difficulty = capture_import._resolve_blue_archive_page_difficulty(
+        [
+            {"player_name": "Torment"},
+            {"player_name": "Insane"},
+            {"player_name": "Lunatic"},
+            {"player_name": "Torment"},
+            {"player_name": "Lunatic"},
+        ]
+    )
+
+    assert difficulty == "Lunatic"
+
+
+def test_parse_blue_archive_fixed_rows_rejects_increasing_scores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, None, None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 12001, 0.35: 12002, 0.69: 12003}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: {
+            0.02: 40040720,
+            0.35: 40050000,
+            0.69: 40040641,
+        }[kwargs["top_ratio"]],
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        prepared_image_path=Path("page.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert entries == []
+
+
+def test_ocr_blue_archive_row_rank_uses_majority_vote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["1200147", "12001", "1200147"],
+    )
+
+    rank = capture_import._ocr_blue_archive_row_rank(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+    )
+
+    assert rank == 12001
+
+
+def test_ocr_blue_archive_row_difficulty_uses_majority_vote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["Ginatie", "Lunatic", "Ginatie"],
+    )
+
+    difficulty = capture_import._ocr_blue_archive_row_difficulty(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+    )
+
+    assert difficulty == "Lunatic"
+
+
+def test_ocr_blue_archive_row_score_uses_majority_vote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["40,040,720", "40,040,720", "40,040,120"],
+    )
+
+    score = capture_import._ocr_blue_archive_row_score(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+        page_index=1,
+    )
+
+    assert score == 40040720
+
+
+@pytest.mark.parametrize("image_size", [(2400, 1080), (2340, 1080)])
+def test_parse_tesseract_layout_entries_prefers_blue_archive_fixed_rows(
+    image_size: tuple[int, int],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_path = tmp_path / "blue-archive-page.png"
+    from PIL import Image
+
+    Image.new("RGB", image_size, color="white").save(image_path)
+
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (image_path, lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_blue_archive_fixed_rows",
+        lambda **kwargs: [
+            {"rank": 12001, "score": 40040720, "player_name": "Torment"},
+            {"rank": 12002, "score": 40040720, "player_name": "Torment"},
+            {"rank": 12003, "score": 40040641, "player_name": "Torment"},
+        ],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("TSV보다 fixed rows가 먼저여야 합니다")),
+    )
+
+    entries = capture_import._parse_tesseract_layout_entries(
+        image_path=image_path,
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.39,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in entries] == [
+        (12001, "Torment", 40040720),
+        (12002, "Torment", 40040720),
+        (12003, "Torment", 40040641),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "expected_starts"),
+    [
+        ("lunatic-page-001.png", (0.0, 0.26, 0.62)),
+        ("torment-page-001.png", (0.0, 0.26, 0.62)),
+        ("insane-page-001.png", (0.0, 0.26, 0.62)),
+    ],
+)
+def test_detect_blue_archive_row_bands_from_fixture_images(
+    fixture_name: str,
+    expected_starts: tuple[float, float, float],
+) -> None:
+    fixture_path = Path("collector/tests/fixtures/blue_archive") / fixture_name
+    prepared_image_path, cleanup = capture_import._prepare_image_for_ocr(
+        fixture_path,
+        capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.39,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+    )
+    try:
+        row_bands = capture_import._detect_blue_archive_row_bands(prepared_image_path)
+    finally:
+        cleanup()
+
+    assert len(row_bands) == 3
+    for index, (start_ratio, end_ratio) in enumerate(row_bands):
+        assert start_ratio == pytest.approx(expected_starts[index], abs=0.03)
+        assert end_ratio > start_ratio
+        assert end_ratio - start_ratio > 0.12
 
 
 def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:

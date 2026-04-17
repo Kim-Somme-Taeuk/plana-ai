@@ -325,7 +325,7 @@ Windows PowerShell 헬퍼 스크립트:
 
 ```powershell
 .\scripts\run_collector_pipeline.ps1
-.\scripts\run_collector_pipeline.ps1 -DeviceSerial "R3CR60SGTND"
+.\scripts\run_collector_pipeline.ps1 -DeviceSerial "emulator-5554"
 .\scripts\run_collector_pipeline.ps1 -OutputDir .\collector\capture_runs\manual_test
 .\scripts\run_collector_pipeline.ps1 -ResumeOnly -OutputDir .\collector\capture_runs\manual_test
 ```

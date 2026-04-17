@@ -35,10 +35,10 @@ from collector.capture_import import (
     OcrConfig,
     build_ocr_stop_hints,
     build_ocr_stop_recommendation,
-    enrich_parsed_capture_payload_collector_details,
     import_parsed_capture_payload,
     load_capture_import_payload,
     parse_capture_payload,
+    rebuild_parsed_capture_payload_snapshot_note,
     summarize_ignored_lines,
 )
 from collector.mock_import import ApiClient, DEFAULT_API_BASE_URL, MockImportError
@@ -151,15 +151,21 @@ def run_capture_pipeline(
         current_stage = "parse_capture_payload"
         parsed_payload = parse_capture_payload(capture_payload)
         ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
-        ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
+        ocr_stop_recommendation = _apply_stop_policy_to_recommendation(
+            recommendation=build_ocr_stop_recommendation(ocr_stop_hints),
+            stop_policy=stop_policy,
+            captured_page_count=len(capture_result.image_paths),
+        )
         pipeline_stop_recommendation = _build_pipeline_stop_recommendation(
             capture_stopped_reason=capture_result.stopped_reason,
             capture_stopped_source=capture_result.stopped_source,
             capture_stopped_level=capture_result.stopped_level,
             ocr_stop_recommendation=ocr_stop_recommendation,
         )
-        parsed_payload = enrich_parsed_capture_payload_collector_details(
+        parsed_payload = rebuild_parsed_capture_payload_snapshot_note(
             parsed_payload,
+            snapshot=capture_payload.snapshot,
+            capture=capture_payload.capture,
             extra_details={
                 "pipeline_stop_recommendation": pipeline_stop_recommendation,
                 "stop_policy": {
@@ -167,6 +173,7 @@ def run_capture_pipeline(
                     "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
                 },
             },
+            ocr_stop_recommendation_override=ocr_stop_recommendation,
         )
         stop_on_recommendation_mode = _resolve_stop_on_recommendation(
             requested_stop_on_recommendation=stop_on_recommendation,
@@ -425,6 +432,25 @@ def _build_pipeline_stop_recommendation(
         "primary_reason": None,
         "reasons": [],
     }
+
+
+def _apply_stop_policy_to_recommendation(
+    *,
+    recommendation: dict[str, Any],
+    stop_policy: PipelineStopPolicy,
+    captured_page_count: int,
+) -> dict[str, Any]:
+    if (
+        recommendation["should_stop"]
+        and captured_page_count < stop_policy.min_pages_before_ocr_stop
+    ):
+        return {
+            "should_stop": False,
+            "level": None,
+            "primary_reason": None,
+            "reasons": [],
+        }
+    return recommendation
 
 
 def _resolve_pipeline_output_dir(
