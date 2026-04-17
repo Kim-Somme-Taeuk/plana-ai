@@ -374,8 +374,8 @@ export default async function SeasonDetailPage({
       eyebrow="시즌 상세"
       title={season?.season_label ?? `시즌 #${seasonId}`}
       subtitle="검증, 비교, cutoff 흐름을 한 화면에서 정리합니다."
-      backHref="/"
-      backLabel="시즌 목록으로"
+      backHref="/admin"
+      backLabel="관리 시즌 목록으로"
     >
       {seasonResult.error || !season ? (
         <ErrorBox

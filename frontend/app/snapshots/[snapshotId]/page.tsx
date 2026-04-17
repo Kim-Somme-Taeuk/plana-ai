@@ -77,8 +77,8 @@ export default async function SnapshotDetailPage({
         eyebrow="스냅샷 상세"
         title={`스냅샷 #${snapshotId}`}
         subtitle="스냅샷 통계와 엔트리 목록을 확인하는 화면입니다."
-        backHref="/"
-        backLabel="시즌 목록으로"
+        backHref="/admin"
+        backLabel="관리 시즌 목록으로"
       >
         <ErrorBox
           message={`스냅샷 정보를 불러오지 못했습니다. ${
@@ -212,8 +212,8 @@ export default async function SnapshotDetailPage({
             >
               무효 엔트리
             </Link>
-            <Link href="/" className={styles.linkButton}>
-              시즌 목록
+            <Link href="/admin" className={styles.linkButton}>
+              관리 시즌 목록
             </Link>
             <Link
               href={`/seasons/${snapshot.season_id}`}
