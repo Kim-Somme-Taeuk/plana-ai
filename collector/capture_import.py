@@ -60,6 +60,20 @@ OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
 OCR_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’"
 PLAYER_NAME_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’「」『』【】"
 SCORE_SUFFIX_TOKENS = frozenset({"점", "pt", "pts"})
+DIFFICULTY_LABELS = (
+    "Normal",
+    "Hard",
+    "VeryHard",
+    "Hardcore",
+    "Extreme",
+    "Insane",
+    "Torment",
+    "Lunatic",
+)
+DIFFICULTY_BY_NORMALIZED_TOKEN = {
+    re.sub(r"[^A-Z0-9]+", "", label.upper()): label
+    for label in DIFFICULTY_LABELS
+}
 ZERO_WIDTH_CHARACTERS_RE = re.compile(r"[\u200b\u200c\u200d\ufeff]")
 PAGINATION_RE = re.compile(
     r"^(?:page\s*)?\d+\s*(?:/|of)\s*\d+$",
@@ -113,6 +127,19 @@ class ParsedCapturePayload:
     mock_payload: MockImportPayload
     ignored_lines: list[IgnoredOcrLine]
     page_summaries: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class TesseractTsvWord:
+    text: str
+    left: int
+    top: int
+    width: int
+    height: int
+    confidence: float | None
+    block_num: int
+    par_num: int
+    line_num: int
 
 
 def load_capture_import_payload(
@@ -208,6 +235,7 @@ def parse_capture_payload(
         page_entries, page_ignored_lines = _parse_page_entries(
             ocr_text=ocr_text,
             image_path=image_path,
+            ocr=payload.ocr,
             default_ocr_confidence=page.default_ocr_confidence,
             page_index=page_index,
         )
@@ -858,6 +886,50 @@ def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
     return ocr_text
 
 
+def _run_tesseract_tsv(image_path: Path, ocr: OcrConfig) -> str:
+    command = ocr.command or DEFAULT_TESSERACT_COMMAND
+    if shutil.which(command) is None:
+        raise MockImportError(
+            "tesseract 명령을 찾을 수 없습니다. "
+            f"command={command!r}, image_path={image_path}"
+        )
+
+    args = [command, str(image_path), "stdout"]
+    if ocr.language:
+        args.extend(["-l", ocr.language])
+    if ocr.psm is not None:
+        args.extend(["--psm", str(ocr.psm)])
+    if ocr.extra_args:
+        args.extend(ocr.extra_args)
+    args.append("tsv")
+
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        raise MockImportError(
+            f"tesseract TSV 실행에 실패했습니다: command={command!r}, image_path={image_path}"
+        ) from exc
+
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+
+    if result.returncode != 0:
+        stderr = stderr or "unknown error"
+        raise MockImportError(
+            "tesseract TSV 추출에 실패했습니다. "
+            f"image_path={image_path}, returncode={result.returncode}, stderr={stderr}"
+        )
+
+    return stdout
+
+
 def _build_ocr_config(
     raw_ocr: Any,
     *,
@@ -934,6 +1006,194 @@ def _build_ocr_config(
     )
 
 
+def _parse_tesseract_layout_entries(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> list[dict[str, Any]]:
+    try:
+        tsv_text = _run_tesseract_tsv(image_path, ocr)
+    except MockImportError:
+        return []
+
+    words = _parse_tesseract_tsv_words(tsv_text)
+    if not words:
+        return []
+
+    entries: list[dict[str, Any]] = []
+    for line_words in _group_tesseract_words_by_line(words):
+        entry = _parse_tesseract_layout_line(
+            line_words=line_words,
+            image_path=image_path,
+            default_ocr_confidence=default_ocr_confidence,
+            page_index=page_index,
+        )
+        if entry is not None:
+            entries.append(entry)
+
+    return entries
+
+
+def _parse_tesseract_tsv_words(tsv_text: str) -> list[TesseractTsvWord]:
+    words: list[TesseractTsvWord] = []
+    for index, raw_line in enumerate(tsv_text.splitlines()):
+        if index == 0 or not raw_line.strip():
+            continue
+        parts = raw_line.split("\t")
+        if len(parts) != 12:
+            continue
+        level, _page_num, _block_num, _par_num, _line_num, _word_num, left, top, width, height, conf, text = parts
+        if level != "5" or not text.strip():
+            continue
+        try:
+            confidence = float(conf)
+        except ValueError:
+            confidence = None
+        try:
+            words.append(
+                TesseractTsvWord(
+                    text=text,
+                    left=int(left),
+                    top=int(top),
+                    width=int(width),
+                    height=int(height),
+                    confidence=confidence,
+                    block_num=int(parts[2]),
+                    par_num=int(parts[3]),
+                    line_num=int(parts[4]),
+                )
+            )
+        except ValueError:
+            continue
+    return words
+
+
+def _group_tesseract_words_by_line(
+    words: list[TesseractTsvWord],
+) -> list[list[TesseractTsvWord]]:
+    grouped: dict[tuple[int, int, int], list[TesseractTsvWord]] = {}
+    for word in words:
+        key = (word.block_num, word.par_num, word.line_num)
+        grouped.setdefault(key, []).append(word)
+
+    return [
+        sorted(line_words, key=lambda item: item.left)
+        for _key, line_words in sorted(
+            grouped.items(),
+            key=lambda item: min(word.top for word in item[1]),
+        )
+    ]
+
+
+def _parse_tesseract_layout_line(
+    *,
+    line_words: list[TesseractTsvWord],
+    image_path: Path,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> dict[str, Any] | None:
+    if len(line_words) < 3:
+        return None
+
+    score_index = _find_layout_score_index(line_words)
+    if score_index is None:
+        return None
+
+    difficulty = _find_layout_difficulty(line_words[:score_index])
+    if difficulty is None:
+        return None
+
+    rank = _find_layout_rank(line_words[:score_index])
+    if rank is None:
+        return None
+
+    score_word = line_words[score_index]
+    try:
+        score = _parse_score_text(
+            score_word.text,
+            page_index=page_index,
+            line_index=score_index + 1,
+        )
+    except MockImportError:
+        return None
+
+    confidences = [
+        word.confidence / 100
+        for word in line_words[: score_index + 1]
+        if word.confidence is not None and word.confidence >= 0
+    ]
+    ocr_confidence = (
+        round(sum(confidences) / len(confidences), 4)
+        if confidences
+        else default_ocr_confidence
+    )
+
+    raw_text = " ".join(word.text for word in line_words)
+    return {
+        "rank": rank,
+        "score": score,
+        "player_name": difficulty,
+        "ocr_confidence": ocr_confidence,
+        "raw_text": raw_text,
+        "image_path": _build_entry_image_path(image_path),
+        "is_valid": True,
+        "validation_issue": None,
+    }
+
+
+def _find_layout_score_index(line_words: list[TesseractTsvWord]) -> int | None:
+    best_index: int | None = None
+    best_length = 0
+    for index, word in enumerate(line_words):
+        normalized = _normalize_score_ocr_token(word.text)
+        if not normalized.isdigit():
+            continue
+        if len(normalized) < 7:
+            continue
+        if len(normalized) > best_length:
+            best_index = index
+            best_length = len(normalized)
+    return best_index
+
+
+def _find_layout_difficulty(
+    line_words: list[TesseractTsvWord],
+) -> str | None:
+    for word in reversed(line_words):
+        normalized = re.sub(
+            r"[^A-Z0-9]+",
+            "",
+            _normalize_unicode_ocr_text(word.text).upper(),
+        )
+        difficulty = DIFFICULTY_BY_NORMALIZED_TOKEN.get(normalized)
+        if difficulty is not None:
+            return difficulty
+    return None
+
+
+def _find_layout_rank(
+    line_words: list[TesseractTsvWord],
+) -> int | None:
+    for index, word in enumerate(line_words):
+        token = word.text.strip()
+        if token.lower().startswith("lv"):
+            continue
+        candidates = [token]
+        if index + 1 < len(line_words):
+            candidates.append(token + line_words[index + 1].text.strip())
+        for candidate in candidates:
+            normalized = _normalize_rank_ocr_token(candidate)
+            if not normalized.isdigit():
+                continue
+            rank = int(normalized)
+            if rank <= 0 or rank > 100000:
+                continue
+            return rank
+    return None
+
+
 def _resolve_snapshot_source_type(
     *,
     snapshot: dict[str, Any],
@@ -956,6 +1216,7 @@ def _parse_page_entries(
     *,
     ocr_text: str,
     image_path: Path,
+    ocr: OcrConfig,
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> tuple[list[dict[str, Any]], list[IgnoredOcrLine]]:
@@ -1004,6 +1265,14 @@ def _parse_page_entries(
             )
             continue
         entries.append(entry)
+
+    if not entries and ocr.provider == OCR_PROVIDER_TESSERACT:
+        entries = _parse_tesseract_layout_entries(
+            image_path=image_path,
+            ocr=ocr,
+            default_ocr_confidence=default_ocr_confidence,
+            page_index=page_index,
+        )
 
     return entries, ignored_lines
 
