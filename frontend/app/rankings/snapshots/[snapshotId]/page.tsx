@@ -5,12 +5,14 @@ import {
   PublicErrorBox,
   PublicShell,
   PublicSnapshotContextPanel,
+  PublicRecentSnapshotPanel,
   PublicSnapshotSummaryPanel,
   PublicTrendPanel,
 } from "../../../components/public-dashboard";
 import {
   getSeason,
   getSeasonCutoffSeries,
+  getSeasonSnapshots,
   getSnapshot,
   getSnapshotCutoffs,
   getSnapshotDistribution,
@@ -47,9 +49,17 @@ export default async function PublicSnapshotPage({
   }
 
   const snapshot = snapshotResult.data;
-  const [seasonResult, summaryResult, cutoffsResult, distributionResult, seriesResult] =
+  const [
+    seasonResult,
+    seasonSnapshotsResult,
+    summaryResult,
+    cutoffsResult,
+    distributionResult,
+    seriesResult,
+  ] =
     await Promise.all([
       getSeason(snapshot.season_id),
+      getSeasonSnapshots(snapshot.season_id),
       getSnapshotSummary(snapshot.id),
       getSnapshotCutoffs(snapshot.id),
       getSnapshotDistribution(snapshot.id),
@@ -73,6 +83,15 @@ export default async function PublicSnapshotPage({
   }
 
   const season = seasonResult.data;
+  const completedSnapshots = (seasonSnapshotsResult.data ?? [])
+    .filter((item) => item.status === "completed")
+    .sort((left, right) => new Date(right.captured_at).getTime() - new Date(left.captured_at).getTime());
+  const currentIndex = completedSnapshots.findIndex((item) => item.id === snapshot.id);
+  const newerSnapshot = currentIndex > 0 ? completedSnapshots[currentIndex - 1] : null;
+  const olderSnapshot =
+    currentIndex >= 0 && currentIndex < completedSnapshots.length - 1
+      ? completedSnapshots[currentIndex + 1]
+      : null;
 
   return (
     <PublicShell
@@ -90,7 +109,14 @@ export default async function PublicSnapshotPage({
         />
       )}
 
-      <PublicSnapshotContextPanel season={season} snapshot={snapshot} />
+      <PublicSnapshotContextPanel
+        season={season}
+        snapshot={snapshot}
+        currentIndex={currentIndex >= 0 ? currentIndex : null}
+        completedSnapshotCount={completedSnapshots.length}
+        newerSnapshot={newerSnapshot}
+        olderSnapshot={olderSnapshot}
+      />
 
       {summaryResult.data && cutoffsResult.data ? (
         <PublicCutoffHighlightPanel
@@ -119,6 +145,7 @@ export default async function PublicSnapshotPage({
           description="이 스냅샷이 속한 시즌의 대표 컷오프 시계열입니다."
           series={seriesResult.data}
           snapshotHrefBuilder={(id) => `/rankings/snapshots/${id}`}
+          currentSnapshotId={snapshot.id}
         />
       ) : (
         <PublicErrorBox
@@ -127,6 +154,12 @@ export default async function PublicSnapshotPage({
           }`}
         />
       )}
+
+      <PublicRecentSnapshotPanel
+        snapshots={completedSnapshots.slice(0, 8)}
+        snapshotHrefBuilder={(id) => `/rankings/snapshots/${id}`}
+        currentSnapshotId={snapshot.id}
+      />
     </PublicShell>
   );
 }

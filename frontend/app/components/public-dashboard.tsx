@@ -306,11 +306,13 @@ export function PublicTrendPanel({
   description,
   series,
   snapshotHrefBuilder,
+  currentSnapshotId,
 }: {
   title: string;
   description: string;
   series: SeasonCutoffSeries;
   snapshotHrefBuilder?: (snapshotId: number) => string;
+  currentSnapshotId?: number | null;
 }) {
   const validPoints = series.points.filter((point) => point.score !== null);
   const maxScore =
@@ -338,7 +340,14 @@ export function PublicTrendPanel({
                   ? Math.max(16, Math.round((point.score / maxScore) * 140))
                   : 14;
               return (
-                <div key={point.snapshot_id} className={styles.trendBar}>
+                <div
+                  key={point.snapshot_id}
+                  className={
+                    point.snapshot_id === currentSnapshotId
+                      ? `${styles.trendBar} ${styles.trendBarActive}`
+                      : styles.trendBar
+                  }
+                >
                   <div className={styles.trendTrack}>
                     <div
                       className={
@@ -377,7 +386,12 @@ export function PublicTrendPanel({
               </thead>
               <tbody>
                 {series.points.map((point) => (
-                  <tr key={point.snapshot_id}>
+                  <tr
+                    key={point.snapshot_id}
+                    className={
+                      point.snapshot_id === currentSnapshotId ? styles.publicTableRowActive : undefined
+                    }
+                  >
                     <td>
                       {snapshotHrefBuilder ? (
                         <Link
@@ -463,9 +477,11 @@ export function PublicSeasonGrid({ seasons }: { seasons: Season[] }) {
 export function PublicRecentSnapshotPanel({
   snapshots,
   snapshotHrefBuilder,
+  currentSnapshotId,
 }: {
   snapshots: RankingSnapshot[];
   snapshotHrefBuilder?: (snapshotId: number) => string;
+  currentSnapshotId?: number | null;
 }) {
   return (
     <section className={styles.section}>
@@ -486,7 +502,11 @@ export function PublicRecentSnapshotPanel({
             <Link
               key={snapshot.id}
               href={snapshotHrefBuilder ? snapshotHrefBuilder(snapshot.id) : "#"}
-              className={styles.snapshotCard}
+              className={
+                snapshot.id === currentSnapshotId
+                  ? `${styles.snapshotCard} ${styles.snapshotCardActive}`
+                  : styles.snapshotCard
+              }
             >
               <div className={styles.snapshotCardTop}>
                 <span className={styles.cardBadge}>#{snapshot.id}</span>
@@ -544,9 +564,17 @@ export function PublicSnapshotSummaryPanel({
 export function PublicSnapshotContextPanel({
   season,
   snapshot,
+  currentIndex,
+  completedSnapshotCount,
+  newerSnapshot,
+  olderSnapshot,
 }: {
   season: Season;
   snapshot: RankingSnapshot;
+  currentIndex?: number | null;
+  completedSnapshotCount?: number;
+  newerSnapshot?: RankingSnapshot | null;
+  olderSnapshot?: RankingSnapshot | null;
 }) {
   return (
     <section className={styles.section}>
@@ -559,8 +587,34 @@ export function PublicSnapshotContextPanel({
           <Link href={`/rankings/${season.id}`} className={styles.ghostButton}>
             시즌으로 돌아가기
           </Link>
+          {newerSnapshot ? (
+            <Link
+              href={`/rankings/snapshots/${newerSnapshot.id}`}
+              className={styles.ghostButton}
+            >
+              더 최근 스냅샷
+            </Link>
+          ) : null}
+          {olderSnapshot ? (
+            <Link
+              href={`/rankings/snapshots/${olderSnapshot.id}`}
+              className={styles.ghostButton}
+            >
+              더 이전 스냅샷
+            </Link>
+          ) : null}
         </div>
       </div>
+      {currentIndex !== null && currentIndex !== undefined && completedSnapshotCount ? (
+        <div className={styles.publicChipRow}>
+          <span className={styles.publicChip}>
+            완료 스냅샷 {completedSnapshotCount.toLocaleString()}개 중 {currentIndex + 1}번째
+          </span>
+          <span className={styles.publicChip}>
+            현재 스냅샷 #{snapshot.id}
+          </span>
+        </div>
+      ) : null}
       <div className={styles.compactMetaGrid}>
         <PublicMetaItem label="시즌" value={season.season_label} />
         <PublicMetaItem label="이벤트" value={formatEventType(season.event_type)} />
