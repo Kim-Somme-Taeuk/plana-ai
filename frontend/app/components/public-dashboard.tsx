@@ -58,10 +58,12 @@ export function FeaturedSeasonPanel({
   season,
   latestSnapshot,
   summary,
+  latestSnapshotHref,
 }: {
   season: Season;
   latestSnapshot: RankingSnapshot | null;
   summary: RankingSnapshotSummary | null;
+  latestSnapshotHref?: string | null;
 }) {
   return (
     <section className={styles.heroSection}>
@@ -90,6 +92,7 @@ export function FeaturedSeasonPanel({
           description={
             latestSnapshot ? formatDate(latestSnapshot.captured_at) : "완료된 스냅샷이 없습니다."
           }
+          href={latestSnapshotHref}
         />
         <PublicStatCard
           label="유효 엔트리"
@@ -221,6 +224,18 @@ export function PublicSeasonFilterPanel({
           ) : null}
         </div>
       </form>
+      {hasFilters ? (
+        <div className={styles.publicChipRow}>
+          {selectedEventType !== "all" ? (
+            <span className={styles.publicChip}>
+              이벤트: {formatEventType(selectedEventType)}
+            </span>
+          ) : null}
+          {selectedServer !== "all" ? (
+            <span className={styles.publicChip}>서버: {selectedServer}</span>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -276,6 +291,11 @@ export function PublicRankSelector({
             #{rank.toLocaleString()}
           </Link>
         ))}
+      </div>
+      <div className={styles.publicChipRow}>
+        <span className={styles.publicChip}>
+          현재 기준 rank: #{selectedRank.toLocaleString()}
+        </span>
       </div>
     </section>
   );
@@ -566,18 +586,30 @@ function PublicStatCard({
   label,
   value,
   description,
+  href,
 }: {
   label: string;
   value: string;
   description?: string;
+  href?: string | null;
 }) {
-  return (
-    <article className={styles.statCard}>
+  const content = (
+    <>
       <span className={styles.statLabel}>{label}</span>
       <strong className={styles.statValue}>{value}</strong>
       {description ? <span className={styles.statDescription}>{description}</span> : null}
-    </article>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={`${styles.statCard} ${styles.linkCard}`}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <article className={styles.statCard}>{content}</article>;
 }
 
 function formatDate(value: string | null) {

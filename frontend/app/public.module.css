@@ -218,6 +218,24 @@
   flex-wrap: wrap;
 }
 
+.publicChipRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.publicChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #edf4eb;
+  color: #2f5a39;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .rankChipRow {
   display: flex;
   flex-wrap: wrap;
@@ -253,6 +271,15 @@
   padding: 18px;
   display: grid;
   gap: 8px;
+}
+
+.linkCard {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.linkCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(52, 75, 50, 0.08);
 }
 
 .statValue {

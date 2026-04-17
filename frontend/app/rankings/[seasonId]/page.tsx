@@ -89,6 +89,11 @@ export default async function PublicSeasonPage({
         season={season}
         latestSnapshot={latestCompletedSnapshot}
         summary={summaryResult.data}
+        latestSnapshotHref={
+          latestCompletedSnapshot
+            ? `/rankings/snapshots/${latestCompletedSnapshot.id}`
+            : null
+        }
       />
 
       <PublicRankSelector seasonId={season.id} selectedRank={normalizedRank} />

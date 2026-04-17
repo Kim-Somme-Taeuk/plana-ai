@@ -112,6 +112,11 @@ export default async function Home({ searchParams }: HomePageProps) {
             season={featuredSeason}
             latestSnapshot={latestCompletedSnapshot}
             summary={summaryResult.data}
+            latestSnapshotHref={
+              latestCompletedSnapshot
+                ? `/rankings/snapshots/${latestCompletedSnapshot.id}`
+                : null
+            }
           />
 
           {latestCompletedSnapshot && summaryResult.data && cutoffsResult.data ? (
