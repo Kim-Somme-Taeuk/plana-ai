@@ -526,174 +526,192 @@ export default async function SeasonDetailPage({
                       필터를 적용하면 검증 시계열과 스냅샷 목록이 같은 조건으로 함께 갱신됩니다.
                     </p>
                   )}
-                  <form className={styles.controls}>
-                    <div className={styles.filterGrid}>
-                      <div className={styles.field}>
-                        <label htmlFor="status">상태</label>
-                        <select id="status" name="status" defaultValue={selectedStatus}>
-                          <option value="all">전체</option>
-                          <option value="completed">완료</option>
-                          <option value="collecting">수집 중</option>
-                          <option value="failed">실패</option>
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="source">입력 소스</label>
-                        <select id="source" name="source" defaultValue={selectedSource}>
-                          <option value="all">전체</option>
-                          {sourceOptions.map((sourceType) => (
-                            <option key={sourceType} value={sourceType}>
-                              {formatSourceTypeLabel(sourceType)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="collector">수집 진단</label>
-                        <select
-                          id="collector"
-                          name="collector"
-                          defaultValue={selectedCollector}
-                        >
-                          <option value="all">전체</option>
-                          <option value="with_diagnostics">진단 포함</option>
-                          <option value="capture_stop">캡처 중단</option>
-                          <option value="hard_ocr_stop">강한 OCR 중단</option>
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="captureStopReason">캡처 중단 사유</label>
-                        <select
-                          id="captureStopReason"
-                          name="captureStopReason"
-                          defaultValue={selectedCaptureStopReason}
-                        >
-                          <option value="all">전체</option>
-                          {validationOverviewResult.data?.capture_stop_reasons.map((row) => (
-                            <option key={row.reason} value={row.reason}>
-                              {row.reason}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="ocrStopReason">OCR 중단 사유</label>
-                        <select
-                          id="ocrStopReason"
-                          name="ocrStopReason"
-                          defaultValue={selectedOcrStopReason}
-                        >
-                          <option value="all">전체</option>
-                          {validationOverviewResult.data?.ocr_stop_reasons.map((row) => (
-                            <option key={row.reason} value={row.reason}>
-                              {row.reason}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="pipelineStopReason">파이프라인 중단 사유</label>
-                        <select
-                          id="pipelineStopReason"
-                          name="pipelineStopReason"
-                          defaultValue={selectedPipelineStopReason}
-                        >
-                          <option value="all">전체</option>
-                          {validationOverviewResult.data?.pipeline_stop_reasons.map((row) => (
-                            <option key={row.reason} value={row.reason}>
-                              {row.reason}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="pipelineStopSource">파이프라인 소스</label>
-                        <select
-                          id="pipelineStopSource"
-                          name="pipelineStopSource"
-                          defaultValue={selectedPipelineStopSource}
-                        >
-                          <option value="all">전체</option>
-                          {validationOverviewResult.data?.pipeline_stop_sources.map((row) => (
-                            <option key={row.reason} value={row.reason}>
-                              {formatPipelineStopSourceLabel(row.reason)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="pipelineStopLevel">파이프라인 레벨</label>
-                        <select
-                          id="pipelineStopLevel"
-                          name="pipelineStopLevel"
-                          defaultValue={selectedPipelineStopLevel}
-                        >
-                          <option value="all">전체</option>
-                          {validationOverviewResult.data?.pipeline_stop_levels.map((row) => (
-                            <option key={row.reason} value={row.reason}>
-                              {formatOcrStopLevelLabel(row.reason)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="ignoredReason">무시된 OCR 사유</label>
-                        <select
-                          id="ignoredReason"
-                          name="ignoredReason"
-                          defaultValue={selectedIgnoredReason}
-                        >
-                          <option value="all">전체</option>
-                          {validationOverviewResult.data?.ignored_reasons.map((row) => (
-                            <option key={row.reason} value={row.reason}>
-                              {row.reason}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="ignoredGroup">무시된 OCR 그룹</label>
-                        <select
-                          id="ignoredGroup"
-                          name="ignoredGroup"
-                          defaultValue={selectedIgnoredGroup}
-                        >
-                          <option value="all">전체</option>
-                          <option value="overlay">오버레이</option>
-                          <option value="header">헤더/페이지</option>
-                          <option value="malformed">비정상 엔트리</option>
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="pageSignal">페이지 품질 신호</label>
-                        <select
-                          id="pageSignal"
-                          name="pageSignal"
-                          defaultValue={selectedPageSignal}
-                        >
-                          <option value="all">전체</option>
-                          <option value="empty">빈 페이지</option>
-                          <option value="sparse">Sparse</option>
-                          <option value="overlapping">중복</option>
-                          <option value="stale">Stale</option>
-                          <option value="noisy">Noise</option>
-                        </select>
-                      </div>
-                      <div className={styles.field}>
-                        <label htmlFor="ocrStopLevel">OCR 중단 레벨</label>
-                        <select
-                          id="ocrStopLevel"
-                          name="ocrStopLevel"
-                          defaultValue={selectedOcrStopLevel}
-                        >
-                          <option value="all">전체</option>
-                          <option value="soft">약함</option>
-                          <option value="hard">강함</option>
-                        </select>
-                      </div>
-                    </div>
-                    <input type="hidden" name="rank" value={String(normalizedSeriesRank)} />
-                    {selectedCompareLeft ? (
+	                  <form className={styles.controls}>
+	                    <div className={styles.filterSection}>
+	                      <div className={styles.sectionHeader}>
+	                        <h3>기본 필터</h3>
+	                        <span className={styles.muted}>
+	                          상태와 입력 소스로 스냅샷 범위를 먼저 좁힙니다.
+	                        </span>
+	                      </div>
+	                      <div className={styles.filterGrid}>
+	                        <div className={styles.field}>
+	                          <label htmlFor="status">상태</label>
+	                          <select id="status" name="status" defaultValue={selectedStatus}>
+	                            <option value="all">전체</option>
+	                            <option value="completed">완료</option>
+	                            <option value="collecting">수집 중</option>
+	                            <option value="failed">실패</option>
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="source">입력 소스</label>
+	                          <select id="source" name="source" defaultValue={selectedSource}>
+	                            <option value="all">전체</option>
+	                            {sourceOptions.map((sourceType) => (
+	                              <option key={sourceType} value={sourceType}>
+	                                {formatSourceTypeLabel(sourceType)}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                      </div>
+	                    </div>
+	                    <div className={styles.filterSection}>
+	                      <div className={styles.sectionHeader}>
+	                        <h3>수집 진단 필터</h3>
+	                        <span className={styles.muted}>
+	                          collector 진단, 중단 사유, OCR 품질 신호를 같은 문맥으로 유지합니다.
+	                        </span>
+	                      </div>
+	                      <div className={styles.filterGrid}>
+	                        <div className={styles.field}>
+	                          <label htmlFor="collector">수집 진단</label>
+	                          <select
+	                            id="collector"
+	                            name="collector"
+	                            defaultValue={selectedCollector}
+	                          >
+	                            <option value="all">전체</option>
+	                            <option value="with_diagnostics">진단 포함</option>
+	                            <option value="capture_stop">캡처 중단</option>
+	                            <option value="hard_ocr_stop">강한 OCR 중단</option>
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="captureStopReason">캡처 중단 사유</label>
+	                          <select
+	                            id="captureStopReason"
+	                            name="captureStopReason"
+	                            defaultValue={selectedCaptureStopReason}
+	                          >
+	                            <option value="all">전체</option>
+	                            {validationOverviewResult.data?.capture_stop_reasons.map((row) => (
+	                              <option key={row.reason} value={row.reason}>
+	                                {row.reason}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="ocrStopReason">OCR 중단 사유</label>
+	                          <select
+	                            id="ocrStopReason"
+	                            name="ocrStopReason"
+	                            defaultValue={selectedOcrStopReason}
+	                          >
+	                            <option value="all">전체</option>
+	                            {validationOverviewResult.data?.ocr_stop_reasons.map((row) => (
+	                              <option key={row.reason} value={row.reason}>
+	                                {row.reason}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="pipelineStopReason">파이프라인 중단 사유</label>
+	                          <select
+	                            id="pipelineStopReason"
+	                            name="pipelineStopReason"
+	                            defaultValue={selectedPipelineStopReason}
+	                          >
+	                            <option value="all">전체</option>
+	                            {validationOverviewResult.data?.pipeline_stop_reasons.map((row) => (
+	                              <option key={row.reason} value={row.reason}>
+	                                {row.reason}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="pipelineStopSource">파이프라인 소스</label>
+	                          <select
+	                            id="pipelineStopSource"
+	                            name="pipelineStopSource"
+	                            defaultValue={selectedPipelineStopSource}
+	                          >
+	                            <option value="all">전체</option>
+	                            {validationOverviewResult.data?.pipeline_stop_sources.map((row) => (
+	                              <option key={row.reason} value={row.reason}>
+	                                {formatPipelineStopSourceLabel(row.reason)}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="pipelineStopLevel">파이프라인 레벨</label>
+	                          <select
+	                            id="pipelineStopLevel"
+	                            name="pipelineStopLevel"
+	                            defaultValue={selectedPipelineStopLevel}
+	                          >
+	                            <option value="all">전체</option>
+	                            {validationOverviewResult.data?.pipeline_stop_levels.map((row) => (
+	                              <option key={row.reason} value={row.reason}>
+	                                {formatOcrStopLevelLabel(row.reason)}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="ignoredReason">무시된 OCR 사유</label>
+	                          <select
+	                            id="ignoredReason"
+	                            name="ignoredReason"
+	                            defaultValue={selectedIgnoredReason}
+	                          >
+	                            <option value="all">전체</option>
+	                            {validationOverviewResult.data?.ignored_reasons.map((row) => (
+	                              <option key={row.reason} value={row.reason}>
+	                                {row.reason}
+	                              </option>
+	                            ))}
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="ignoredGroup">무시된 OCR 그룹</label>
+	                          <select
+	                            id="ignoredGroup"
+	                            name="ignoredGroup"
+	                            defaultValue={selectedIgnoredGroup}
+	                          >
+	                            <option value="all">전체</option>
+	                            <option value="overlay">오버레이</option>
+	                            <option value="header">헤더/페이지</option>
+	                            <option value="malformed">비정상 엔트리</option>
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="pageSignal">페이지 품질 신호</label>
+	                          <select
+	                            id="pageSignal"
+	                            name="pageSignal"
+	                            defaultValue={selectedPageSignal}
+	                          >
+	                            <option value="all">전체</option>
+	                            <option value="empty">빈 페이지</option>
+	                            <option value="sparse">Sparse</option>
+	                            <option value="overlapping">중복</option>
+	                            <option value="stale">Stale</option>
+	                            <option value="noisy">Noise</option>
+	                          </select>
+	                        </div>
+	                        <div className={styles.field}>
+	                          <label htmlFor="ocrStopLevel">OCR 중단 레벨</label>
+	                          <select
+	                            id="ocrStopLevel"
+	                            name="ocrStopLevel"
+	                            defaultValue={selectedOcrStopLevel}
+	                          >
+	                            <option value="all">전체</option>
+	                            <option value="soft">약함</option>
+	                            <option value="hard">강함</option>
+	                          </select>
+	                        </div>
+	                      </div>
+	                    </div>
+	                    <input type="hidden" name="rank" value={String(normalizedSeriesRank)} />
+	                    {selectedCompareLeft ? (
                       <input
                         type="hidden"
                         name="compareLeft"

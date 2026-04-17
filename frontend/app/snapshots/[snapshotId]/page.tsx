@@ -115,6 +115,9 @@ export default async function SnapshotDetailPage({
     summaryResult.data?.validation_issues ?? [],
     validationIssue,
   );
+  const shownEntryCount = entriesResult.data?.length ?? 0;
+  const currentWindowStart = shownEntryCount > 0 ? offset + 1 : 0;
+  const currentWindowEnd = shownEntryCount > 0 ? offset + shownEntryCount : 0;
   const activeEntryFilters = [
     isValid !== "all" ? `유효성: ${formatValidityLabel(isValid)}` : null,
     validationIssue !== "all" ? `이슈: ${validationIssue}` : null,
@@ -249,65 +252,123 @@ export default async function SnapshotDetailPage({
               </p>
             )}
 
-            <form className={styles.controls}>
-              <div className={styles.filterGrid}>
-                <div className={styles.field}>
-                  <label htmlFor="isValid">유효성</label>
-                  <select id="isValid" name="isValid" defaultValue={isValid}>
-                    <option value="all">전체</option>
-                    <option value="true">유효</option>
-                    <option value="false">무효</option>
-                  </select>
+            <div className={styles.compactSummaryGrid}>
+              <div className={styles.subPanel}>
+                <div className={styles.panelTitle}>
+                  <h3>현재 조회 범위</h3>
                 </div>
-                <div className={styles.field}>
-                  <label htmlFor="sortBy">정렬 기준</label>
-                  <select id="sortBy" name="sortBy" defaultValue={sortBy}>
-                    <option value="rank">순위</option>
-                    <option value="score">점수</option>
-                  </select>
+                <div className={styles.keyValueList}>
+                  <div className={styles.keyValueRow}>
+                    <span>표시 중인 엔트리</span>
+                    <strong>{shownEntryCount.toLocaleString()}</strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>현재 구간</span>
+                    <strong>
+                      {shownEntryCount > 0
+                        ? `${currentWindowStart.toLocaleString()} ~ ${currentWindowEnd.toLocaleString()}`
+                        : "-"}
+                    </strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>정렬</span>
+                    <strong>
+                      {formatSortByLabel(sortBy)} · {formatOrderLabel(order)}
+                    </strong>
+                  </div>
                 </div>
-                <div className={styles.field}>
-                  <label htmlFor="limit">개수</label>
-                  <select id="limit" name="limit" defaultValue={String(limit)}>
-                    {PAGE_SIZE_OPTIONS.map((pageSize) => (
-                      <option key={pageSize} value={pageSize}>
-                        {pageSize}
-                      </option>
-                    ))}
-                  </select>
+              </div>
+              <div className={styles.subPanel}>
+                <div className={styles.panelTitle}>
+                  <h3>빠른 바로가기</h3>
                 </div>
-                <div className={styles.field}>
-                  <label htmlFor="offset">오프셋</label>
-                  <input
-                    id="offset"
-                    name="offset"
-                    type="number"
-                    min="0"
-                    step="1"
-                    defaultValue={offset}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label htmlFor="validationIssue">이슈</label>
-                  <select
-                    id="validationIssue"
-                    name="validationIssue"
-                    defaultValue={validationIssue}
+                <div className={styles.paginationLinks}>
+                  <Link href={`/snapshots/${snapshot.id}`} className={styles.linkButton}>
+                    전체 엔트리
+                  </Link>
+                  <Link
+                    href={`/snapshots/${snapshot.id}?isValid=true`}
+                    className={styles.linkButton}
                   >
-                    <option value="all">전체</option>
-                    {validationIssueOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    유효만 보기
+                  </Link>
+                  <Link
+                    href={`/snapshots/${snapshot.id}?isValid=false`}
+                    className={styles.linkButton}
+                  >
+                    무효만 보기
+                  </Link>
                 </div>
-                <div className={styles.field}>
-                  <label htmlFor="order">정렬 방향</label>
-                  <select id="order" name="order" defaultValue={order}>
-                    <option value="asc">오름차순</option>
-                    <option value="desc">내림차순</option>
-                  </select>
+              </div>
+            </div>
+
+            <form className={styles.controls}>
+              <div className={styles.filterSection}>
+                <div className={styles.sectionHeader}>
+                  <h3>탐색 필터</h3>
+                  <span className={styles.muted}>
+                    유효성, 이슈, 정렬을 먼저 정하고 오프셋으로 구간을 이동합니다.
+                  </span>
+                </div>
+                <div className={styles.filterGrid}>
+                  <div className={styles.field}>
+                    <label htmlFor="isValid">유효성</label>
+                    <select id="isValid" name="isValid" defaultValue={isValid}>
+                      <option value="all">전체</option>
+                      <option value="true">유효</option>
+                      <option value="false">무효</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="validationIssue">이슈</label>
+                    <select
+                      id="validationIssue"
+                      name="validationIssue"
+                      defaultValue={validationIssue}
+                    >
+                      <option value="all">전체</option>
+                      {validationIssueOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="sortBy">정렬 기준</label>
+                    <select id="sortBy" name="sortBy" defaultValue={sortBy}>
+                      <option value="rank">순위</option>
+                      <option value="score">점수</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="order">정렬 방향</label>
+                    <select id="order" name="order" defaultValue={order}>
+                      <option value="asc">오름차순</option>
+                      <option value="desc">내림차순</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="limit">개수</label>
+                    <select id="limit" name="limit" defaultValue={String(limit)}>
+                      {PAGE_SIZE_OPTIONS.map((pageSize) => (
+                        <option key={pageSize} value={pageSize}>
+                          {pageSize}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="offset">오프셋</label>
+                    <input
+                      id="offset"
+                      name="offset"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={offset}
+                    />
+                  </div>
                 </div>
               </div>
               <div className={styles.filterActions}>
@@ -332,8 +393,9 @@ export default async function SnapshotDetailPage({
                 <SnapshotEntryTable entries={entriesResult.data} />
                 <div className={styles.pagination}>
                   <span className={styles.muted}>
-                    현재 offset {offset.toLocaleString()}에서 최대{" "}
-                    {limit.toLocaleString()}개의 엔트리를 표시합니다.
+                    현재 {currentWindowStart.toLocaleString()} ~ {currentWindowEnd.toLocaleString()}
+                    번째 엔트리를 보고 있습니다. 다음 구간을 보려면 오프셋을{" "}
+                    {(offset + limit).toLocaleString()}로 바꿔 적용하세요.
                   </span>
                 </div>
               </>
