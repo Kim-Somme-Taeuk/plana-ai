@@ -1826,6 +1826,32 @@ def test_build_mock_payload_from_capture_parses_tesseract_tsv_card_rank_from_nea
     assert [entry["score"] for entry in mock_payload.entries] == [53404105, 53393930]
 
 
+def test_build_mock_payload_from_capture_keeps_snapshot_note_within_backend_limit(
+    tmp_path: Path,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tLunatic\t53404105\t0.99\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-note-length-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={
+            "captured_at": "2026-04-16T10:00:00Z",
+            "note": "x" * 220,
+        },
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+    note = parsed_payload.mock_payload.snapshot["note"]
+
+    assert isinstance(note, str)
+    assert len(note) <= 255
+
+
 def test_build_mock_payload_from_capture_fails_when_tesseract_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

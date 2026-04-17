@@ -82,6 +82,7 @@ PAGINATION_RE = re.compile(
 STRUCTURED_COLUMN_SEPARATOR_RE = re.compile(r"\s*[|¦｜]\s*")
 COLLECTOR_SUMMARY_PREFIX = "collector: "
 COLLECTOR_JSON_PREFIX = "collector_json: "
+SNAPSHOT_NOTE_MAX_LENGTH = 255
 STALE_LAST_PAGE_NEW_RANK_RATIO_THRESHOLD = 0.25
 STALE_LAST_PAGE_MIN_ENTRY_COUNT = 4
 
@@ -593,12 +594,14 @@ def _build_snapshot_note_with_collector_summary(
         extra_details=extra_collector_details,
     )
     if existing_note_text:
-        return "\n".join(
+        note = "\n".join(
             line
             for line in (existing_note_text, collector_summary, collector_details)
             if line
         )
-    return "\n".join(line for line in (collector_summary, collector_details) if line)
+        return _fit_snapshot_note(note, base_note=existing_note_text, summary=collector_summary)
+    note = "\n".join(line for line in (collector_summary, collector_details) if line)
+    return _fit_snapshot_note(note, base_note=None, summary=collector_summary)
 
 
 def _build_ignored_reason_count_map(
@@ -640,30 +643,20 @@ def _build_collector_details_payload(
     extra_details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = _extract_collector_details_payload(existing_note)
-    payload.update({
-        "page_summaries": [
-            {
-                "page_index": summary["page_index"],
-                "image_path": summary["image_path"],
-                "entry_count": summary["entry_count"],
-                "ignored_line_count": summary["ignored_line_count"],
-                "ignored_line_reasons": summary["ignored_line_reasons"],
-                "first_rank": summary["first_rank"],
-                "last_rank": summary["last_rank"],
-                "overlap_with_previous_count": summary["overlap_with_previous_count"],
-                "overlap_with_previous_ratio": summary["overlap_with_previous_ratio"],
-                "new_rank_count": summary["new_rank_count"],
-                "new_rank_ratio": summary["new_rank_ratio"],
-            }
-            for summary in page_summaries
-        ],
-        "ocr_stop_hints": build_ocr_stop_hints(page_summaries),
-        "ocr_stop_recommendation": build_ocr_stop_recommendation(
-            build_ocr_stop_hints(page_summaries)
-        ),
-    })
+    ocr_stop_hints = build_ocr_stop_hints(page_summaries)
+    ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
     if extra_details:
-        payload.update(extra_details)
+        payload.update(_compact_extra_collector_details(extra_details))
+    else:
+        payload = {
+            "p": len(page_summaries),
+        }
+        if ocr_stop_recommendation["should_stop"]:
+            payload["o"] = ocr_stop_recommendation["primary_reason"]
+    if extra_details:
+        payload.setdefault("p", len(page_summaries))
+        if ocr_stop_recommendation["should_stop"]:
+            payload.setdefault("o", ocr_stop_recommendation["primary_reason"])
     return payload
 
 
@@ -674,7 +667,7 @@ def _merge_collector_details_into_note(
     base_note = _strip_collector_details_lines(note)
     existing_payload = _extract_collector_details_payload(note)
     if extra_details:
-        existing_payload.update(extra_details)
+        existing_payload.update(_compact_extra_collector_details(extra_details))
 
     collector_details = None
     if existing_payload:
@@ -685,9 +678,55 @@ def _merge_collector_details_into_note(
             sort_keys=True,
         )
 
-    return "\n".join(
+    merged_note = "\n".join(
         line for line in (base_note, collector_details) if line
     )
+    return _fit_snapshot_note(merged_note, base_note=base_note, summary=None)
+
+
+def _fit_snapshot_note(
+    note: str | None,
+    *,
+    base_note: str | None,
+    summary: str | None,
+) -> str | None:
+    if note is None:
+        return None
+    if len(note) <= SNAPSHOT_NOTE_MAX_LENGTH:
+        return note
+
+    compact_candidates = [
+        "\n".join(line for line in (base_note, summary) if line),
+        summary,
+        base_note,
+    ]
+    for candidate in compact_candidates:
+        if candidate and len(candidate) <= SNAPSHOT_NOTE_MAX_LENGTH:
+            return candidate
+
+    fallback = next((candidate for candidate in compact_candidates if candidate), "")
+    if not fallback:
+        return None
+    return fallback[: SNAPSHOT_NOTE_MAX_LENGTH - 3].rstrip() + "..."
+
+
+def _compact_extra_collector_details(extra_details: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    pipeline_stop = extra_details.get("pipeline_stop_recommendation")
+    if isinstance(pipeline_stop, dict):
+        compact["psr"] = {
+            "s": pipeline_stop.get("should_stop"),
+            "l": pipeline_stop.get("level"),
+            "src": pipeline_stop.get("source"),
+            "r": pipeline_stop.get("primary_reason"),
+        }
+    stop_policy = extra_details.get("stop_policy")
+    if isinstance(stop_policy, dict):
+        compact["sp"] = {
+            "m": stop_policy.get("min_pages_before_ocr_stop"),
+            "t": stop_policy.get("soft_stop_repeat_threshold"),
+        }
+    return compact
 
 
 def _strip_collector_note_lines(note: object) -> str:

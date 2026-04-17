@@ -556,16 +556,15 @@ def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
         if line.startswith("collector_json:")
     )
     collector_details = json.loads(collector_json_line.removeprefix("collector_json:").strip())
-    assert collector_details["pipeline_stop_recommendation"] == {
-        "should_stop": True,
-        "level": "hard",
-        "source": "ocr",
-        "primary_reason": "noisy_last_page",
-        "reasons": ["noisy_last_page"],
+    assert collector_details["psr"] == {
+        "s": True,
+        "l": "hard",
+        "src": "ocr",
+        "r": "noisy_last_page",
     }
-    assert collector_details["stop_policy"] == {
-        "min_pages_before_ocr_stop": 2,
-        "soft_stop_repeat_threshold": 2,
+    assert collector_details["sp"] == {
+        "m": 2,
+        "t": 2,
     }
 
 
