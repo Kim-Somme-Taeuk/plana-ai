@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -73,6 +74,16 @@ DIFFICULTY_LABELS = (
 DIFFICULTY_BY_NORMALIZED_TOKEN = {
     re.sub(r"[^A-Z0-9]+", "", label.upper()): label
     for label in DIFFICULTY_LABELS
+}
+DIFFICULTY_ALIAS_BY_NORMALIZED_TOKEN = {
+    "GINATIE": "Lunatic",
+    "GINATI": "Lunatic",
+    "GMATI": "Lunatic",
+    "GINATC": "Lunatic",
+    "LUNATIE": "Lunatic",
+    "INASANE": "Insane",
+    "INSANE": "Insane",
+    "TORMEMT": "Torment",
 }
 ZERO_WIDTH_CHARACTERS_RE = re.compile(r"[\u200b\u200c\u200d\ufeff]")
 PAGINATION_RE = re.compile(
@@ -1300,14 +1311,38 @@ def _find_layout_difficulty(
     line_words: list[TesseractTsvWord],
 ) -> str | None:
     for word in reversed(line_words):
-        normalized = re.sub(
-            r"[^A-Z0-9]+",
-            "",
-            _normalize_unicode_ocr_text(word.text).upper(),
-        )
-        difficulty = DIFFICULTY_BY_NORMALIZED_TOKEN.get(normalized)
+        normalized = re.sub(r"[^A-Z0-9]+", "", _normalize_unicode_ocr_text(word.text).upper())
+        difficulty = _resolve_difficulty_label(normalized)
         if difficulty is not None:
             return difficulty
+    return None
+
+
+def _resolve_difficulty_label(normalized: str) -> str | None:
+    if not normalized:
+        return None
+
+    exact = DIFFICULTY_BY_NORMALIZED_TOKEN.get(normalized)
+    if exact is not None:
+        return exact
+
+    alias = DIFFICULTY_ALIAS_BY_NORMALIZED_TOKEN.get(normalized)
+    if alias is not None:
+        return alias
+
+    for token, label in DIFFICULTY_BY_NORMALIZED_TOKEN.items():
+        if token in normalized or normalized in token:
+            return label
+
+    matches = difflib.get_close_matches(
+        normalized,
+        list(DIFFICULTY_BY_NORMALIZED_TOKEN.keys()),
+        n=1,
+        cutoff=0.55,
+    )
+    if matches:
+        return DIFFICULTY_BY_NORMALIZED_TOKEN[matches[0]]
+
     return None
 
 

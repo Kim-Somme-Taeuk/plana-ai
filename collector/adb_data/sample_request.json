@@ -13,7 +13,7 @@
   },
   "ocr": {
     "provider": "tesseract",
-    "language": "kor+eng",
+    "language": "eng",
     "psm": 11,
     "extra_args": [
       "-c",

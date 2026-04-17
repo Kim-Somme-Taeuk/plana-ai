@@ -1826,6 +1826,13 @@ def test_build_mock_payload_from_capture_parses_tesseract_tsv_card_rank_from_nea
     assert [entry["score"] for entry in mock_payload.entries] == [53404105, 53393930]
 
 
+def test_find_layout_difficulty_accepts_common_ocr_variants() -> None:
+    assert capture_import._resolve_difficulty_label("GINATIE") == "Lunatic"
+    assert capture_import._resolve_difficulty_label("GMATI") == "Lunatic"
+    assert capture_import._resolve_difficulty_label("INASANE") == "Insane"
+    assert capture_import._resolve_difficulty_label("TORMEMT") == "Torment"
+
+
 def test_build_mock_payload_from_capture_keeps_snapshot_note_within_backend_limit(
     tmp_path: Path,
 ) -> None:
