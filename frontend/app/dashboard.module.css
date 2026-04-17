@@ -530,6 +530,18 @@
   min-width: 0;
 }
 
+.rightRail .detailsSection {
+  background: #fbfcf8;
+}
+
+.rightRail .detailsSummary {
+  padding: 12px 14px;
+}
+
+.rightRail .detailsBody {
+  padding: 0 14px 12px;
+}
+
 .filterGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
@@ -818,6 +830,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .rightRail .filterActions > * {
+    flex: 1 1 100%;
+  }
+
   .controlRow {
     align-items: stretch;
   }
@@ -986,6 +1002,14 @@
   .quickLinkGrid,
   .filterGrid {
     grid-template-columns: 1fr;
+  }
+
+  .detailsSummary {
+    padding: 12px;
+  }
+
+  .detailsBody {
+    padding: 0 12px 12px;
   }
 
   .filterActions > * {

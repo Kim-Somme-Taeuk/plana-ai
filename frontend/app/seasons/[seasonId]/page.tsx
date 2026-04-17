@@ -360,6 +360,14 @@ export default async function SeasonDetailPage({
     selectedIgnoredGroup !== "all" ||
     selectedPageSignal !== "all" ||
     selectedOcrStopLevel !== "all";
+  const hasExplicitCompareSelection =
+    Number.isFinite(requestedCompareLeft) || Number.isFinite(requestedCompareRight);
+  const compareSelectionSummary =
+    selectedCompareLeft && selectedCompareRight
+      ? `#${selectedCompareLeft.id} ↔ #${selectedCompareRight.id}`
+      : filteredCompareCandidates.length >= 2
+        ? "최근 스냅샷 2개 자동 선택"
+        : "비교 대상 부족";
 
   return (
     <PageShell
@@ -754,189 +762,216 @@ export default async function SeasonDetailPage({
 
                 <section className={styles.panel}>
                   <div className={styles.panelTitle}>
-                    <h2>컷오프 시계열 설정</h2>
+                    <h2>분석 설정</h2>
                     <span className={styles.muted}>
-                      완료된 스냅샷만 컷오프 시계열에 반영합니다.
+                      컷오프 시계열과 스냅샷 비교 설정을 필요할 때만 펼쳐서 조정합니다.
                     </span>
                   </div>
-                  <form className={styles.controls}>
-                    <div className={styles.filterGrid}>
-                      <div className={styles.field}>
-                        <label htmlFor="rank">순위</label>
-                        <select
-                          id="rank"
-                          name="rank"
-                          defaultValue={String(normalizedSeriesRank)}
-                        >
-                          {SERIES_RANK_OPTIONS.map((rank) => (
-                            <option key={rank} value={rank}>
-                              {rank.toLocaleString()}
-                            </option>
-                          ))}
-                        </select>
+                  <div className={styles.controls}>
+                    <details className={styles.detailsSection}>
+                      <summary className={styles.detailsSummary}>
+                        <span>컷오프 시계열 설정</span>
+                        <span className={styles.muted}>
+                          현재 기준 순위 {normalizedSeriesRank.toLocaleString()}
+                        </span>
+                      </summary>
+                      <div className={styles.detailsBody}>
+                        <form className={styles.controls}>
+                          <div className={styles.filterGrid}>
+                            <div className={styles.field}>
+                              <label htmlFor="rank">순위</label>
+                              <select
+                                id="rank"
+                                name="rank"
+                                defaultValue={String(normalizedSeriesRank)}
+                              >
+                                {SERIES_RANK_OPTIONS.map((rank) => (
+                                  <option key={rank} value={rank}>
+                                    {rank.toLocaleString()}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <input type="hidden" name="status" value={selectedStatus} />
+                          <input type="hidden" name="source" value={selectedSource} />
+                          <input type="hidden" name="collector" value={selectedCollector} />
+                          <input
+                            type="hidden"
+                            name="captureStopReason"
+                            value={selectedCaptureStopReason}
+                          />
+                          <input
+                            type="hidden"
+                            name="ocrStopReason"
+                            value={selectedOcrStopReason}
+                          />
+                          <input
+                            type="hidden"
+                            name="pipelineStopReason"
+                            value={selectedPipelineStopReason}
+                          />
+                          <input
+                            type="hidden"
+                            name="pipelineStopSource"
+                            value={selectedPipelineStopSource}
+                          />
+                          <input
+                            type="hidden"
+                            name="pipelineStopLevel"
+                            value={selectedPipelineStopLevel}
+                          />
+                          <input
+                            type="hidden"
+                            name="ignoredReason"
+                            value={selectedIgnoredReason}
+                          />
+                          <input
+                            type="hidden"
+                            name="ignoredGroup"
+                            value={selectedIgnoredGroup}
+                          />
+                          <input type="hidden" name="pageSignal" value={selectedPageSignal} />
+                          <input
+                            type="hidden"
+                            name="ocrStopLevel"
+                            value={selectedOcrStopLevel}
+                          />
+                          {selectedCompareLeft ? (
+                            <input
+                              type="hidden"
+                              name="compareLeft"
+                              value={String(selectedCompareLeft.id)}
+                            />
+                          ) : null}
+                          {selectedCompareRight ? (
+                            <input
+                              type="hidden"
+                              name="compareRight"
+                              value={String(selectedCompareRight.id)}
+                            />
+                          ) : null}
+                          <div className={styles.filterActions}>
+                            <button type="submit" className={styles.button}>
+                              컷오프 갱신
+                            </button>
+                          </div>
+                        </form>
                       </div>
-                    </div>
-                    <input type="hidden" name="status" value={selectedStatus} />
-                    <input type="hidden" name="source" value={selectedSource} />
-                    <input type="hidden" name="collector" value={selectedCollector} />
-                    <input
-                      type="hidden"
-                      name="captureStopReason"
-                      value={selectedCaptureStopReason}
-                    />
-                    <input
-                      type="hidden"
-                      name="ocrStopReason"
-                      value={selectedOcrStopReason}
-                    />
-                    <input
-                      type="hidden"
-                      name="pipelineStopReason"
-                      value={selectedPipelineStopReason}
-                    />
-                    <input
-                      type="hidden"
-                      name="pipelineStopSource"
-                      value={selectedPipelineStopSource}
-                    />
-                    <input
-                      type="hidden"
-                      name="pipelineStopLevel"
-                      value={selectedPipelineStopLevel}
-                    />
-                    <input
-                      type="hidden"
-                      name="ignoredReason"
-                      value={selectedIgnoredReason}
-                    />
-                    <input
-                      type="hidden"
-                      name="ignoredGroup"
-                      value={selectedIgnoredGroup}
-                    />
-                    <input type="hidden" name="pageSignal" value={selectedPageSignal} />
-                    <input
-                      type="hidden"
-                      name="ocrStopLevel"
-                      value={selectedOcrStopLevel}
-                    />
-                    {selectedCompareLeft ? (
-                      <input
-                        type="hidden"
-                        name="compareLeft"
-                        value={String(selectedCompareLeft.id)}
-                      />
-                    ) : null}
-                    {selectedCompareRight ? (
-                      <input
-                        type="hidden"
-                        name="compareRight"
-                        value={String(selectedCompareRight.id)}
-                      />
-                    ) : null}
-                    <div className={styles.filterActions}>
-                      <button type="submit" className={styles.button}>
-                        컷오프 갱신
-                      </button>
-                    </div>
-                  </form>
-                </section>
+                    </details>
 
-                <section className={styles.panel}>
-                  <div className={styles.panelTitle}>
-                    <h2>스냅샷 비교 설정</h2>
-                    <span className={styles.muted}>
-                      최근 스냅샷 두 개를 기본 비교 대상으로 잡습니다.
-                    </span>
+                    <details
+                      className={styles.detailsSection}
+                      {...(hasExplicitCompareSelection ? { open: true } : {})}
+                    >
+                      <summary className={styles.detailsSummary}>
+                        <span>스냅샷 비교 설정</span>
+                        <span className={styles.muted}>{compareSelectionSummary}</span>
+                      </summary>
+                      <div className={styles.detailsBody}>
+                        {filteredCompareCandidates.length < 2 ? (
+                          <EmptyBox message="비교하려면 스냅샷이 두 개 이상 필요합니다." />
+                        ) : (
+                          <form className={styles.controls}>
+                            <div className={styles.filterGrid}>
+                              <div className={styles.field}>
+                                <label htmlFor="compareLeft">왼쪽 스냅샷</label>
+                                <select
+                                  id="compareLeft"
+                                  name="compareLeft"
+                                  defaultValue={String(selectedCompareLeft?.id ?? "")}
+                                >
+                                  {filteredCompareCandidates.map((snapshot) => (
+                                    <option key={snapshot.id} value={snapshot.id}>
+                                      #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
+                                      {formatSourceTypeLabel(snapshot.source_type)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className={styles.field}>
+                                <label htmlFor="compareRight">오른쪽 스냅샷</label>
+                                <select
+                                  id="compareRight"
+                                  name="compareRight"
+                                  defaultValue={String(selectedCompareRight?.id ?? "")}
+                                >
+                                  {filteredCompareCandidates.map((snapshot) => (
+                                    <option key={snapshot.id} value={snapshot.id}>
+                                      #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
+                                      {formatSourceTypeLabel(snapshot.source_type)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <input
+                              type="hidden"
+                              name="rank"
+                              value={String(normalizedSeriesRank)}
+                            />
+                            <input type="hidden" name="status" value={selectedStatus} />
+                            <input type="hidden" name="source" value={selectedSource} />
+                            <input
+                              type="hidden"
+                              name="collector"
+                              value={selectedCollector}
+                            />
+                            <input
+                              type="hidden"
+                              name="captureStopReason"
+                              value={selectedCaptureStopReason}
+                            />
+                            <input
+                              type="hidden"
+                              name="ocrStopReason"
+                              value={selectedOcrStopReason}
+                            />
+                            <input
+                              type="hidden"
+                              name="pipelineStopReason"
+                              value={selectedPipelineStopReason}
+                            />
+                            <input
+                              type="hidden"
+                              name="pipelineStopSource"
+                              value={selectedPipelineStopSource}
+                            />
+                            <input
+                              type="hidden"
+                              name="pipelineStopLevel"
+                              value={selectedPipelineStopLevel}
+                            />
+                            <input
+                              type="hidden"
+                              name="ignoredReason"
+                              value={selectedIgnoredReason}
+                            />
+                            <input
+                              type="hidden"
+                              name="ignoredGroup"
+                              value={selectedIgnoredGroup}
+                            />
+                            <input
+                              type="hidden"
+                              name="pageSignal"
+                              value={selectedPageSignal}
+                            />
+                            <input
+                              type="hidden"
+                              name="ocrStopLevel"
+                              value={selectedOcrStopLevel}
+                            />
+                            <div className={styles.filterActions}>
+                              <button type="submit" className={styles.button}>
+                                비교 반영
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    </details>
                   </div>
-                  {filteredCompareCandidates.length < 2 ? (
-                    <EmptyBox message="비교하려면 스냅샷이 두 개 이상 필요합니다." />
-                  ) : (
-                    <form className={styles.controls}>
-                      <div className={styles.filterGrid}>
-                        <div className={styles.field}>
-                          <label htmlFor="compareLeft">왼쪽 스냅샷</label>
-                          <select
-                            id="compareLeft"
-                            name="compareLeft"
-                            defaultValue={String(selectedCompareLeft?.id ?? "")}
-                          >
-                            {filteredCompareCandidates.map((snapshot) => (
-                              <option key={snapshot.id} value={snapshot.id}>
-                                #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
-                                {formatSourceTypeLabel(snapshot.source_type)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className={styles.field}>
-                          <label htmlFor="compareRight">오른쪽 스냅샷</label>
-                          <select
-                            id="compareRight"
-                            name="compareRight"
-                            defaultValue={String(selectedCompareRight?.id ?? "")}
-                          >
-                            {filteredCompareCandidates.map((snapshot) => (
-                              <option key={snapshot.id} value={snapshot.id}>
-                                #{snapshot.id} · {formatStatusLabel(snapshot.status)} ·{" "}
-                                {formatSourceTypeLabel(snapshot.source_type)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <input type="hidden" name="rank" value={String(normalizedSeriesRank)} />
-                      <input type="hidden" name="status" value={selectedStatus} />
-                      <input type="hidden" name="source" value={selectedSource} />
-                      <input type="hidden" name="collector" value={selectedCollector} />
-                      <input
-                        type="hidden"
-                        name="captureStopReason"
-                        value={selectedCaptureStopReason}
-                      />
-                      <input
-                        type="hidden"
-                        name="ocrStopReason"
-                        value={selectedOcrStopReason}
-                      />
-                      <input
-                        type="hidden"
-                        name="pipelineStopReason"
-                        value={selectedPipelineStopReason}
-                      />
-                      <input
-                        type="hidden"
-                        name="pipelineStopSource"
-                        value={selectedPipelineStopSource}
-                      />
-                      <input
-                        type="hidden"
-                        name="pipelineStopLevel"
-                        value={selectedPipelineStopLevel}
-                      />
-                      <input
-                        type="hidden"
-                        name="ignoredReason"
-                        value={selectedIgnoredReason}
-                      />
-                      <input
-                        type="hidden"
-                        name="ignoredGroup"
-                        value={selectedIgnoredGroup}
-                      />
-                      <input type="hidden" name="pageSignal" value={selectedPageSignal} />
-                      <input
-                        type="hidden"
-                        name="ocrStopLevel"
-                        value={selectedOcrStopLevel}
-                      />
-                      <div className={styles.filterActions}>
-                        <button type="submit" className={styles.button}>
-                          비교 반영
-                        </button>
-                      </div>
-                    </form>
-                  )}
                 </section>
 
                 <div id="cutoff-series" className={styles.anchorTarget}>

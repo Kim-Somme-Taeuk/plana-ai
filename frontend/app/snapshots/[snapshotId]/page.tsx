@@ -161,6 +161,12 @@ export default async function SnapshotDetailPage({
     limit !== DEFAULT_PAGE_SIZE ? `개수: ${limit.toLocaleString()}` : null,
     offset > 0 ? `오프셋: ${offset.toLocaleString()}` : null,
   ].filter((value): value is string => Boolean(value));
+  const hasEntryExplorerOverrides =
+    validationIssue !== "all" ||
+    sortBy !== "rank" ||
+    order !== "asc" ||
+    limit !== DEFAULT_PAGE_SIZE ||
+    offset > 0;
 
   return (
     <PageShell
@@ -338,74 +344,94 @@ export default async function SnapshotDetailPage({
             </div>
 
             <form className={styles.controls}>
-              <div className={styles.filterSection}>
-                <div className={styles.sectionHeader}>
-                  <h3>탐색 필터</h3>
+              <details className={styles.detailsSection} open>
+                <summary className={styles.detailsSummary}>
+                  <span>기본 탐색 필터</span>
                   <span className={styles.muted}>
-                    유효성, 이슈, 정렬을 먼저 정하고 오프셋으로 구간을 이동합니다.
+                    유효성 범위와 검증 이슈를 먼저 좁힙니다.
                   </span>
-                </div>
-                <div className={styles.filterGrid}>
-                  <div className={styles.field}>
-                    <label htmlFor="isValid">유효성</label>
-                    <select id="isValid" name="isValid" defaultValue={isValid}>
-                      <option value="all">전체</option>
-                      <option value="true">유효</option>
-                      <option value="false">무효</option>
-                    </select>
-                  </div>
-                  <div className={styles.field}>
-                    <label htmlFor="validationIssue">이슈</label>
-                    <select
-                      id="validationIssue"
-                      name="validationIssue"
-                      defaultValue={validationIssue}
-                    >
-                      <option value="all">전체</option>
-                      {validationIssueOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className={styles.field}>
-                    <label htmlFor="sortBy">정렬 기준</label>
-                    <select id="sortBy" name="sortBy" defaultValue={sortBy}>
-                      <option value="rank">순위</option>
-                      <option value="score">점수</option>
-                    </select>
-                  </div>
-                  <div className={styles.field}>
-                    <label htmlFor="order">정렬 방향</label>
-                    <select id="order" name="order" defaultValue={order}>
-                      <option value="asc">오름차순</option>
-                      <option value="desc">내림차순</option>
-                    </select>
-                  </div>
-                  <div className={styles.field}>
-                    <label htmlFor="limit">개수</label>
-                    <select id="limit" name="limit" defaultValue={String(limit)}>
-                      {PAGE_SIZE_OPTIONS.map((pageSize) => (
-                        <option key={pageSize} value={pageSize}>
-                          {pageSize}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className={styles.field}>
-                    <label htmlFor="offset">오프셋</label>
-                    <input
-                      id="offset"
-                      name="offset"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={offset}
-                    />
+                </summary>
+                <div className={styles.detailsBody}>
+                  <div className={styles.filterGrid}>
+                    <div className={styles.field}>
+                      <label htmlFor="isValid">유효성</label>
+                      <select id="isValid" name="isValid" defaultValue={isValid}>
+                        <option value="all">전체</option>
+                        <option value="true">유효</option>
+                        <option value="false">무효</option>
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="validationIssue">이슈</label>
+                      <select
+                        id="validationIssue"
+                        name="validationIssue"
+                        defaultValue={validationIssue}
+                      >
+                        <option value="all">전체</option>
+                        {validationIssueOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </details>
+
+              <details
+                className={styles.detailsSection}
+                {...(hasEntryExplorerOverrides ? { open: true } : {})}
+              >
+                <summary className={styles.detailsSummary}>
+                  <span>정렬 및 구간 제어</span>
+                  <span className={styles.muted}>
+                    {formatSortByLabel(sortBy)} · {formatOrderLabel(order)} ·{" "}
+                    {limit.toLocaleString()}개 · 오프셋 {offset.toLocaleString()}
+                  </span>
+                </summary>
+                <div className={styles.detailsBody}>
+                  <div className={styles.filterGrid}>
+                    <div className={styles.field}>
+                      <label htmlFor="sortBy">정렬 기준</label>
+                      <select id="sortBy" name="sortBy" defaultValue={sortBy}>
+                        <option value="rank">순위</option>
+                        <option value="score">점수</option>
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="order">정렬 방향</label>
+                      <select id="order" name="order" defaultValue={order}>
+                        <option value="asc">오름차순</option>
+                        <option value="desc">내림차순</option>
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="limit">개수</label>
+                      <select id="limit" name="limit" defaultValue={String(limit)}>
+                        {PAGE_SIZE_OPTIONS.map((pageSize) => (
+                          <option key={pageSize} value={pageSize}>
+                            {pageSize}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="offset">오프셋</label>
+                      <input
+                        id="offset"
+                        name="offset"
+                        type="number"
+                        min="0"
+                        step="1"
+                        defaultValue={offset}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
+
               <div className={styles.filterActions}>
                 <button type="submit" className={styles.button}>
                   필터 적용
