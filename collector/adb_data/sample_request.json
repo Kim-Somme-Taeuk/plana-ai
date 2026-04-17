@@ -13,8 +13,12 @@
   },
   "ocr": {
     "provider": "tesseract",
-    "language": "eng",
-    "psm": 6
+    "language": "kor+eng",
+    "psm": 11,
+    "extra_args": [
+      "-c",
+      "preserve_interword_spaces=1"
+    ]
   },
   "adb": {
     "output_dir": "../capture_runs/sample_adb_capture",

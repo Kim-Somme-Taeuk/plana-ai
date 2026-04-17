@@ -85,6 +85,7 @@ class OcrConfig:
     command: str | None
     language: str | None
     psm: int | None
+    extra_args: tuple[str, ...]
     reuse_cached_sidecar: bool
     persist_sidecar: bool
 
@@ -151,6 +152,7 @@ def load_capture_import_payload(
         command_override=ocr_command,
         language_override=ocr_language,
         psm_override=ocr_psm,
+        extra_args_override=None,
         reuse_cached_sidecar_override=reuse_tesseract_sidecar,
         persist_sidecar_override=persist_tesseract_sidecar,
     )
@@ -821,6 +823,8 @@ def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
         args.extend(["-l", ocr.language])
     if ocr.psm is not None:
         args.extend(["--psm", str(ocr.psm)])
+    if ocr.extra_args:
+        args.extend(ocr.extra_args)
 
     try:
         result = subprocess.run(
@@ -861,6 +865,7 @@ def _build_ocr_config(
     command_override: str | None,
     language_override: str | None,
     psm_override: int | None,
+    extra_args_override: list[str] | None,
     reuse_cached_sidecar_override: bool | None,
     persist_sidecar_override: bool | None,
 ) -> OcrConfig:
@@ -882,6 +887,19 @@ def _build_ocr_config(
             psm = int(raw_psm)
         except (TypeError, ValueError) as exc:
             raise MockImportError("ocr.psm은 정수여야 합니다.") from exc
+
+    raw_extra_args = (
+        extra_args_override
+        if extra_args_override is not None
+        else ocr_mapping.get("extra_args", [])
+    )
+    if raw_extra_args is None:
+        raw_extra_args = []
+    if not isinstance(raw_extra_args, list) or not all(
+        isinstance(arg, str) and arg.strip() for arg in raw_extra_args
+    ):
+        raise MockImportError("ocr.extra_args는 비어 있지 않은 문자열 배열이어야 합니다.")
+    extra_args = tuple(raw_extra_args)
 
     if provider == OCR_PROVIDER_TESSERACT and command is None:
         command = DEFAULT_TESSERACT_COMMAND
@@ -910,6 +928,7 @@ def _build_ocr_config(
         command=command,
         language=language,
         psm=psm,
+        extra_args=extra_args,
         reuse_cached_sidecar=reuse_cached_sidecar,
         persist_sidecar=persist_sidecar,
     )

@@ -685,6 +685,7 @@ def _build_runtime_ocr_config(
         command=ocr_command or request.ocr.get("command"),
         language=ocr_language or request.ocr.get("language"),
         psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
+        extra_args=tuple(request.ocr.get("extra_args", [])),
         reuse_cached_sidecar=True,
         persist_sidecar=True,
     )
