@@ -1023,6 +1023,23 @@ def _parse_tesseract_layout_entries(
         return []
 
     entries: list[dict[str, Any]] = []
+    score_words = _find_layout_score_words(words)
+    if score_words:
+        for index, score_word in enumerate(score_words, start=1):
+            entry = _parse_tesseract_layout_card(
+                score_word=score_word,
+                all_words=words,
+                image_path=image_path,
+                default_ocr_confidence=default_ocr_confidence,
+                page_index=page_index,
+                fallback_rank=index,
+            )
+            if entry is not None:
+                entries.append(entry)
+
+    if entries:
+        return entries
+
     for line_words in _group_tesseract_words_by_line(words):
         entry = _parse_tesseract_layout_line(
             line_words=line_words,
@@ -1143,6 +1160,88 @@ def _parse_tesseract_layout_line(
     }
 
 
+def _parse_tesseract_layout_card(
+    *,
+    score_word: TesseractTsvWord,
+    all_words: list[TesseractTsvWord],
+    image_path: Path,
+    default_ocr_confidence: float | None,
+    page_index: int,
+    fallback_rank: int,
+) -> dict[str, Any] | None:
+    card_words = [
+        word
+        for word in all_words
+        if score_word.top - 80 <= word.top <= score_word.top + 120
+        and word.left <= score_word.left + 20
+    ]
+    if not card_words:
+        return None
+
+    difficulty = _find_layout_difficulty(card_words)
+    if difficulty is None:
+        return None
+
+    rank = _find_layout_rank_near_score(card_words, score_word)
+    if rank is None:
+        rank = fallback_rank
+
+    try:
+        score = _parse_score_text(
+            score_word.text,
+            page_index=page_index,
+            line_index=1,
+        )
+    except MockImportError:
+        return None
+
+    confidences = [
+        word.confidence / 100
+        for word in card_words
+        if word.confidence is not None and word.confidence >= 0
+    ]
+    ocr_confidence = (
+        round(sum(confidences) / len(confidences), 4)
+        if confidences
+        else default_ocr_confidence
+    )
+
+    raw_text = " ".join(
+        word.text for word in sorted(card_words, key=lambda item: (item.top, item.left))
+    )
+    return {
+        "rank": rank,
+        "score": score,
+        "player_name": difficulty,
+        "ocr_confidence": ocr_confidence,
+        "raw_text": raw_text,
+        "image_path": _build_entry_image_path(image_path),
+        "is_valid": True,
+        "validation_issue": None,
+    }
+
+
+def _find_layout_score_words(
+    words: list[TesseractTsvWord],
+) -> list[TesseractTsvWord]:
+    score_words = [
+        word
+        for word in words
+        if _normalize_score_ocr_token(word.text).isdigit()
+        and len(_normalize_score_ocr_token(word.text)) >= 7
+    ]
+    score_words.sort(key=lambda word: (word.top, word.left))
+
+    filtered: list[TesseractTsvWord] = []
+    for word in score_words:
+        if filtered and abs(word.top - filtered[-1].top) <= 20:
+            if word.left < filtered[-1].left:
+                filtered[-1] = word
+            continue
+        filtered.append(word)
+    return filtered
+
+
 def _find_layout_score_index(line_words: list[TesseractTsvWord]) -> int | None:
     best_index: int | None = None
     best_length = 0
@@ -1192,6 +1291,36 @@ def _find_layout_rank(
                 continue
             return rank
     return None
+
+
+def _find_layout_rank_near_score(
+    line_words: list[TesseractTsvWord],
+    score_word: TesseractTsvWord,
+) -> int | None:
+    candidates: list[tuple[int, int]] = []
+    for index, word in enumerate(line_words):
+        token = word.text.strip()
+        if token.lower().startswith("lv"):
+            continue
+        token_candidates = [token]
+        if index + 1 < len(line_words):
+            token_candidates.append(token + line_words[index + 1].text.strip())
+        for candidate in token_candidates:
+            normalized = _normalize_rank_ocr_token(candidate)
+            if not normalized.isdigit():
+                continue
+            rank = int(normalized)
+            if rank <= 0 or rank > 100000:
+                continue
+            distance = abs(word.top - score_word.top) + max(0, score_word.left - word.left)
+            candidates.append((distance, rank))
+            break
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
 
 
 def _resolve_snapshot_source_type(
@@ -1542,6 +1671,9 @@ def _normalize_rank_ocr_token(value: str) -> str:
     normalized = normalized.removeprefix("№")
     normalized = normalized.removesuffix("위")
     normalized = _normalize_integer_ocr_token(normalized)
+    match = re.match(r"(\d+)", normalized)
+    if match is not None:
+        normalized = match.group(1)
     return normalized.strip(".:- ")
 
 

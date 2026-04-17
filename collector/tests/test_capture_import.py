@@ -1770,6 +1770,62 @@ def test_build_mock_payload_from_capture_falls_back_to_tesseract_tsv_card_layout
     assert mock_payload.entries[1]["score"] == 53393930
 
 
+def test_build_mock_payload_from_capture_parses_tesseract_tsv_card_rank_from_nearby_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "garbled ocr\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tesseract-tsv-nearby-rank-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "language": "kor+eng", "psm": 11},
+    )
+
+    header = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+    )
+    tsv_output = header + "\n".join(
+        [
+            "5\t1\t1\t1\t1\t1\t90\t70\t30\t18\t84\t1H",
+            "5\t1\t1\t1\t2\t1\t170\t100\t90\t20\t94\tLunatic",
+            "5\t1\t1\t1\t2\t2\t290\t100\t180\t20\t95\t53,404,105",
+            "5\t1\t1\t1\t3\t1\t90\t170\t30\t18\t84\t2H",
+            "5\t1\t1\t1\t4\t1\t170\t200\t90\t20\t94\tLunatic",
+            "5\t1\t1\t1\t4\t2\t290\t200\t180\t20\t95\t53,393,930",
+        ]
+    )
+
+    def fake_run(args, capture_output, text, encoding, errors, check):
+        if args[-1] == "tsv":
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout=tsv_output,
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="bad\nocr\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert [entry["rank"] for entry in mock_payload.entries] == [1, 2]
+    assert [entry["score"] for entry in mock_payload.entries] == [53404105, 53393930]
+
+
 def test_build_mock_payload_from_capture_fails_when_tesseract_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
