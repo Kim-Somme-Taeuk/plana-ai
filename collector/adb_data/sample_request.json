@@ -15,6 +15,12 @@
     "provider": "tesseract",
     "language": "eng",
     "psm": 11,
+    "crop": {
+      "left_ratio": 0.31,
+      "top_ratio": 0.34,
+      "right_ratio": 0.57,
+      "bottom_ratio": 0.95
+    },
     "extra_args": [
       "-c",
       "preserve_interword_spaces=1"

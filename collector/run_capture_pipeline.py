@@ -28,6 +28,7 @@ from collector.adb_capture import (
     load_adb_capture_request,
 )
 from collector.capture_import import (
+    _build_ocr_crop,
     CAPTURE_SOURCE_TYPE_BY_PROVIDER,
     CaptureImportPayload,
     CapturePage,
@@ -686,6 +687,7 @@ def _build_runtime_ocr_config(
         language=ocr_language or request.ocr.get("language"),
         psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
         extra_args=tuple(request.ocr.get("extra_args", [])),
+        crop=_build_ocr_crop(request.ocr.get("crop")),
         reuse_cached_sidecar=True,
         persist_sidecar=True,
     )

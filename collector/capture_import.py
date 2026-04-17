@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,8 +113,17 @@ class OcrConfig:
     language: str | None
     psm: int | None
     extra_args: tuple[str, ...]
+    crop: "OcrCrop | None"
     reuse_cached_sidecar: bool
     persist_sidecar: bool
+
+
+@dataclass(frozen=True)
+class OcrCrop:
+    left_ratio: float
+    top_ratio: float
+    right_ratio: float
+    bottom_ratio: float
 
 
 @dataclass(frozen=True)
@@ -896,27 +906,31 @@ def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
             f"command={command!r}, image_path={image_path}"
         )
 
-    args = [command, str(image_path), "stdout"]
-    if ocr.language:
-        args.extend(["-l", ocr.language])
-    if ocr.psm is not None:
-        args.extend(["--psm", str(ocr.psm)])
-    if ocr.extra_args:
-        args.extend(ocr.extra_args)
-
+    prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, ocr)
     try:
-        result = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-    except OSError as exc:
-        raise MockImportError(
-            f"tesseract 실행에 실패했습니다: command={command!r}, image_path={image_path}"
-        ) from exc
+        args = [command, str(prepared_image_path), "stdout"]
+        if ocr.language:
+            args.extend(["-l", ocr.language])
+        if ocr.psm is not None:
+            args.extend(["--psm", str(ocr.psm)])
+        if ocr.extra_args:
+            args.extend(ocr.extra_args)
+
+        try:
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except OSError as exc:
+            raise MockImportError(
+                f"tesseract 실행에 실패했습니다: command={command!r}, image_path={image_path}"
+            ) from exc
+    finally:
+        cleanup()
 
     stdout = (result.stdout or "").strip()
     stderr = (result.stderr or "").strip()
@@ -944,28 +958,32 @@ def _run_tesseract_tsv(image_path: Path, ocr: OcrConfig) -> str:
             f"command={command!r}, image_path={image_path}"
         )
 
-    args = [command, str(image_path), "stdout"]
-    if ocr.language:
-        args.extend(["-l", ocr.language])
-    if ocr.psm is not None:
-        args.extend(["--psm", str(ocr.psm)])
-    if ocr.extra_args:
-        args.extend(ocr.extra_args)
-    args.append("tsv")
-
+    prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, ocr)
     try:
-        result = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-    except OSError as exc:
-        raise MockImportError(
-            f"tesseract TSV 실행에 실패했습니다: command={command!r}, image_path={image_path}"
-        ) from exc
+        args = [command, str(prepared_image_path), "stdout"]
+        if ocr.language:
+            args.extend(["-l", ocr.language])
+        if ocr.psm is not None:
+            args.extend(["--psm", str(ocr.psm)])
+        if ocr.extra_args:
+            args.extend(ocr.extra_args)
+        args.append("tsv")
+
+        try:
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except OSError as exc:
+            raise MockImportError(
+                f"tesseract TSV 실행에 실패했습니다: command={command!r}, image_path={image_path}"
+            ) from exc
+    finally:
+        cleanup()
 
     stdout = (result.stdout or "").strip()
     stderr = (result.stderr or "").strip()
@@ -978,6 +996,48 @@ def _run_tesseract_tsv(image_path: Path, ocr: OcrConfig) -> str:
         )
 
     return stdout
+
+
+def _prepare_image_for_ocr(
+    image_path: Path,
+    ocr: OcrConfig,
+) -> tuple[Path, callable]:
+    if ocr.crop is None:
+        return image_path, (lambda: None)
+
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise MockImportError(
+            "ocr.crop을 사용하려면 Pillow가 필요합니다. requirements를 다시 설치하세요."
+        ) from exc
+
+    with Image.open(image_path) as image:
+        width, height = image.size
+        left = max(0, int(width * ocr.crop.left_ratio))
+        top = max(0, int(height * ocr.crop.top_ratio))
+        right = min(width, int(width * ocr.crop.right_ratio))
+        bottom = min(height, int(height * ocr.crop.bottom_ratio))
+        if left >= right or top >= bottom:
+            raise MockImportError(
+                f"ocr.crop이 유효한 영역을 만들지 못했습니다: image_path={image_path}"
+            )
+        cropped = image.crop((left, top, right, bottom))
+        with tempfile.NamedTemporaryFile(
+            suffix=image_path.suffix,
+            prefix="plana-ocr-crop-",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+        cropped.save(temp_path)
+
+    def cleanup() -> None:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    return temp_path, cleanup
 
 
 def _build_ocr_config(
@@ -1051,8 +1111,39 @@ def _build_ocr_config(
         language=language,
         psm=psm,
         extra_args=extra_args,
+        crop=_build_ocr_crop(ocr_mapping.get("crop")),
         reuse_cached_sidecar=reuse_cached_sidecar,
         persist_sidecar=persist_sidecar,
+    )
+
+
+def _build_ocr_crop(raw_crop: Any) -> OcrCrop | None:
+    if raw_crop is None:
+        return None
+
+    crop = _require_mapping(raw_crop, "ocr.crop")
+    required_keys = ("left_ratio", "top_ratio", "right_ratio", "bottom_ratio")
+    _require_fields(crop, required_keys, "ocr.crop")
+
+    parsed: dict[str, float] = {}
+    for key in required_keys:
+        try:
+            parsed[key] = float(crop[key])
+        except (TypeError, ValueError) as exc:
+            raise MockImportError(f"ocr.crop.{key}는 0~1 사이 숫자여야 합니다.") from exc
+        if not (0.0 <= parsed[key] <= 1.0):
+            raise MockImportError(f"ocr.crop.{key}는 0~1 사이 숫자여야 합니다.")
+
+    if parsed["left_ratio"] >= parsed["right_ratio"]:
+        raise MockImportError("ocr.crop.left_ratio는 right_ratio보다 작아야 합니다.")
+    if parsed["top_ratio"] >= parsed["bottom_ratio"]:
+        raise MockImportError("ocr.crop.top_ratio는 bottom_ratio보다 작아야 합니다.")
+
+    return OcrCrop(
+        left_ratio=parsed["left_ratio"],
+        top_ratio=parsed["top_ratio"],
+        right_ratio=parsed["right_ratio"],
+        bottom_ratio=parsed["bottom_ratio"],
     )
 
 
