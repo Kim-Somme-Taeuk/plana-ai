@@ -1212,6 +1212,16 @@ def _parse_tesseract_layout_entries(
 
             if entries:
                 return _normalize_tesseract_page_entry_ranks(entries)
+
+            entries = _parse_blue_archive_fixed_rows(
+                prepared_image_path=prepared_image_path,
+                image_path=image_path,
+                ocr=attempt_ocr,
+                default_ocr_confidence=default_ocr_confidence,
+                page_index=page_index,
+            )
+            if entries:
+                return _normalize_tesseract_page_entry_ranks(entries)
         finally:
             cleanup()
 
@@ -1229,6 +1239,12 @@ def _iter_tesseract_layout_ocr_attempts(ocr: OcrConfig) -> list[OcrConfig]:
             left_ratio=max(0.0, ocr.crop.left_ratio - 0.03),
             top_ratio=ocr.crop.top_ratio,
             right_ratio=min(1.0, ocr.crop.right_ratio + 0.02),
+            bottom_ratio=ocr.crop.bottom_ratio,
+        ),
+        OcrCrop(
+            left_ratio=max(0.0, ocr.crop.left_ratio - 0.08),
+            top_ratio=max(0.0, ocr.crop.top_ratio - 0.01),
+            right_ratio=min(1.0, ocr.crop.right_ratio + 0.01),
             bottom_ratio=ocr.crop.bottom_ratio,
         ),
         OcrCrop(
@@ -1265,6 +1281,72 @@ def _iter_tesseract_layout_ocr_attempts(ocr: OcrConfig) -> list[OcrConfig]:
             )
         )
     return deduped_attempts
+
+
+def _parse_blue_archive_fixed_rows(
+    *,
+    prepared_image_path: Path,
+    image_path: Path,
+    ocr: OcrConfig,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> list[dict[str, Any]]:
+    row_bands = (
+        (0.02, 0.31),
+        (0.35, 0.65),
+        (0.69, 0.98),
+    )
+
+    entries: list[dict[str, Any]] = []
+    detected_ranks: list[int | None] = []
+
+    for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
+        rank = _ocr_blue_archive_row_rank(
+            prepared_image_path=prepared_image_path,
+            ocr=ocr,
+            top_ratio=top_ratio,
+            bottom_ratio=bottom_ratio,
+        )
+        difficulty = _ocr_blue_archive_row_difficulty(
+            prepared_image_path=prepared_image_path,
+            ocr=ocr,
+            top_ratio=top_ratio,
+            bottom_ratio=bottom_ratio,
+        )
+        score = _ocr_blue_archive_row_score(
+            prepared_image_path=prepared_image_path,
+            ocr=ocr,
+            top_ratio=top_ratio,
+            bottom_ratio=bottom_ratio,
+            page_index=page_index,
+        )
+        if difficulty is None or score is None:
+            continue
+
+        detected_ranks.append(rank)
+        entries.append(
+            {
+                "rank": rank if rank is not None else row_index,
+                "score": score,
+                "player_name": difficulty,
+                "ocr_confidence": default_ocr_confidence,
+                "raw_text": f"row={row_index} difficulty={difficulty} score={score}",
+                "image_path": _build_entry_image_path(image_path),
+                "is_valid": True,
+                "validation_issue": None,
+            }
+        )
+
+    if not entries:
+        return []
+
+    resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    normalized_entries: list[dict[str, Any]] = []
+    rank_index = 0
+    for entry in entries:
+        normalized_entries.append({**entry, "rank": resolved_ranks[rank_index]})
+        rank_index += 1
+    return normalized_entries
 
 
 def _parse_tesseract_tsv_words(tsv_text: str) -> list[TesseractTsvWord]:
@@ -1671,6 +1753,119 @@ def _ocr_card_difficulty_from_region(
     return None
 
 
+def _ocr_blue_archive_row_rank(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+) -> int | None:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.0, 0.5),
+        y_ratios=(top_ratio, min(bottom_ratio, top_ratio + 0.23)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=180,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        normalized = _normalize_rank_ocr_token(candidate)
+        if normalized.isdigit():
+            rank = int(normalized)
+            if 0 < rank <= 100000:
+                return rank
+    return None
+
+
+def _ocr_blue_archive_row_difficulty(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+) -> str | None:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.0, 0.42),
+        y_ratios=(top_ratio + 0.12, min(bottom_ratio, top_ratio + 0.28)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                ),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                ),
+                threshold=180,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        normalized = re.sub(r"[^A-Z0-9]+", "", _normalize_unicode_ocr_text(candidate).upper())
+        difficulty = _resolve_difficulty_label(normalized)
+        if difficulty is not None:
+            return difficulty
+    return None
+
+
+def _ocr_blue_archive_row_score(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+    page_index: int,
+) -> int | None:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.3, 1.0),
+        y_ratios=(top_ratio + 0.1, min(bottom_ratio, top_ratio + 0.28)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                threshold=170,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        try:
+            return _parse_score_text(candidate, page_index=page_index, line_index=1)
+        except MockImportError:
+            continue
+    return None
+
+
 @dataclass(frozen=True)
 class OcrRegionAttempt:
     language: str
@@ -1712,6 +1907,33 @@ def _ocr_prepared_image_region_candidates(
             if candidate:
                 candidates.append(candidate)
         return candidates
+
+
+def _ocr_prepared_image_ratio_region_candidates(
+    *,
+    prepared_image_path: Path,
+    x_ratios: tuple[float, float],
+    y_ratios: tuple[float, float],
+    attempts: list[OcrRegionAttempt],
+    base_ocr: OcrConfig,
+) -> list[str]:
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+
+    with Image.open(prepared_image_path) as image:
+        left = max(0, int(image.width * x_ratios[0]))
+        right = min(image.width, int(image.width * x_ratios[1]))
+        top = max(0, int(image.height * y_ratios[0]))
+        bottom = min(image.height, int(image.height * y_ratios[1]))
+
+    return _ocr_prepared_image_region_candidates(
+        prepared_image_path=prepared_image_path,
+        box=(left, top, right, bottom),
+        attempts=attempts,
+        base_ocr=base_ocr,
+    )
 
 
 def _ocr_region_image_variant(

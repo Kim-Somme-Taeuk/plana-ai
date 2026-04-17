@@ -1992,6 +1992,50 @@ def test_normalize_tesseract_page_entry_ranks_resolves_duplicate_rank() -> None:
     assert [entry["rank"] for entry in normalized] == [1, 2, 3]
 
 
+def test_parse_blue_archive_fixed_rows_assembles_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 12001, 0.35: 12002, 0.69: 12003}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: {0.02: 40040720, 0.35: 40040720, 0.69: 40040641}[kwargs["top_ratio"]],
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        prepared_image_path=Path("page-001.png"),
+        image_path=Path("page-001.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in entries] == [
+        (12001, "Torment", 40040720),
+        (12002, "Torment", 40040720),
+        (12003, "Torment", 40040641),
+    ]
+
+
 def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:
     assert capture_import._find_score_anchor_value(": be 8 53,393,544  (noise)") == 53393544
 
