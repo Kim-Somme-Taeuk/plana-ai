@@ -900,91 +900,68 @@ def _load_tesseract_ocr_text(
 
 
 def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
-    command = ocr.command or DEFAULT_TESSERACT_COMMAND
-    if shutil.which(command) is None:
-        raise MockImportError(
-            "tesseract 명령을 찾을 수 없습니다. "
-            f"command={command!r}, image_path={image_path}"
-        )
-
     prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, ocr)
     try:
-        args = [command, str(prepared_image_path), "stdout"]
-        if ocr.language:
-            args.extend(["-l", ocr.language])
-        if ocr.psm is not None:
-            args.extend(["--psm", str(ocr.psm)])
-        if ocr.extra_args:
-            args.extend(ocr.extra_args)
-
-        try:
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-        except OSError as exc:
-            raise MockImportError(
-                f"tesseract 실행에 실패했습니다: command={command!r}, image_path={image_path}"
-            ) from exc
+        return _run_tesseract_command(
+            prepared_image_path=prepared_image_path,
+            original_image_path=image_path,
+            ocr=ocr,
+            output_kind="text",
+        )
     finally:
         cleanup()
-
-    stdout = (result.stdout or "").strip()
-    stderr = (result.stderr or "").strip()
-
-    if result.returncode != 0:
-        stderr = stderr or "unknown error"
-        raise MockImportError(
-            "tesseract OCR에 실패했습니다. "
-            f"image_path={image_path}, returncode={result.returncode}, stderr={stderr}"
-        )
-
-    ocr_text = stdout
-    if not ocr_text:
-        raise MockImportError(
-            f"tesseract OCR 결과가 비어 있습니다: image_path={image_path}"
-        )
-    return ocr_text
 
 
 def _run_tesseract_tsv(image_path: Path, ocr: OcrConfig) -> str:
+    prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, ocr)
+    try:
+        return _run_tesseract_command(
+            prepared_image_path=prepared_image_path,
+            original_image_path=image_path,
+            ocr=ocr,
+            output_kind="tsv",
+        )
+    finally:
+        cleanup()
+
+
+def _run_tesseract_command(
+    *,
+    prepared_image_path: Path,
+    original_image_path: Path,
+    ocr: OcrConfig,
+    output_kind: str,
+) -> str:
     command = ocr.command or DEFAULT_TESSERACT_COMMAND
     if shutil.which(command) is None:
         raise MockImportError(
             "tesseract 명령을 찾을 수 없습니다. "
-            f"command={command!r}, image_path={image_path}"
+            f"command={command!r}, image_path={original_image_path}"
         )
 
-    prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, ocr)
-    try:
-        args = [command, str(prepared_image_path), "stdout"]
-        if ocr.language:
-            args.extend(["-l", ocr.language])
-        if ocr.psm is not None:
-            args.extend(["--psm", str(ocr.psm)])
-        if ocr.extra_args:
-            args.extend(ocr.extra_args)
+    args = [command, str(prepared_image_path), "stdout"]
+    if ocr.language:
+        args.extend(["-l", ocr.language])
+    if ocr.psm is not None:
+        args.extend(["--psm", str(ocr.psm)])
+    if ocr.extra_args:
+        args.extend(ocr.extra_args)
+    if output_kind == "tsv":
         args.append("tsv")
 
-        try:
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-        except OSError as exc:
-            raise MockImportError(
-                f"tesseract TSV 실행에 실패했습니다: command={command!r}, image_path={image_path}"
-            ) from exc
-    finally:
-        cleanup()
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        raise MockImportError(
+            f"tesseract 실행에 실패했습니다: command={command!r}, image_path={original_image_path}"
+        ) from exc
 
     stdout = (result.stdout or "").strip()
     stderr = (result.stderr or "").strip()
@@ -992,10 +969,14 @@ def _run_tesseract_tsv(image_path: Path, ocr: OcrConfig) -> str:
     if result.returncode != 0:
         stderr = stderr or "unknown error"
         raise MockImportError(
-            "tesseract TSV 추출에 실패했습니다. "
-            f"image_path={image_path}, returncode={result.returncode}, stderr={stderr}"
+            f"tesseract {output_kind} 추출에 실패했습니다. "
+            f"image_path={original_image_path}, returncode={result.returncode}, stderr={stderr}"
         )
 
+    if not stdout:
+        raise MockImportError(
+            f"tesseract {output_kind} 결과가 비어 있습니다: image_path={original_image_path}"
+        )
     return stdout
 
 
@@ -1182,44 +1163,108 @@ def _parse_tesseract_layout_entries(
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> list[dict[str, Any]]:
-    try:
-        tsv_text = _run_tesseract_tsv(image_path, ocr)
-    except MockImportError:
-        return []
+    for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
+        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
+        try:
+            try:
+                tsv_text = _run_tesseract_command(
+                    prepared_image_path=prepared_image_path,
+                    original_image_path=image_path,
+                    ocr=attempt_ocr,
+                    output_kind="tsv",
+                )
+            except MockImportError:
+                continue
 
-    words = _parse_tesseract_tsv_words(tsv_text)
-    if not words:
-        return []
+            words = _parse_tesseract_tsv_words(tsv_text)
+            if not words:
+                continue
 
-    entries: list[dict[str, Any]] = []
-    score_words = _find_layout_score_words(words)
-    if score_words:
-        for index, score_word in enumerate(score_words, start=1):
-            entry = _parse_tesseract_layout_card(
-                score_word=score_word,
-                all_words=words,
-                image_path=image_path,
-                default_ocr_confidence=default_ocr_confidence,
-                page_index=page_index,
-                fallback_rank=index,
-            )
-            if entry is not None:
-                entries.append(entry)
+            entries: list[dict[str, Any]] = []
+            score_words = _find_layout_score_words(words)
+            if score_words:
+                for index, score_word in enumerate(score_words, start=1):
+                    entry = _parse_tesseract_layout_card(
+                        score_word=score_word,
+                        all_words=words,
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                        default_ocr_confidence=default_ocr_confidence,
+                        page_index=page_index,
+                        fallback_rank=index,
+                    )
+                    if entry is not None:
+                        entries.append(entry)
 
-    if entries:
-        return entries
+            if entries:
+                return entries
 
-    for line_words in _group_tesseract_words_by_line(words):
-        entry = _parse_tesseract_layout_line(
-            line_words=line_words,
-            image_path=image_path,
-            default_ocr_confidence=default_ocr_confidence,
-            page_index=page_index,
+            for line_words in _group_tesseract_words_by_line(words):
+                entry = _parse_tesseract_layout_line(
+                    line_words=line_words,
+                    image_path=image_path,
+                    default_ocr_confidence=default_ocr_confidence,
+                    page_index=page_index,
+                )
+                if entry is not None:
+                    entries.append(entry)
+
+            if entries:
+                return entries
+        finally:
+            cleanup()
+
+    return []
+
+
+def _iter_tesseract_layout_ocr_attempts(ocr: OcrConfig) -> list[OcrConfig]:
+    attempts = [ocr]
+    if ocr.crop is None:
+        return attempts
+
+    crop_variants = [
+        ocr.crop,
+        OcrCrop(
+            left_ratio=max(0.0, ocr.crop.left_ratio - 0.03),
+            top_ratio=ocr.crop.top_ratio,
+            right_ratio=min(1.0, ocr.crop.right_ratio + 0.02),
+            bottom_ratio=ocr.crop.bottom_ratio,
+        ),
+        OcrCrop(
+            left_ratio=min(1.0, ocr.crop.left_ratio + 0.02),
+            top_ratio=ocr.crop.top_ratio,
+            right_ratio=max(0.0, ocr.crop.right_ratio - 0.03),
+            bottom_ratio=ocr.crop.bottom_ratio,
+        ),
+    ]
+
+    seen: set[tuple[float, float, float, float]] = set()
+    deduped_attempts: list[OcrConfig] = []
+    for crop in crop_variants:
+        key = (
+            round(crop.left_ratio, 4),
+            round(crop.top_ratio, 4),
+            round(crop.right_ratio, 4),
+            round(crop.bottom_ratio, 4),
         )
-        if entry is not None:
-            entries.append(entry)
-
-    return entries
+        if key in seen or crop.left_ratio >= crop.right_ratio:
+            continue
+        seen.add(key)
+        deduped_attempts.append(
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language=ocr.language,
+                psm=ocr.psm,
+                extra_args=ocr.extra_args,
+                crop=crop,
+                upscale_ratio=ocr.upscale_ratio,
+                reuse_cached_sidecar=ocr.reuse_cached_sidecar,
+                persist_sidecar=ocr.persist_sidecar,
+            )
+        )
+    return deduped_attempts
 
 
 def _parse_tesseract_tsv_words(tsv_text: str) -> list[TesseractTsvWord]:
@@ -1333,7 +1378,9 @@ def _parse_tesseract_layout_card(
     *,
     score_word: TesseractTsvWord,
     all_words: list[TesseractTsvWord],
+    prepared_image_path: Path,
     image_path: Path,
+    ocr: OcrConfig,
     default_ocr_confidence: float | None,
     page_index: int,
     fallback_rank: int,
@@ -1349,9 +1396,21 @@ def _parse_tesseract_layout_card(
 
     difficulty = _find_layout_difficulty(card_words)
     if difficulty is None:
+        difficulty = _ocr_card_difficulty_from_region(
+            prepared_image_path=prepared_image_path,
+            score_word=score_word,
+            ocr=ocr,
+        )
+    if difficulty is None:
         return None
 
     rank = _find_layout_rank_near_score(card_words, score_word)
+    if rank is None:
+        rank = _ocr_card_rank_from_region(
+            prepared_image_path=prepared_image_path,
+            score_word=score_word,
+            ocr=ocr,
+        )
     if rank is None:
         rank = fallback_rank
 
@@ -1449,6 +1508,9 @@ def _resolve_difficulty_label(normalized: str) -> str | None:
     if alias is not None:
         return alias
 
+    if len(normalized) < 4:
+        return None
+
     for token, label in DIFFICULTY_BY_NORMALIZED_TOKEN.items():
         if token in normalized or normalized in token:
             return label
@@ -1457,7 +1519,7 @@ def _resolve_difficulty_label(normalized: str) -> str | None:
         normalized,
         list(DIFFICULTY_BY_NORMALIZED_TOKEN.keys()),
         n=1,
-        cutoff=0.55,
+        cutoff=0.72,
     )
     if matches:
         return DIFFICULTY_BY_NORMALIZED_TOKEN[matches[0]]
@@ -1514,6 +1576,193 @@ def _find_layout_rank_near_score(
 
     candidates.sort(key=lambda item: item[0])
     return candidates[0][1]
+
+
+def _ocr_card_rank_from_region(
+    *,
+    prepared_image_path: Path,
+    score_word: TesseractTsvWord,
+    ocr: OcrConfig,
+) -> int | None:
+    box = (
+        0,
+        max(0, score_word.top - score_word.height),
+        max(24, min(score_word.left - 12, int(score_word.left * 0.32))),
+        score_word.top + score_word.height,
+    )
+    candidates = _ocr_prepared_image_region_candidates(
+        prepared_image_path=prepared_image_path,
+        box=box,
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=10,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=170,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=200,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        normalized = _normalize_rank_ocr_token(candidate)
+        if not normalized.isdigit():
+            continue
+        rank = int(normalized)
+        if 0 < rank <= 100000:
+            return rank
+    return None
+
+
+def _ocr_card_difficulty_from_region(
+    *,
+    prepared_image_path: Path,
+    score_word: TesseractTsvWord,
+    ocr: OcrConfig,
+) -> str | None:
+    left = max(0, int(score_word.left * 0.32))
+    right = max(left + 40, score_word.left - 8)
+    candidates = _ocr_prepared_image_region_candidates(
+        prepared_image_path=prepared_image_path,
+        box=(
+            left,
+            max(0, score_word.top - score_word.height),
+            right,
+            score_word.top + score_word.height,
+        ),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                ),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                ),
+                threshold=180,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        normalized = re.sub(r"[^A-Z0-9]+", "", _normalize_unicode_ocr_text(candidate).upper())
+        difficulty = _resolve_difficulty_label(normalized)
+        if difficulty is not None:
+            return difficulty
+    return None
+
+
+@dataclass(frozen=True)
+class OcrRegionAttempt:
+    language: str
+    psm: int
+    extra_args: tuple[str, ...]
+    threshold: int | None
+
+
+def _ocr_prepared_image_region_candidates(
+    *,
+    prepared_image_path: Path,
+    box: tuple[int, int, int, int],
+    attempts: list[OcrRegionAttempt],
+    base_ocr: OcrConfig,
+) -> list[str]:
+    left, top, right, bottom = box
+    if left >= right or top >= bottom:
+        return []
+
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+
+    with Image.open(prepared_image_path) as image:
+        right = min(right, image.width)
+        bottom = min(bottom, image.height)
+        if left >= right or top >= bottom:
+            return []
+        region = image.crop((left, top, right, bottom))
+        candidates: list[str] = []
+        for attempt in attempts:
+            candidate = _ocr_region_image_variant(
+                region=region,
+                prepared_image_path=prepared_image_path,
+                attempt=attempt,
+                base_ocr=base_ocr,
+            )
+            if candidate:
+                candidates.append(candidate)
+        return candidates
+
+
+def _ocr_region_image_variant(
+    *,
+    region,
+    prepared_image_path: Path,
+    attempt: OcrRegionAttempt,
+    base_ocr: OcrConfig,
+) -> str | None:
+    from PIL import ImageOps
+
+    processed = region.copy()
+    if attempt.threshold is not None:
+        grayscale = ImageOps.grayscale(processed)
+        processed = grayscale.point(
+            lambda value: 255 if value >= attempt.threshold else 0,
+            mode="1",
+        ).convert("L")
+
+    with tempfile.NamedTemporaryFile(
+        suffix=prepared_image_path.suffix,
+        prefix="plana-ocr-region-",
+        delete=False,
+    ) as temp_file:
+        temp_path = Path(temp_file.name)
+    processed.save(temp_path)
+
+    try:
+        return _run_tesseract_command(
+            prepared_image_path=temp_path,
+            original_image_path=prepared_image_path,
+            ocr=OcrConfig(
+                provider=base_ocr.provider,
+                command=base_ocr.command,
+                language=attempt.language,
+                psm=attempt.psm,
+                extra_args=attempt.extra_args,
+                crop=None,
+                upscale_ratio=1.0,
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            output_kind="text",
+        )
+    except MockImportError:
+        return None
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def _resolve_snapshot_source_type(
@@ -1596,6 +1845,14 @@ def _parse_page_entries(
             page_index=page_index,
         )
 
+    if not entries and ocr.provider == OCR_PROVIDER_TESSERACT:
+        entries = _parse_tesseract_score_anchor_lines(
+            ocr_text=ocr_text,
+            image_path=image_path,
+            default_ocr_confidence=default_ocr_confidence,
+            page_index=page_index,
+        )
+
     return entries, ignored_lines
 
 
@@ -1634,6 +1891,256 @@ def _parse_ocr_line(
         page_index=page_index,
         line_index=line_index,
     )
+
+
+def _parse_tesseract_score_anchor_lines(
+    *,
+    ocr_text: str,
+    image_path: Path,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> list[dict[str, Any]]:
+    raw_lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
+    if not raw_lines:
+        return []
+
+    anchors: list[tuple[int, int, str | None]] = []
+    detected_difficulties: list[str] = []
+    for line_index, line in enumerate(raw_lines):
+        score = _find_score_anchor_value(line)
+        if score is None:
+            continue
+        difficulty = _find_anchor_difficulty(raw_lines, line_index)
+        if difficulty is not None:
+            detected_difficulties.append(difficulty)
+        anchors.append((line_index, score, difficulty))
+
+    if not anchors:
+        return []
+
+    page_difficulty = _pick_page_difficulty(detected_difficulties)
+    detected_ranks: list[int | None] = []
+    used_ranks: set[int] = set()
+    for fallback_rank, (line_index, _score, _difficulty) in enumerate(anchors, start=1):
+        rank = _find_anchor_rank(
+            raw_lines=raw_lines,
+            anchor_index=line_index,
+            expected_rank=fallback_rank,
+            used_ranks=used_ranks,
+        )
+        detected_ranks.append(rank)
+        if rank is not None:
+            used_ranks.add(rank)
+
+    resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    entries: list[dict[str, Any]] = []
+
+    for index, (line_index, score, difficulty) in enumerate(anchors):
+        resolved_difficulty = difficulty or page_difficulty
+        if resolved_difficulty is None:
+            continue
+
+        rank = resolved_ranks[index]
+
+        raw_text = " ".join(
+            raw_lines[max(0, line_index - 2) : min(len(raw_lines), line_index + 2)]
+        )
+        entries.append(
+            {
+                "rank": rank,
+                "score": score,
+                "player_name": resolved_difficulty,
+                "ocr_confidence": default_ocr_confidence,
+                "raw_text": raw_text,
+                "image_path": _build_entry_image_path(image_path),
+                "is_valid": True,
+                "validation_issue": None,
+            }
+        )
+
+    return entries
+
+
+def _resolve_anchor_ranks(detected_ranks: list[int | None]) -> list[int]:
+    if not detected_ranks:
+        return []
+
+    ranks = list(detected_ranks)
+    seen: set[int] = set()
+    for index, rank in enumerate(ranks):
+        if rank is None or rank <= 0 or rank in seen:
+            ranks[index] = None
+            continue
+        seen.add(rank)
+
+    known_indices = [index for index, rank in enumerate(ranks) if rank is not None]
+    if not known_indices:
+        return [index + 1 for index in range(len(ranks))]
+
+    first_index = known_indices[0]
+    first_rank = ranks[first_index]
+    assert first_rank is not None
+    for index in range(first_index - 1, -1, -1):
+        ranks[index] = max(1, first_rank - (first_index - index))
+
+    for known_pos, start_index in enumerate(known_indices[:-1]):
+        end_index = known_indices[known_pos + 1]
+        start_rank = ranks[start_index]
+        assert start_rank is not None
+        for index in range(start_index + 1, end_index):
+            ranks[index] = start_rank + (index - start_index)
+
+    last_index = known_indices[-1]
+    last_rank = ranks[last_index]
+    assert last_rank is not None
+    for index in range(last_index + 1, len(ranks)):
+        ranks[index] = last_rank + (index - last_index)
+
+    resolved: list[int] = []
+    for index, rank in enumerate(ranks):
+        if rank is None:
+            if resolved:
+                rank = resolved[-1] + 1
+            else:
+                rank = index + 1
+        resolved.append(rank)
+    return resolved
+
+
+def _find_score_anchor_value(raw_line: str) -> int | None:
+    tokens = raw_line.split()
+    if not tokens:
+        return None
+
+    candidates: list[tuple[int, int]] = []
+    for start in range(len(tokens)):
+        for end in range(len(tokens), start, -1):
+            candidate_tokens = _strip_trailing_score_suffix_tokens(tokens[start:end])
+            if not candidate_tokens:
+                continue
+            normalized_tokens = [
+                _normalize_score_ocr_token(token)
+                for token in candidate_tokens
+            ]
+            if not all(token.isdigit() for token in normalized_tokens):
+                continue
+            digit_length = len("".join(normalized_tokens))
+            if digit_length < 7:
+                continue
+            try:
+                parsed_score = _parse_grouped_score_tokens(
+                    candidate_tokens,
+                    page_index=1,
+                    line_index=1,
+                )
+            except MockImportError:
+                continue
+            length_penalty = 0 if 7 <= digit_length <= 8 else 100 + abs(digit_length - 8)
+            token_penalty = max(0, len(candidate_tokens) - 1) * 10
+            trailing_penalty = len(tokens) - end
+            candidates.append(
+                (
+                    (length_penalty * 1000) + token_penalty + trailing_penalty,
+                    parsed_score,
+                )
+            )
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
+
+
+def _find_anchor_difficulty(raw_lines: list[str], anchor_index: int) -> str | None:
+    line_candidates = [anchor_index, anchor_index - 1, anchor_index - 2, anchor_index + 1]
+    for line_index in line_candidates:
+        if line_index < 0 or line_index >= len(raw_lines):
+            continue
+        tokens = raw_lines[line_index].split()
+        for token in reversed(tokens):
+            normalized = re.sub(
+                r"[^A-Z0-9]+",
+                "",
+                _normalize_unicode_ocr_text(token).upper(),
+            )
+            difficulty = _resolve_difficulty_label(normalized)
+            if difficulty is not None:
+                return difficulty
+    return None
+
+
+def _pick_page_difficulty(difficulties: list[str]) -> str | None:
+    if not difficulties:
+        return None
+
+    counts: dict[str, int] = {}
+    for difficulty in difficulties:
+        counts[difficulty] = counts.get(difficulty, 0) + 1
+    return max(counts.items(), key=lambda item: item[1])[0]
+
+
+def _find_anchor_rank(
+    *,
+    raw_lines: list[str],
+    anchor_index: int,
+    expected_rank: int,
+    used_ranks: set[int],
+) -> int | None:
+    candidates: list[tuple[int, int, int]] = []
+    start_index = max(0, anchor_index - 4)
+    for line_index in range(anchor_index, start_index - 1, -1):
+        raw_line = raw_lines[line_index]
+        if _find_score_anchor_value(raw_line) is not None:
+            continue
+        if "lv" in raw_line.lower():
+            continue
+        for rank in _extract_rank_candidates_from_text(raw_line):
+            if rank in used_ranks:
+                continue
+            distance = anchor_index - line_index
+            score = (distance * 1000) + abs(rank - expected_rank)
+            candidates.append((score, distance, rank))
+
+    if not candidates:
+        return None
+
+    candidates.sort()
+    return candidates[0][2]
+
+
+def _extract_rank_candidates_from_text(raw_line: str) -> list[int]:
+    tokens = raw_line.split()
+    candidates: list[int] = []
+
+    for index, token in enumerate(tokens):
+        if token.lower().startswith("lv"):
+            continue
+        if token.startswith("(") and token.endswith(")"):
+            continue
+        token_candidates = [token]
+        if index + 1 < len(tokens):
+            token_candidates.append(token + tokens[index + 1])
+        for candidate in token_candidates:
+            stripped_candidate = _normalize_unicode_ocr_text(candidate).strip()
+            lowered_candidate = stripped_candidate.lower()
+            if not (
+                stripped_candidate[:1].isdigit()
+                or stripped_candidate.startswith(("#", "№"))
+                or lowered_candidate.startswith("no")
+                or stripped_candidate.endswith("위")
+            ):
+                continue
+            normalized = _normalize_rank_ocr_token(candidate)
+            if not normalized.isdigit():
+                continue
+            rank = int(normalized)
+            if rank <= 0 or rank > 100000:
+                continue
+            candidates.append(rank)
+            break
+
+    return candidates
 
 
 def _parse_int_token(

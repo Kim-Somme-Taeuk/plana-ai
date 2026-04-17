@@ -1826,11 +1826,299 @@ def test_build_mock_payload_from_capture_parses_tesseract_tsv_card_rank_from_nea
     assert [entry["score"] for entry in mock_payload.entries] == [53404105, 53393930]
 
 
+def test_build_mock_payload_from_capture_falls_back_to_score_anchor_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "unused sidecar\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-score-anchor-lines-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "language": "eng", "psm": 11},
+    )
+
+    raw_ocr_output = "\n".join(
+        [
+            "ZA Ais",
+            "1H",
+            "Al Be 53,404,105",
+            "OfFAU} E7]",
+            "Lv.90 2Y",
+            "Al Be",
+            "[Lunatic] 53 393,930",
+            "Lv.90 LfLt",
+            "3H",
+            "Al Be 53,393,544",
+        ]
+    )
+    header = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+    )
+
+    def fake_run(args, capture_output, text, encoding, errors, check):
+        if args[-1] == "tsv":
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout=header,
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=raw_ocr_output,
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert [entry["rank"] for entry in mock_payload.entries] == [1, 2, 3]
+    assert [entry["player_name"] for entry in mock_payload.entries] == [
+        "Lunatic",
+        "Lunatic",
+        "Lunatic",
+    ]
+    assert [entry["score"] for entry in mock_payload.entries] == [
+        53404105,
+        53393930,
+        53393544,
+    ]
+
+
+def test_build_mock_payload_from_capture_score_anchor_lines_use_difficulty_aliases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "unused sidecar\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-score-anchor-alias-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "language": "eng", "psm": 11},
+    )
+
+    raw_ocr_output = "\n".join(
+        [
+            "1H",
+            "(Ginatie) 53,404,105",
+            "Lv.90 ZY",
+            ">",
+            "(Inasane) 53,393,930",
+            "3H",
+            "(Tormemt) 53,393,544",
+        ]
+    )
+    header = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+    )
+
+    def fake_run(args, capture_output, text, encoding, errors, check):
+        if args[-1] == "tsv":
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout=header,
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=raw_ocr_output,
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert [entry["rank"] for entry in mock_payload.entries] == [1, 2, 3]
+    assert [entry["player_name"] for entry in mock_payload.entries] == [
+        "Lunatic",
+        "Insane",
+        "Torment",
+    ]
+    assert [entry["score"] for entry in mock_payload.entries] == [
+        53404105,
+        53393930,
+        53393544,
+    ]
+
+
 def test_find_layout_difficulty_accepts_common_ocr_variants() -> None:
     assert capture_import._resolve_difficulty_label("GINATIE") == "Lunatic"
     assert capture_import._resolve_difficulty_label("GMATI") == "Lunatic"
     assert capture_import._resolve_difficulty_label("INASANE") == "Insane"
     assert capture_import._resolve_difficulty_label("TORMEMT") == "Torment"
+
+
+def test_resolve_anchor_ranks_interpolates_from_later_known_rank() -> None:
+    assert capture_import._resolve_anchor_ranks([None, None, 12003]) == [
+        12001,
+        12002,
+        12003,
+    ]
+
+
+def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:
+    assert capture_import._find_score_anchor_value(": be 8 53,393,544  (noise)") == 53393544
+
+
+def test_parse_tesseract_score_anchor_lines_handles_realistic_blue_archive_noise() -> None:
+    raw_ocr_output = """AeA Apts
+
+“Al Be
+
+Bey YA Be
+
+a
+
+ee
+
+>.
+
+WE
+
++
+
+© ole
+
+—
+
+Lv.13 Temp
+
+(0120)
+
+(0190)
+
+[Lee SD
+
+Ce
+
+1H
+
++e
+
+Q
+
+eee
+
+ti
+
+Led
+
+iA
+
+©
+
+SA BS
+
+—— Ss
+
+(lunatic) 53,404,105
+
+vey SS Gt)
+
+i
+
+&
+
+8) Ga aass)
+
+AlZ SAH
+
+Lv.90 ZY
+
+OfADF 7]
+
+&
+
+(Evi20)
+
+Q
+
+beast
+
+Al Be
+
+> (Lunatic) 53,393,930
+
+5.
+
+fs hows he @, of
+
+isi
+
+TSE
+
+-9
+
+Lv.90 UU
+
+341
+
+(0120)
+
+(0190
+
+exe0
+
+Q
+
+-
+
+<->
+
+ie.
+
+<=
+
+&
+
+(lunatic) 53,393,544
+
+ti
+
+% Bearer, bt Gt)
+
+Led
+
+33
+
+O) So adiltt ts) 5:
+
+©
+
+A Be"""
+
+    entries = capture_import._parse_tesseract_score_anchor_lines(
+        ocr_text=raw_ocr_output,
+        image_path=Path("page-001.png"),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in entries] == [
+        (1, "Lunatic", 53404105),
+        (2, "Lunatic", 53393930),
+        (3, "Lunatic", 53393544),
+    ]
 
 
 def test_build_mock_payload_from_capture_keeps_snapshot_note_within_backend_limit(
