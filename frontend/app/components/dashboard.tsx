@@ -1308,6 +1308,15 @@ export function SeasonValidationSeriesPanel({
     series.points.reduce((currentMax, point) => {
       return Math.max(currentMax, point.invalid_ratio);
     }, 0) || 1;
+  const snapshotCount = series.points.length;
+  const averageInvalidRatio =
+    snapshotCount > 0
+      ? series.points.reduce((sum, point) => sum + point.invalid_ratio, 0) /
+        snapshotCount
+      : 0;
+  const diagnosticsSnapshotCount = series.points.filter(
+    (point) => point.collector_diagnostics,
+  ).length;
 
   return (
     <section className={styles.panel}>
@@ -1319,6 +1328,38 @@ export function SeasonValidationSeriesPanel({
         <EmptyBox message="검증 시계열을 표시할 스냅샷이 없습니다." />
       ) : (
         <>
+          <div className={styles.sectionStack}>
+            <div className={styles.compactSummaryGrid}>
+              <div className={styles.subPanel}>
+                <div className={styles.panelTitle}>
+                  <h3>시계열 요약</h3>
+                </div>
+                <div className={styles.keyValueList}>
+                  <div className={styles.keyValueRow}>
+                    <span>표시 중인 스냅샷</span>
+                    <strong>{snapshotCount.toLocaleString()}</strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>평균 무효 비율</span>
+                    <strong>{formatPercent(averageInvalidRatio)}</strong>
+                  </div>
+                  <div className={styles.keyValueRow}>
+                    <span>진단 포함 스냅샷</span>
+                    <strong>{diagnosticsSnapshotCount.toLocaleString()}</strong>
+                  </div>
+                </div>
+              </div>
+              <div className={styles.subPanel}>
+                <div className={styles.panelTitle}>
+                  <h3>비교 사용법</h3>
+                </div>
+                <p className={styles.panelLead}>
+                  시계열 막대로 전체 흐름을 먼저 보고, 표의 <strong>이전과 비교</strong>
+                  를 눌러 같은 필터 문맥에서 두 스냅샷을 바로 비교할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </div>
           <div className={styles.seriesChart}>
             {series.points.map((point) => {
               const heightPercent =
@@ -1548,6 +1589,8 @@ export function SnapshotComparisonPanel({
   const rightTopIssue = getTopValidationIssue(rightSummary.validation_issues);
   const leftCollectorDiagnostics = leftValidationReport.collector_diagnostics;
   const rightCollectorDiagnostics = rightValidationReport.collector_diagnostics;
+  const leftInvalidRatio = calculateInvalidRatio(leftSummary);
+  const rightInvalidRatio = calculateInvalidRatio(rightSummary);
 
   return (
     <section className={styles.panel}>
@@ -1602,50 +1645,108 @@ export function SnapshotComparisonPanel({
         ) : null}
       </div>
 
-      <div className={styles.statsGrid}>
-        <StatCard
-          label="왼쪽 이슈 유형"
-          value={String(leftSummary.validation_issues.length)}
-        />
-        <StatCard
-          label="오른쪽 이슈 유형"
-          value={String(rightSummary.validation_issues.length)}
-        />
-        <StatCard
-          label="왼쪽 주요 이슈"
-          value={leftTopIssue?.code ?? "-"}
-        />
-        <StatCard
-          label="오른쪽 주요 이슈"
-          value={rightTopIssue?.code ?? "-"}
-        />
-        <StatCard
-          label="왼쪽 무효 비율"
-          value={formatPercent(calculateInvalidRatio(leftSummary))}
-        />
-        <StatCard
-          label="오른쪽 무효 비율"
-          value={formatPercent(calculateInvalidRatio(rightSummary))}
-        />
-        <StatCard
-          label="왼쪽 수집 중단"
-          value={formatCollectorStop(leftCollectorDiagnostics)}
-        />
-        <StatCard
-          label="오른쪽 수집 중단"
-          value={formatCollectorStop(rightCollectorDiagnostics)}
-        />
-        <StatCard
-          label="왼쪽 무시된 OCR"
-          value={formatCollectorIgnoredCount(leftCollectorDiagnostics)}
-        />
-        <StatCard
-          label="오른쪽 무시된 OCR"
-          value={formatCollectorIgnoredCount(rightCollectorDiagnostics)}
-        />
+      <div className={styles.compactSummaryGrid}>
+        <div className={styles.subPanel}>
+          <div className={styles.panelTitle}>
+            <h3>왼쪽 요약</h3>
+          </div>
+          <div className={styles.keyValueList}>
+            <div className={styles.keyValueRow}>
+              <span>무효 비율</span>
+              <strong>{formatPercent(leftInvalidRatio)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>주요 이슈</span>
+              <strong>{leftTopIssue?.code ?? "-"}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>이슈 유형 수</span>
+              <strong>{leftSummary.validation_issues.length.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>수집 중단</span>
+              <strong>{formatCollectorStop(leftCollectorDiagnostics)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>무시된 OCR</span>
+              <strong>{formatCollectorIgnoredCount(leftCollectorDiagnostics)}</strong>
+            </div>
+          </div>
+        </div>
+        <div className={styles.subPanel}>
+          <div className={styles.panelTitle}>
+            <h3>오른쪽 요약</h3>
+          </div>
+          <div className={styles.keyValueList}>
+            <div className={styles.keyValueRow}>
+              <span>무효 비율</span>
+              <strong>{formatPercent(rightInvalidRatio)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>주요 이슈</span>
+              <strong>{rightTopIssue?.code ?? "-"}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>이슈 유형 수</span>
+              <strong>{rightSummary.validation_issues.length.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>수집 중단</span>
+              <strong>{formatCollectorStop(rightCollectorDiagnostics)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>무시된 OCR</span>
+              <strong>{formatCollectorIgnoredCount(rightCollectorDiagnostics)}</strong>
+            </div>
+          </div>
+        </div>
+        <div className={styles.subPanel}>
+          <div className={styles.panelTitle}>
+            <h3>비교 포인트</h3>
+          </div>
+          <div className={styles.keyValueList}>
+            <div className={styles.keyValueRow}>
+              <span>무효 비율 차이</span>
+              <strong>{formatSignedNumber(rightInvalidRatio - leftInvalidRatio)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>수집 행 수 차이</span>
+              <strong>
+                {formatSignedNumber(
+                  (rightSummary.total_rows_collected ?? 0) -
+                    (leftSummary.total_rows_collected ?? 0),
+                )}
+              </strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>유효 엔트리 차이</span>
+              <strong>
+                {formatSignedNumber(
+                  rightSummary.valid_entry_count - leftSummary.valid_entry_count,
+                )}
+              </strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>무시된 OCR 차이</span>
+              <strong>
+                {formatSignedNumber(
+                  (rightCollectorDiagnostics?.ignored_line_count ?? 0) -
+                    (leftCollectorDiagnostics?.ignored_line_count ?? 0),
+                )}
+              </strong>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
+      <div className={styles.compareTableSection}>
+        <div className={styles.sectionHeader}>
+          <h3>핵심 지표 비교</h3>
+          <span className={styles.muted}>
+            요약/분포/collector 진단의 큰 차이를 한 표에 모았습니다.
+          </span>
+        </div>
+        <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -1748,9 +1849,17 @@ export function SnapshotComparisonPanel({
             />
           </tbody>
         </table>
+        </div>
       </div>
 
-      <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
+      <div className={styles.compareTableSection}>
+        <div className={styles.sectionHeader}>
+          <h3>컷오프 비교</h3>
+          <span className={styles.muted}>
+            대표 순위 컷오프가 어느 구간에서 벌어지는지 확인합니다.
+          </span>
+        </div>
+        <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -1771,12 +1880,20 @@ export function SnapshotComparisonPanel({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {issueCodes.length === 0 ? (
         <EmptyBox message="두 스냅샷 모두 집계된 검증 이슈가 없습니다." />
       ) : (
-        <div className={`${styles.tableWrap} ${styles.compareTableSection}`}>
+        <div className={styles.compareTableSection}>
+          <div className={styles.sectionHeader}>
+            <h3>검증 이슈 비교</h3>
+            <span className={styles.muted}>
+              왼쪽/오른쪽에서 어떤 이슈가 얼마나 더 많이 발생했는지 봅니다.
+            </span>
+          </div>
+          <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -1823,6 +1940,7 @@ export function SnapshotComparisonPanel({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </section>

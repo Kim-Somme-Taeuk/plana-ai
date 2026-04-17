@@ -194,6 +194,18 @@
   min-width: 0;
 }
 
+.sectionHeader {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sectionHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .muted {
   color: #617163;
   font-size: 14px;
@@ -325,6 +337,13 @@
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
   margin-top: 16px;
+  min-width: 0;
+}
+
+.compactSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
   min-width: 0;
 }
 
