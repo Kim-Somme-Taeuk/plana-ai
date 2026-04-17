@@ -119,10 +119,14 @@ export default async function PublicSeasonPage({
           title={`순위 ${normalizedRank.toLocaleString()} 컷오프 시계열`}
           description="완료된 스냅샷만 기준으로 컷오프 변화 흐름을 보여줍니다."
           series={seriesResult.data}
+          snapshotHrefBuilder={(id) => `/rankings/snapshots/${id}`}
         />
       )}
 
-      <PublicRecentSnapshotPanel snapshots={completedSnapshots.slice(0, 8)} />
+      <PublicRecentSnapshotPanel
+        snapshots={completedSnapshots.slice(0, 8)}
+        snapshotHrefBuilder={(id) => `/rankings/snapshots/${id}`}
+      />
     </PublicShell>
   );
 }

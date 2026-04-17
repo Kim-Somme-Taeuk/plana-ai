@@ -149,6 +149,12 @@
   gap: 5px;
 }
 
+.compactMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 14px;
+}
+
 .metaLabel,
 .statLabel {
   color: #6f7d67;
@@ -461,6 +467,11 @@
   gap: 8px;
   color: #5d6b59;
   font-size: 14px;
+}
+
+.inlinePublicLink {
+  color: #1d5b39;
+  font-weight: 700;
 }
 
 .errorBox,

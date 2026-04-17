@@ -285,10 +285,12 @@ export function PublicTrendPanel({
   title,
   description,
   series,
+  snapshotHrefBuilder,
 }: {
   title: string;
   description: string;
   series: SeasonCutoffSeries;
+  snapshotHrefBuilder?: (snapshotId: number) => string;
 }) {
   const validPoints = series.points.filter((point) => point.score !== null);
   const maxScore =
@@ -328,7 +330,16 @@ export function PublicTrendPanel({
                     />
                   </div>
                   <div className={styles.trendMeta}>
-                    <span>#{point.snapshot_id}</span>
+                    {snapshotHrefBuilder ? (
+                      <Link
+                        href={snapshotHrefBuilder(point.snapshot_id)}
+                        className={styles.inlinePublicLink}
+                      >
+                        #{point.snapshot_id}
+                      </Link>
+                    ) : (
+                      <span>#{point.snapshot_id}</span>
+                    )}
                     <strong>{point.score !== null ? formatCompactNumber(point.score) : "-"}</strong>
                   </div>
                 </div>
@@ -347,7 +358,18 @@ export function PublicTrendPanel({
               <tbody>
                 {series.points.map((point) => (
                   <tr key={point.snapshot_id}>
-                    <td>#{point.snapshot_id}</td>
+                    <td>
+                      {snapshotHrefBuilder ? (
+                        <Link
+                          href={snapshotHrefBuilder(point.snapshot_id)}
+                          className={styles.inlinePublicLink}
+                        >
+                          #{point.snapshot_id}
+                        </Link>
+                      ) : (
+                        `#${point.snapshot_id}`
+                      )}
+                    </td>
                     <td>{formatDate(point.captured_at)}</td>
                     <td>{formatNumber(point.score)}</td>
                   </tr>
@@ -420,8 +442,10 @@ export function PublicSeasonGrid({ seasons }: { seasons: Season[] }) {
 
 export function PublicRecentSnapshotPanel({
   snapshots,
+  snapshotHrefBuilder,
 }: {
   snapshots: RankingSnapshot[];
+  snapshotHrefBuilder?: (snapshotId: number) => string;
 }) {
   return (
     <section className={styles.section}>
@@ -439,7 +463,11 @@ export function PublicRecentSnapshotPanel({
       ) : (
         <div className={styles.snapshotGrid}>
           {snapshots.map((snapshot) => (
-            <article key={snapshot.id} className={styles.snapshotCard}>
+            <Link
+              key={snapshot.id}
+              href={snapshotHrefBuilder ? snapshotHrefBuilder(snapshot.id) : "#"}
+              className={styles.snapshotCard}
+            >
               <div className={styles.snapshotCardTop}>
                 <span className={styles.cardBadge}>#{snapshot.id}</span>
                 <span className={styles.cardMeta}>{formatSourceType(snapshot.source_type)}</span>
@@ -451,10 +479,76 @@ export function PublicRecentSnapshotPanel({
                   ? snapshot.total_rows_collected.toLocaleString()
                   : "-"}
               </span>
-            </article>
+            </Link>
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+export function PublicSnapshotSummaryPanel({
+  snapshot,
+  summary,
+}: {
+  snapshot: RankingSnapshot;
+  summary: RankingSnapshotSummary;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <span className={styles.sectionEyebrow}>스냅샷 요약</span>
+          <h2>공개 스냅샷 정보</h2>
+        </div>
+        <p className={styles.sectionDescription}>
+          운영용 진단 정보 없이 컷오프와 통계를 중심으로 보여줍니다.
+        </p>
+      </div>
+      <div className={styles.statGrid}>
+        <PublicStatCard label="스냅샷" value={`#${snapshot.id}`} description={formatDate(snapshot.captured_at)} />
+        <PublicStatCard label="유효 엔트리" value={summary.valid_entry_count.toLocaleString()} />
+        <PublicStatCard label="무효 엔트리" value={summary.invalid_entry_count.toLocaleString()} />
+        <PublicStatCard label="최고 점수" value={formatNumber(summary.highest_score)} />
+        <PublicStatCard label="최저 점수" value={formatNumber(summary.lowest_score)} />
+        <PublicStatCard
+          label="수집 행 수"
+          value={summary.total_rows_collected !== null ? summary.total_rows_collected.toLocaleString() : "-"}
+          description={formatSourceType(snapshot.source_type)}
+        />
+      </div>
+    </section>
+  );
+}
+
+export function PublicSnapshotContextPanel({
+  season,
+  snapshot,
+}: {
+  season: Season;
+  snapshot: RankingSnapshot;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <span className={styles.sectionEyebrow}>시즌 맥락</span>
+          <h2>이 스냅샷이 속한 시즌</h2>
+        </div>
+        <div className={styles.sectionActions}>
+          <Link href={`/rankings/${season.id}`} className={styles.ghostButton}>
+            시즌으로 돌아가기
+          </Link>
+        </div>
+      </div>
+      <div className={styles.compactMetaGrid}>
+        <PublicMetaItem label="시즌" value={season.season_label} />
+        <PublicMetaItem label="이벤트" value={formatEventType(season.event_type)} />
+        <PublicMetaItem label="서버" value={season.server} />
+        <PublicMetaItem label="보스" value={season.boss_name} />
+        <PublicMetaItem label="지형" value={season.terrain} />
+        <PublicMetaItem label="수집 시각" value={formatDate(snapshot.captured_at)} />
+      </div>
     </section>
   );
 }
