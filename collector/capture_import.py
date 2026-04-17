@@ -1301,25 +1301,37 @@ def _parse_blue_archive_fixed_rows(
     detected_ranks: list[int | None] = []
 
     for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
-        rank = _ocr_blue_archive_row_rank(
-            prepared_image_path=prepared_image_path,
-            ocr=ocr,
-            top_ratio=top_ratio,
-            bottom_ratio=bottom_ratio,
-        )
-        difficulty = _ocr_blue_archive_row_difficulty(
-            prepared_image_path=prepared_image_path,
-            ocr=ocr,
-            top_ratio=top_ratio,
-            bottom_ratio=bottom_ratio,
-        )
-        score = _ocr_blue_archive_row_score(
+        rank, difficulty, score = _ocr_blue_archive_row_combined_fields(
             prepared_image_path=prepared_image_path,
             ocr=ocr,
             top_ratio=top_ratio,
             bottom_ratio=bottom_ratio,
             page_index=page_index,
         )
+
+        if rank is None:
+            rank = _ocr_blue_archive_row_rank(
+                prepared_image_path=prepared_image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+        if difficulty is None:
+            difficulty = _ocr_blue_archive_row_difficulty(
+                prepared_image_path=prepared_image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+        if score is None:
+            score = _ocr_blue_archive_row_score(
+                prepared_image_path=prepared_image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+                page_index=page_index,
+            )
+
         if difficulty is None or score is None:
             continue
 
@@ -1347,6 +1359,180 @@ def _parse_blue_archive_fixed_rows(
         normalized_entries.append({**entry, "rank": resolved_ranks[rank_index]})
         rank_index += 1
     return normalized_entries
+
+
+def _ocr_blue_archive_row_combined_fields(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+    page_index: int,
+) -> tuple[int | None, str | None, int | None]:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.0, 0.78),
+        y_ratios=(top_ratio, min(bottom_ratio, top_ratio + 0.28)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=6,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=11,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                threshold=180,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+
+    for candidate in candidates:
+        raw_lines = [line.strip() for line in candidate.splitlines() if line.strip()]
+        if not raw_lines:
+            continue
+        score: int | None = None
+        difficulty: str | None = None
+        rank: int | None = None
+
+        for line in raw_lines:
+            if score is None:
+                score = _find_score_anchor_value(line)
+            if difficulty is None:
+                difficulty = _find_anchor_difficulty([line], 0)
+            if rank is None:
+                rank_candidates = _extract_rank_candidates_from_text(line)
+                if rank_candidates:
+                    rank = rank_candidates[0]
+        if score is None:
+            score = _find_score_anchor_value(" ".join(raw_lines))
+        if difficulty is None:
+            difficulty = _find_anchor_difficulty(raw_lines, max(0, len(raw_lines) - 1))
+        if rank is None:
+            combined_ranks = _extract_rank_candidates_from_text(" ".join(raw_lines))
+            if combined_ranks:
+                rank = combined_ranks[0]
+
+        if difficulty is not None and score is not None:
+            return rank, difficulty, score
+
+    return None, None, None
+
+
+def _ocr_blue_archive_row_rank(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+) -> int | None:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.0, 0.38),
+        y_ratios=(top_ratio, min(bottom_ratio, top_ratio + 0.23)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                threshold=180,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        normalized = _normalize_rank_ocr_token(candidate)
+        if normalized.isdigit():
+            rank = int(normalized)
+            if 0 < rank <= 100000:
+                return rank
+    return None
+
+
+def _ocr_blue_archive_row_difficulty(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+) -> str | None:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.14, 0.52),
+        y_ratios=(top_ratio + 0.12, min(bottom_ratio, top_ratio + 0.28)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                ),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                ),
+                threshold=180,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        normalized = re.sub(r"[^A-Z0-9]+", "", _normalize_unicode_ocr_text(candidate).upper())
+        difficulty = _resolve_difficulty_label(normalized)
+        if difficulty is not None:
+            return difficulty
+    return None
+
+
+def _ocr_blue_archive_row_score(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+    page_index: int,
+) -> int | None:
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.34, 0.82),
+        y_ratios=(top_ratio + 0.1, min(bottom_ratio, top_ratio + 0.28)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=8,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                threshold=170,
+            ),
+        ],
+        base_ocr=ocr,
+    )
+    for candidate in candidates:
+        try:
+            return _parse_score_text(candidate, page_index=page_index, line_index=1)
+        except MockImportError:
+            continue
+    return None
 
 
 def _parse_tesseract_tsv_words(tsv_text: str) -> list[TesseractTsvWord]:
