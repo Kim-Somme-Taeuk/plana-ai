@@ -1,0 +1,505 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(90, 132, 94, 0.14), transparent 34%),
+    linear-gradient(180deg, #f7f6ef 0%, #ecefe2 100%);
+  color: #18221a;
+}
+
+.shell {
+  width: min(1180px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 36px 0 72px;
+}
+
+.header {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.headerTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.brandBlock {
+  display: grid;
+  gap: 10px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6b785f;
+}
+
+.title {
+  font-size: clamp(32px, 6vw, 58px);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  max-width: 760px;
+  color: #50614f;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primaryButton,
+.secondaryButton,
+.ghostButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.primaryButton {
+  background: #1d5b39;
+  color: #fff;
+}
+
+.secondaryButton {
+  background: #fff;
+  border: 1px solid rgba(77, 97, 70, 0.18);
+}
+
+.ghostButton {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(77, 97, 70, 0.12);
+}
+
+.heroSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.heroCard,
+.section,
+.statCard,
+.cutoffLeadCard,
+.seasonCard,
+.snapshotCard {
+  min-width: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(90, 110, 83, 0.12);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 44px rgba(50, 73, 49, 0.08);
+}
+
+.heroCard {
+  padding: 26px;
+  display: grid;
+  gap: 24px;
+}
+
+.heroHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.heroLabel,
+.sectionEyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8f1e3;
+  color: #28543a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.heroTitle {
+  margin-top: 14px;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.04;
+}
+
+.heroMeta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 14px;
+}
+
+.metaItem {
+  display: grid;
+  gap: 5px;
+}
+
+.metaLabel,
+.statLabel {
+  color: #6f7d67;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.metaValue {
+  font-size: 15px;
+}
+
+.heroSideGrid,
+.statGrid,
+.cutoffGrid,
+.seasonGrid,
+.snapshotGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.heroSideGrid,
+.statGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.statCard {
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.statValue {
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1.05;
+}
+
+.statDescription {
+  color: #5b6b5b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.section {
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.sectionHeader h2 {
+  margin-top: 10px;
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.05;
+}
+
+.sectionDescription {
+  max-width: 440px;
+  color: #566653;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cutoffLeadCard {
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+  background: linear-gradient(180deg, #fbfcf8 0%, #f4f7ef 100%);
+}
+
+.cutoffLeadRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(90, 110, 83, 0.12);
+}
+
+.cutoffLeadRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cutoffGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+}
+
+.cutoffCard {
+  border-radius: 20px;
+  background: linear-gradient(180deg, #1f5133 0%, #173924 100%);
+  color: #fff;
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.cutoffRank {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cutoffScore {
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1.05;
+}
+
+.trendChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.trendBar {
+  min-width: 74px;
+  display: grid;
+  gap: 8px;
+}
+
+.trendTrack {
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  padding: 10px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #eff4eb 0%, #e5ebdf 100%);
+}
+
+.trendFill {
+  width: 100%;
+  border-radius: 14px 14px 8px 8px;
+  background: linear-gradient(180deg, #7ec18d 0%, #22593a 100%);
+}
+
+.trendFillMuted {
+  background: linear-gradient(180deg, #ced5cb 0%, #aab4aa 100%);
+}
+
+.trendMeta {
+  display: grid;
+  gap: 4px;
+  color: #566653;
+  font-size: 13px;
+}
+
+.publicTableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(90, 110, 83, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.publicTable {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.publicTable th,
+.publicTable td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(90, 110, 83, 0.12);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.publicTable th {
+  background: #f4f7ef;
+  color: #6a785f;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.publicTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.seasonGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.seasonCard,
+.snapshotCard {
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.seasonCardTop,
+.snapshotCardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cardBadge,
+.cardMeta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cardBadge {
+  background: #edf4eb;
+  color: #2f5a39;
+}
+
+.cardMeta {
+  background: #f2f3ee;
+  color: #5e6b59;
+}
+
+.seasonCardTitle {
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.seasonCardMeta,
+.snapshotCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #5d6b59;
+  font-size: 14px;
+}
+
+.errorBox,
+.emptyBox {
+  padding: 18px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.errorBox {
+  background: #fff0ed;
+  border: 1px solid #f0c5bd;
+  color: #8f2f20;
+}
+
+.emptyBox {
+  background: #f7f8f4;
+  border: 1px dashed #c4ccba;
+  color: #5d6a5b;
+}
+
+@media (max-width: 1080px) {
+  .heroSection {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .shell {
+    width: min(100vw - 20px, 1180px);
+    padding: 24px 0 42px;
+  }
+
+  .heroCard,
+  .section,
+  .statCard,
+  .cutoffLeadCard,
+  .seasonCard,
+  .snapshotCard {
+    border-radius: 20px;
+  }
+
+  .heroCard,
+  .section {
+    padding: 18px;
+  }
+
+  .heroSideGrid,
+  .statGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .headerActions,
+  .sectionActions {
+    width: 100%;
+  }
+
+  .headerActions > *,
+  .sectionActions > * {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
+@media (max-width: 560px) {
+  .shell {
+    width: min(100vw - 16px, 1180px);
+    padding: 20px 0 30px;
+  }
+
+  .heroSideGrid,
+  .statGrid,
+  .cutoffGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .headerTop,
+  .heroHeader,
+  .sectionHeader,
+  .seasonCardTop,
+  .snapshotCardTop,
+  .cutoffLeadRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerActions > *,
+  .sectionActions > * {
+    flex: 1 1 100%;
+  }
+
+  .trendBar {
+    min-width: 64px;
+  }
+
+  .trendTrack {
+    height: 132px;
+  }
+
+  .publicTable th,
+  .publicTable td {
+    padding: 12px 10px;
+    font-size: 13px;
+  }
+}
