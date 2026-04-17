@@ -10,6 +10,8 @@ import type {
   SeasonCutoffSeries,
 } from "../lib/types";
 
+const PUBLIC_RANK_OPTIONS = [1, 10, 100, 1000, 5000, 10000];
+
 export function PublicShell({
   eyebrow,
   title,
@@ -131,9 +133,6 @@ export function PublicCutoffHighlightPanel({
           <Link href={`/rankings/${seasonId}`} className={styles.ghostButton}>
             시즌 상세
           </Link>
-          <Link href={`/snapshots/${snapshot.id}`} className={styles.ghostButton}>
-            관리용 상세
-          </Link>
         </div>
       </div>
       <div className={styles.cutoffLeadCard}>
@@ -156,6 +155,126 @@ export function PublicCutoffHighlightPanel({
             <span className={styles.cutoffRank}>#{cutoff.rank.toLocaleString()}</span>
             <strong className={styles.cutoffScore}>{formatNumber(cutoff.score)}</strong>
           </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function PublicSeasonFilterPanel({
+  selectedEventType,
+  selectedServer,
+  eventTypeOptions,
+  serverOptions,
+}: {
+  selectedEventType: string;
+  selectedServer: string;
+  eventTypeOptions: string[];
+  serverOptions: string[];
+}) {
+  const hasFilters = selectedEventType !== "all" || selectedServer !== "all";
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <span className={styles.sectionEyebrow}>시즌 탐색</span>
+          <h2>시즌 필터</h2>
+        </div>
+        <p className={styles.sectionDescription}>
+          이벤트 유형과 서버 기준으로 시즌을 빠르게 좁혀볼 수 있습니다.
+        </p>
+      </div>
+      <form className={styles.publicControls}>
+        <div className={styles.publicFilterGrid}>
+          <div className={styles.publicField}>
+            <label htmlFor="eventType">이벤트</label>
+            <select id="eventType" name="eventType" defaultValue={selectedEventType}>
+              <option value="all">전체</option>
+              {eventTypeOptions.map((eventType) => (
+                <option key={eventType} value={eventType}>
+                  {formatEventType(eventType)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.publicField}>
+            <label htmlFor="server">서버</label>
+            <select id="server" name="server" defaultValue={selectedServer}>
+              <option value="all">전체</option>
+              {serverOptions.map((server) => (
+                <option key={server} value={server}>
+                  {server}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className={styles.publicActions}>
+          <button type="submit" className={styles.primaryButton}>
+            적용
+          </button>
+          {hasFilters ? (
+            <Link href="/" className={styles.ghostButton}>
+              초기화
+            </Link>
+          ) : null}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+export function PublicRankSelector({
+  seasonId,
+  selectedRank,
+}: {
+  seasonId: number;
+  selectedRank: number;
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <span className={styles.sectionEyebrow}>랭크 기준</span>
+          <h2>컷오프 시계열 설정</h2>
+        </div>
+        <p className={styles.sectionDescription}>
+          관심 있는 rank를 선택하면 시계열과 대표 컷오프를 같은 기준으로 볼 수 있습니다.
+        </p>
+      </div>
+      <form className={styles.publicControls}>
+        <div className={styles.publicFilterGrid}>
+          <div className={styles.publicField}>
+            <label htmlFor="rank">기준 rank</label>
+            <select id="rank" name="rank" defaultValue={String(selectedRank)}>
+              {PUBLIC_RANK_OPTIONS.map((rank) => (
+                <option key={rank} value={rank}>
+                  {rank.toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className={styles.publicActions}>
+          <button type="submit" className={styles.primaryButton}>
+            적용
+          </button>
+        </div>
+      </form>
+      <div className={styles.rankChipRow}>
+        {PUBLIC_RANK_OPTIONS.map((rank) => (
+          <Link
+            key={rank}
+            href={`/rankings/${seasonId}?rank=${rank}`}
+            className={
+              rank === selectedRank
+                ? `${styles.rankChip} ${styles.rankChipActive}`
+                : styles.rankChip
+            }
+          >
+            #{rank.toLocaleString()}
+          </Link>
         ))}
       </div>
     </section>

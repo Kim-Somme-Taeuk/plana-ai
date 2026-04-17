@@ -4,6 +4,7 @@ import {
   PublicDistributionPanel,
   PublicEmptyBox,
   PublicErrorBox,
+  PublicSeasonFilterPanel,
   PublicSeasonGrid,
   PublicShell,
   PublicTrendPanel,
@@ -19,9 +20,17 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+type HomePageProps = {
+  searchParams: Promise<{
+    eventType?: string;
+    server?: string;
+  }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const resolvedSearchParams = await searchParams;
   const seasonsResult = await getSeasons();
-  const seasons =
+  const allSeasons =
     seasonsResult.data?.slice().sort((left, right) => {
       const leftTimestamp = left.started_at ? new Date(left.started_at).getTime() : 0;
       const rightTimestamp = right.started_at ? new Date(right.started_at).getTime() : 0;
@@ -32,6 +41,27 @@ export default async function Home() {
 
       return right.id - left.id;
     }) ?? [];
+  const selectedEventType =
+    resolvedSearchParams.eventType && resolvedSearchParams.eventType.trim()
+      ? resolvedSearchParams.eventType
+      : "all";
+  const selectedServer =
+    resolvedSearchParams.server && resolvedSearchParams.server.trim()
+      ? resolvedSearchParams.server
+      : "all";
+  const eventTypeOptions = Array.from(
+    new Set(allSeasons.map((season) => season.event_type)),
+  ).sort();
+  const serverOptions = Array.from(new Set(allSeasons.map((season) => season.server))).sort();
+  const seasons = allSeasons.filter((season) => {
+    if (selectedEventType !== "all" && season.event_type !== selectedEventType) {
+      return false;
+    }
+    if (selectedServer !== "all" && season.server !== selectedServer) {
+      return false;
+    }
+    return true;
+  });
   const featuredSeason = seasons[0] ?? null;
   const featuredSnapshotsResult = featuredSeason
     ? await getSeasonSnapshots(featuredSeason.id)
@@ -71,6 +101,13 @@ export default async function Home() {
         />
       ) : featuredSeason ? (
         <>
+          <PublicSeasonFilterPanel
+            selectedEventType={selectedEventType}
+            selectedServer={selectedServer}
+            eventTypeOptions={eventTypeOptions}
+            serverOptions={serverOptions}
+          />
+
           <FeaturedSeasonPanel
             season={featuredSeason}
             latestSnapshot={latestCompletedSnapshot}
@@ -103,7 +140,15 @@ export default async function Home() {
           <PublicSeasonGrid seasons={seasons} />
         </>
       ) : (
-        <PublicEmptyBox message="표시할 시즌이 아직 없습니다." />
+        <>
+          <PublicSeasonFilterPanel
+            selectedEventType={selectedEventType}
+            selectedServer={selectedServer}
+            eventTypeOptions={eventTypeOptions}
+            serverOptions={serverOptions}
+          />
+          <PublicEmptyBox message="조건에 맞는 시즌이 없습니다." />
+        </>
       )}
     </PublicShell>
   );

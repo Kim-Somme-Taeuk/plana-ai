@@ -5,6 +5,7 @@ import {
   PublicEmptyBox,
   PublicErrorBox,
   PublicRecentSnapshotPanel,
+  PublicRankSelector,
   PublicShell,
   PublicTrendPanel,
 } from "../../components/public-dashboard";
@@ -89,6 +90,8 @@ export default async function PublicSeasonPage({
         latestSnapshot={latestCompletedSnapshot}
         summary={summaryResult.data}
       />
+
+      <PublicRankSelector seasonId={season.id} selectedRank={normalizedRank} />
 
       {latestCompletedSnapshot && summaryResult.data && cutoffsResult.data ? (
         <PublicCutoffHighlightPanel
