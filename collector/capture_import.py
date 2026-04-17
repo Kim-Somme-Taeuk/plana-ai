@@ -1973,6 +1973,8 @@ def _resolve_anchor_ranks(detected_ranks: list[int | None]) -> list[int]:
             continue
         seen.add(rank)
 
+    ranks = _drop_inconsistent_detected_ranks(ranks)
+
     known_indices = [index for index, rank in enumerate(ranks) if rank is not None]
     if not known_indices:
         return [index + 1 for index in range(len(ranks))]
@@ -2005,6 +2007,56 @@ def _resolve_anchor_ranks(detected_ranks: list[int | None]) -> list[int]:
                 rank = index + 1
         resolved.append(rank)
     return resolved
+
+
+def _drop_inconsistent_detected_ranks(ranks: list[int | None]) -> list[int | None]:
+    known = [(index, rank) for index, rank in enumerate(ranks) if rank is not None]
+    if len(known) <= 1:
+        return ranks
+
+    def support(anchor_index: int, anchor_rank: int) -> int:
+        count = 0
+        for index, rank in known:
+            assert rank is not None
+            expected = anchor_rank + (index - anchor_index)
+            if abs(rank - expected) <= 1:
+                count += 1
+        return count
+
+    supports = {
+        (index, rank): support(index, rank)
+        for index, rank in known
+    }
+    best_support = max(supports.values())
+    supported_known = [
+        (index, rank)
+        for index, rank in known
+        if supports[(index, rank)] == best_support
+    ]
+
+    large_rank_candidates = [
+        item
+        for item in supported_known
+        if item[1] >= 1000
+    ]
+    if large_rank_candidates:
+        best_anchor_index, best_anchor_rank = max(
+            large_rank_candidates,
+            key=lambda item: (item[1], -item[0]),
+        )
+    else:
+        best_anchor_index, best_anchor_rank = min(
+            supported_known,
+            key=lambda item: (item[0], item[1]),
+        )
+
+    filtered = list(ranks)
+    for index, rank in known:
+        assert rank is not None
+        expected = best_anchor_rank + (index - best_anchor_index)
+        if abs(rank - expected) > 1:
+            filtered[index] = None
+    return filtered
 
 
 def _find_score_anchor_value(raw_line: str) -> int | None:

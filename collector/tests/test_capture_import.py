@@ -1976,6 +1976,10 @@ def test_resolve_anchor_ranks_interpolates_from_later_known_rank() -> None:
     ]
 
 
+def test_resolve_anchor_ranks_drops_inconsistent_outlier_rank() -> None:
+    assert capture_import._resolve_anchor_ranks([1, None, 341]) == [1, 2, 3]
+
+
 def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:
     assert capture_import._find_score_anchor_value(": be 8 53,393,544  (noise)") == 53393544
 
@@ -2106,6 +2110,41 @@ O) So adiltt ts) 5:
 ©
 
 A Be"""
+
+    entries = capture_import._parse_tesseract_score_anchor_lines(
+        ocr_text=raw_ocr_output,
+        image_path=Path("page-001.png"),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in entries] == [
+        (1, "Lunatic", 53404105),
+        (2, "Lunatic", 53393930),
+        (3, "Lunatic", 53393544),
+    ]
+
+
+def test_parse_tesseract_score_anchor_lines_handles_rank_noise_outlier() -> None:
+    raw_ocr_output = """1H
+
+il
+
+(Lunatic) 53,404,105
+
+(24
+
+il
+
+(lunatic) 53,393,930
+
+}
+
+341
+
+(Rigg
+
+(tunatic} 53,393,544"""
 
     entries = capture_import._parse_tesseract_score_anchor_lines(
         ocr_text=raw_ocr_output,
