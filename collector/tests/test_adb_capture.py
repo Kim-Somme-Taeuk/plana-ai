@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -101,6 +102,11 @@ def test_capture_adb_screenshot_writes_manifest_and_image(tmp_path: Path) -> Non
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["ocr"]["provider"] == "tesseract"
     assert manifest["pages"] == [{"image_path": "page-001.png"}]
+    assert manifest["snapshot"]["captured_at"] != "2026-04-16T12:00:00Z"
+    parsed_captured_at = datetime.fromisoformat(
+        manifest["snapshot"]["captured_at"].replace("Z", "+00:00")
+    )
+    assert parsed_captured_at.tzinfo is not None
     assert result.image_paths[0].read_bytes().startswith(b"\x89PNG")
     assert client.preflight_calls == [None]
 

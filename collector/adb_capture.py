@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -420,12 +421,16 @@ def capture_adb_screenshot(
             if request.adb.swipe.settle_delay_ms > 0:
                 time.sleep(request.adb.swipe.settle_delay_ms / 1000)
 
+    runtime_snapshot = {
+        **request.snapshot,
+        "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
     manifest_path = request.adb.output_dir / "manifest.json"
     manifest_path.write_text(
         json.dumps(
             {
                 "season": request.season,
-                "snapshot": request.snapshot,
+                "snapshot": runtime_snapshot,
                 "ocr": request.ocr,
                 "capture": {
                     "requested_page_count": request.adb.page_count,
