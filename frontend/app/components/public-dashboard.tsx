@@ -15,13 +15,11 @@ export function PublicShell({
   title,
   subtitle,
   children,
-  adminHref = "/admin",
 }: {
   eyebrow: string;
   title: string;
   subtitle: string;
   children: React.ReactNode;
-  adminHref?: string;
 }) {
   return (
     <main className={styles.page}>
@@ -35,9 +33,6 @@ export function PublicShell({
             <div className={styles.headerActions}>
               <Link href="/" className={styles.ghostButton}>
                 홈
-              </Link>
-              <Link href={adminHref} className={styles.secondaryButton}>
-                관리 화면
               </Link>
             </div>
           </div>
