@@ -93,6 +93,11 @@
   margin-bottom: 18px;
 }
 
+.section + .heroSection,
+.heroSection + .section {
+  margin-top: 18px;
+}
+
 .heroCard,
 .section,
 .statCard,
