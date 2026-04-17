@@ -349,6 +349,17 @@ export default async function SeasonDetailPage({
       ? `OCR 레벨: ${formatOcrStopLevelLabel(selectedOcrStopLevel)}`
       : null,
   ].filter((value): value is string => Boolean(value));
+  const hasAdvancedSeasonFilters =
+    selectedCollector !== "all" ||
+    selectedCaptureStopReason !== "all" ||
+    selectedOcrStopReason !== "all" ||
+    selectedPipelineStopReason !== "all" ||
+    selectedPipelineStopSource !== "all" ||
+    selectedPipelineStopLevel !== "all" ||
+    selectedIgnoredReason !== "all" ||
+    selectedIgnoredGroup !== "all" ||
+    selectedPageSignal !== "all" ||
+    selectedOcrStopLevel !== "all";
 
   return (
     <PageShell
@@ -527,44 +538,48 @@ export default async function SeasonDetailPage({
                     </p>
                   )}
 	                  <form className={styles.controls}>
-	                    <div className={styles.filterSection}>
-	                      <div className={styles.sectionHeader}>
-	                        <h3>기본 필터</h3>
-	                        <span className={styles.muted}>
-	                          상태와 입력 소스로 스냅샷 범위를 먼저 좁힙니다.
-	                        </span>
-	                      </div>
-	                      <div className={styles.filterGrid}>
-	                        <div className={styles.field}>
-	                          <label htmlFor="status">상태</label>
-	                          <select id="status" name="status" defaultValue={selectedStatus}>
-	                            <option value="all">전체</option>
-	                            <option value="completed">완료</option>
-	                            <option value="collecting">수집 중</option>
-	                            <option value="failed">실패</option>
-	                          </select>
+	                    <details className={styles.detailsSection} open>
+	                      <summary className={styles.detailsSummary}>
+	                        <span>기본 필터</span>
+	                        <span className={styles.muted}>상태와 입력 소스를 먼저 좁힙니다.</span>
+	                      </summary>
+	                      <div className={styles.detailsBody}>
+	                        <div className={styles.filterGrid}>
+	                          <div className={styles.field}>
+	                            <label htmlFor="status">상태</label>
+	                            <select id="status" name="status" defaultValue={selectedStatus}>
+	                              <option value="all">전체</option>
+	                              <option value="completed">완료</option>
+	                              <option value="collecting">수집 중</option>
+	                              <option value="failed">실패</option>
+	                            </select>
+	                          </div>
+	                          <div className={styles.field}>
+	                            <label htmlFor="source">입력 소스</label>
+	                            <select id="source" name="source" defaultValue={selectedSource}>
+	                              <option value="all">전체</option>
+	                              {sourceOptions.map((sourceType) => (
+	                                <option key={sourceType} value={sourceType}>
+	                                  {formatSourceTypeLabel(sourceType)}
+	                                </option>
+	                              ))}
+	                            </select>
+	                          </div>
 	                        </div>
-	                        <div className={styles.field}>
-	                          <label htmlFor="source">입력 소스</label>
-	                          <select id="source" name="source" defaultValue={selectedSource}>
-	                            <option value="all">전체</option>
-	                            {sourceOptions.map((sourceType) => (
-	                              <option key={sourceType} value={sourceType}>
-	                                {formatSourceTypeLabel(sourceType)}
-	                              </option>
-	                            ))}
-	                          </select>
-	                        </div>
 	                      </div>
-	                    </div>
-	                    <div className={styles.filterSection}>
-	                      <div className={styles.sectionHeader}>
-	                        <h3>수집 진단 필터</h3>
+	                    </details>
+	                    <details
+	                      className={styles.detailsSection}
+	                      {...(hasAdvancedSeasonFilters ? { open: true } : {})}
+	                    >
+	                      <summary className={styles.detailsSummary}>
+	                        <span>수집 진단 필터</span>
 	                        <span className={styles.muted}>
-	                          collector 진단, 중단 사유, OCR 품질 신호를 같은 문맥으로 유지합니다.
+	                          collector 진단과 중단 사유를 필요할 때만 펼쳐 봅니다.
 	                        </span>
-	                      </div>
-	                      <div className={styles.filterGrid}>
+	                      </summary>
+	                      <div className={styles.detailsBody}>
+	                        <div className={styles.filterGrid}>
 	                        <div className={styles.field}>
 	                          <label htmlFor="collector">수집 진단</label>
 	                          <select
@@ -708,8 +723,9 @@ export default async function SeasonDetailPage({
 	                            <option value="hard">강함</option>
 	                          </select>
 	                        </div>
+	                        </div>
 	                      </div>
-	                    </div>
+	                    </details>
 	                    <input type="hidden" name="rank" value={String(normalizedSeriesRank)} />
 	                    {selectedCompareLeft ? (
                       <input

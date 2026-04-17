@@ -118,6 +118,41 @@ export default async function SnapshotDetailPage({
   const shownEntryCount = entriesResult.data?.length ?? 0;
   const currentWindowStart = shownEntryCount > 0 ? offset + 1 : 0;
   const currentWindowEnd = shownEntryCount > 0 ? offset + shownEntryCount : 0;
+  const previousOffset = Math.max(offset - limit, 0);
+  const buildSnapshotEntriesHref = (overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams();
+
+    const finalIsValid = overrides.isValid ?? (isValid === "all" ? undefined : isValid);
+    const finalValidationIssue =
+      overrides.validationIssue ??
+      (validationIssue === "all" ? undefined : validationIssue);
+    const finalSortBy = overrides.sortBy ?? sortBy;
+    const finalOrder = overrides.order ?? order;
+    const finalLimit = overrides.limit ?? String(limit);
+    const finalOffset = overrides.offset ?? String(offset);
+
+    if (finalIsValid) {
+      params.set("isValid", finalIsValid);
+    }
+    if (finalValidationIssue) {
+      params.set("validationIssue", finalValidationIssue);
+    }
+    if (finalSortBy !== "rank") {
+      params.set("sortBy", finalSortBy);
+    }
+    if (finalOrder !== "asc") {
+      params.set("order", finalOrder);
+    }
+    if (finalLimit !== String(DEFAULT_PAGE_SIZE)) {
+      params.set("limit", finalLimit);
+    }
+    if (finalOffset !== "0") {
+      params.set("offset", finalOffset);
+    }
+
+    const query = params.toString();
+    return `/snapshots/${snapshot.id}${query ? `?${query}` : ""}`;
+  };
   const activeEntryFilters = [
     isValid !== "all" ? `유효성: ${formatValidityLabel(isValid)}` : null,
     validationIssue !== "all" ? `이슈: ${validationIssue}` : null,
@@ -375,10 +410,7 @@ export default async function SnapshotDetailPage({
                 <button type="submit" className={styles.button}>
                   필터 적용
                 </button>
-                <Link
-                  href={`/snapshots/${snapshot.id}`}
-                  className={styles.linkButton}
-                >
+                <Link href={`/snapshots/${snapshot.id}`} className={styles.linkButton}>
                   필터 초기화
                 </Link>
               </div>
@@ -397,6 +429,26 @@ export default async function SnapshotDetailPage({
                     번째 엔트리를 보고 있습니다. 다음 구간을 보려면 오프셋을{" "}
                     {(offset + limit).toLocaleString()}로 바꿔 적용하세요.
                   </span>
+                  <div className={styles.paginationLinks}>
+                    {offset > 0 ? (
+                      <>
+                        <Link
+                          href={buildSnapshotEntriesHref({ offset: "0" })}
+                          className={styles.linkButton}
+                        >
+                          처음으로
+                        </Link>
+                        <Link
+                          href={buildSnapshotEntriesHref({
+                            offset: String(previousOffset),
+                          })}
+                          className={styles.linkButton}
+                        >
+                          이전 {limit.toLocaleString()}개
+                        </Link>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </>
             ) : (
