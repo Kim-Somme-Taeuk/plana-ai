@@ -88,24 +88,99 @@ class AdbCaptureStopDecision:
     discard_last_page: bool = False
 
 
+@dataclass(frozen=True)
+class AdbDeviceInfo:
+    serial: str
+    state: str
+
+
 class AdbClient:
     def __init__(self, command: str):
         self.command = command
+
+    def list_devices(self) -> list[AdbDeviceInfo]:
+        args = [self.command, "devices"]
+        result = self._run_command(
+            args,
+            failure_message=f"adb devices 실행에 실패했습니다: command={self.command!r}",
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip() or "unknown error"
+            raise MockImportError(
+                "adb devices 조회에 실패했습니다. "
+                f"returncode={result.returncode}, stderr={stderr}"
+            )
+
+        output = result.stdout.decode("utf-8", errors="replace")
+        devices: list[AdbDeviceInfo] = []
+        for raw_line in output.splitlines()[1:]:
+            line = raw_line.strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            devices.append(
+                AdbDeviceInfo(
+                    serial=parts[0],
+                    state=parts[1],
+                )
+            )
+        return devices
+
+    def preflight(self, *, device_serial: str | None) -> None:
+        devices = self.list_devices()
+        if not devices:
+            raise MockImportError(
+                "연결된 adb device가 없습니다. "
+                "기기를 연결하고 `adb devices` 출력 상태를 확인하세요."
+            )
+
+        if device_serial is not None:
+            target_device = next(
+                (device for device in devices if device.serial == device_serial),
+                None,
+            )
+            if target_device is None:
+                available_devices = ", ".join(
+                    f"{device.serial}({device.state})" for device in devices
+                )
+                raise MockImportError(
+                    "지정한 adb device를 찾지 못했습니다. "
+                    f"device_serial={device_serial}, available={available_devices}"
+                )
+            if target_device.state != "device":
+                raise MockImportError(
+                    "지정한 adb device를 사용할 수 없습니다. "
+                    f"device_serial={device_serial}, state={target_device.state}"
+                )
+            return
+
+        if len(devices) > 1:
+            available_devices = ", ".join(
+                f"{device.serial}({device.state})" for device in devices
+            )
+            raise MockImportError(
+                "여러 adb device가 연결되어 있어 device_serial 지정이 필요합니다. "
+                f"available={available_devices}"
+            )
+
+        only_device = devices[0]
+        if only_device.state != "device":
+            raise MockImportError(
+                "연결된 adb device를 사용할 수 없습니다. "
+                f"device_serial={only_device.serial}, state={only_device.state}"
+            )
 
     def capture_screenshot(self, *, device_serial: str | None) -> bytes:
         args = self._build_args(device_serial)
         args.extend(["exec-out", "screencap", "-p"])
 
-        try:
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                check=False,
-            )
-        except OSError as exc:
-            raise MockImportError(
-                f"adb screenshot 실행에 실패했습니다: command={self.command!r}"
-            ) from exc
+        result = self._run_command(
+            args,
+            failure_message=f"adb screenshot 실행에 실패했습니다: command={self.command!r}",
+        )
 
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace").strip() or "unknown error"
@@ -139,16 +214,10 @@ class AdbClient:
             ]
         )
 
-        try:
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                check=False,
-            )
-        except OSError as exc:
-            raise MockImportError(
-                f"adb swipe 실행에 실패했습니다: command={self.command!r}"
-            ) from exc
+        result = self._run_command(
+            args,
+            failure_message=f"adb swipe 실행에 실패했습니다: command={self.command!r}",
+        )
 
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace").strip() or "unknown error"
@@ -167,6 +236,26 @@ class AdbClient:
         if device_serial:
             args.extend(["-s", device_serial])
         return args
+
+    def _run_command(
+        self,
+        args: list[str],
+        *,
+        failure_message: str,
+    ) -> subprocess.CompletedProcess[bytes]:
+        if shutil.which(self.command) is None:
+            raise MockImportError(
+                f"adb 명령을 찾을 수 없습니다: command={self.command!r}"
+            )
+
+        try:
+            return subprocess.run(
+                args,
+                capture_output=True,
+                check=False,
+            )
+        except OSError as exc:
+            raise MockImportError(failure_message) from exc
 
 
 def load_adb_capture_request(
@@ -271,6 +360,7 @@ def capture_adb_screenshot(
     *,
     after_capture_page: Callable[[list[Path]], AdbCaptureStopDecision] | None = None,
 ) -> AdbCaptureResult:
+    _run_adb_preflight_if_available(client, request.adb.device_serial)
     _ensure_capture_output_dir_is_empty(request.adb.output_dir)
     request.adb.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -377,6 +467,15 @@ def _ensure_capture_output_dir_is_empty(output_dir: Path) -> None:
             "기존 capture 결과가 있는 output_dir에는 새 캡처를 쓰지 않습니다. "
             f"빈 디렉터리를 사용하거나 새 output_dir를 지정하세요: {output_dir}"
         )
+
+
+def _run_adb_preflight_if_available(
+    client: Any,
+    device_serial: str | None,
+) -> None:
+    preflight = getattr(client, "preflight", None)
+    if callable(preflight):
+        preflight(device_serial=device_serial)
 
 
 def _require_mapping(value: Any, label: str) -> dict[str, Any]:

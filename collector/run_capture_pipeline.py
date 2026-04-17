@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +48,7 @@ class CapturePipelineResult:
     output_dir: Path
     manifest_path: Path
     image_paths: list[Path]
+    resumed_from_output: bool
     requested_page_count: int
     captured_page_count: int
     stopped_reason: str | None
@@ -78,8 +80,12 @@ def run_capture_pipeline(
     ocr_command: str | None = None,
     ocr_language: str | None = None,
     ocr_psm: int | None = None,
+    reuse_tesseract_sidecar: bool | None = None,
+    persist_tesseract_sidecar: bool | None = None,
     stop_on_recommendation: str | None = None,
     stop_capture_on_recommendation: str | None = None,
+    resume_only: bool = False,
+    force_recapture: bool = False,
     adb_client: AdbClient | None = None,
     api_client: ApiClient | None = None,
 ) -> CapturePipelineResult:
@@ -89,6 +95,7 @@ def run_capture_pipeline(
         adb_command=adb_command,
         device_serial=device_serial,
     )
+    current_stage = "capture"
     stop_policy = build_pipeline_stop_policy(request.pipeline)
     effective_ocr_provider = _resolve_pipeline_ocr_provider(
         requested_provider=ocr_provider,
@@ -101,103 +108,141 @@ def run_capture_pipeline(
         default_mode="hard",
     )
 
-    capture_result = capture_adb_screenshot(
-        request,
-        adb_client or AdbClient(request.adb.adb_command),
-        after_capture_page=_build_after_capture_page_callback(
-            request=request,
-            stop_policy=stop_policy,
-            effective_ocr_provider=effective_ocr_provider,
+    capture_result: AdbCaptureResult | None = None
+    resumed_from_output = False
+    try:
+        if force_recapture:
+            _clear_pipeline_output_dir(request.adb.output_dir)
+        capture_result = _load_existing_capture_result(
+            request,
+            require_existing=resume_only,
+        )
+        if capture_result is None:
+            capture_result = capture_adb_screenshot(
+                request,
+                adb_client or AdbClient(request.adb.adb_command),
+                after_capture_page=_build_after_capture_page_callback(
+                    request=request,
+                    stop_policy=stop_policy,
+                    effective_ocr_provider=effective_ocr_provider,
+                    ocr_command=ocr_command,
+                    ocr_language=ocr_language,
+                    ocr_psm=ocr_psm,
+                    stop_capture_on_recommendation_mode=stop_capture_on_recommendation_mode,
+                ),
+            )
+        else:
+            resumed_from_output = True
+        current_stage = "load_capture_payload"
+        capture_payload = load_capture_import_payload(
+            capture_result.output_dir,
+            ocr_provider=effective_ocr_provider,
             ocr_command=ocr_command,
             ocr_language=ocr_language,
             ocr_psm=ocr_psm,
-            stop_capture_on_recommendation_mode=stop_capture_on_recommendation_mode,
-        ),
-    )
-    capture_payload = load_capture_import_payload(
-        capture_result.output_dir,
-        ocr_provider=effective_ocr_provider,
-        ocr_command=ocr_command,
-        ocr_language=ocr_language,
-        ocr_psm=ocr_psm,
-    )
-    parsed_payload = parse_capture_payload(capture_payload)
-    ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
-    ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
-    pipeline_stop_recommendation = _build_pipeline_stop_recommendation(
-        capture_stopped_reason=capture_result.stopped_reason,
-        capture_stopped_source=capture_result.stopped_source,
-        capture_stopped_level=capture_result.stopped_level,
-        ocr_stop_recommendation=ocr_stop_recommendation,
-    )
-    parsed_payload = enrich_parsed_capture_payload_collector_details(
-        parsed_payload,
-        extra_details={
-            "pipeline_stop_recommendation": pipeline_stop_recommendation,
-            "stop_policy": {
+            reuse_tesseract_sidecar=(
+                reuse_tesseract_sidecar
+                if reuse_tesseract_sidecar is not None
+                else resumed_from_output
+            ),
+            persist_tesseract_sidecar=persist_tesseract_sidecar,
+        )
+        current_stage = "parse_capture_payload"
+        parsed_payload = parse_capture_payload(capture_payload)
+        ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
+        ocr_stop_recommendation = build_ocr_stop_recommendation(ocr_stop_hints)
+        pipeline_stop_recommendation = _build_pipeline_stop_recommendation(
+            capture_stopped_reason=capture_result.stopped_reason,
+            capture_stopped_source=capture_result.stopped_source,
+            capture_stopped_level=capture_result.stopped_level,
+            ocr_stop_recommendation=ocr_stop_recommendation,
+        )
+        parsed_payload = enrich_parsed_capture_payload_collector_details(
+            parsed_payload,
+            extra_details={
+                "pipeline_stop_recommendation": pipeline_stop_recommendation,
+                "stop_policy": {
+                    "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
+                    "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
+                },
+            },
+        )
+        stop_on_recommendation_mode = _resolve_stop_on_recommendation(
+            requested_stop_on_recommendation=stop_on_recommendation,
+            request=request,
+            key="stop_on_recommendation",
+            default_mode="off",
+        )
+        should_skip_import = _should_skip_import_on_recommendation(
+            mode=stop_on_recommendation_mode,
+            pipeline_stop_recommendation=pipeline_stop_recommendation,
+        )
+
+        if should_skip_import:
+            import_skipped = True
+            skip_reason = pipeline_stop_recommendation["primary_reason"]
+            season_id = None
+            snapshot_id = None
+            entry_ids: list[int] = []
+            status = None
+            total_rows_collected = None
+        else:
+            current_stage = "import"
+            import_result = import_parsed_capture_payload(
+                parsed_payload,
+                api_client or ApiClient(base_url),
+            )
+            import_skipped = False
+            skip_reason = None
+            season_id = import_result.season_id
+            snapshot_id = import_result.snapshot_id
+            entry_ids = import_result.entry_ids
+            status = import_result.status
+            total_rows_collected = import_result.total_rows_collected
+
+        result = CapturePipelineResult(
+            output_dir=capture_result.output_dir,
+            manifest_path=capture_result.manifest_path,
+            image_paths=capture_result.image_paths,
+            resumed_from_output=resumed_from_output,
+            requested_page_count=capture_result.requested_page_count,
+            captured_page_count=len(capture_result.image_paths),
+            stopped_reason=capture_result.stopped_reason,
+            import_skipped=import_skipped,
+            skip_reason=skip_reason,
+            season_id=season_id,
+            snapshot_id=snapshot_id,
+            entry_ids=entry_ids,
+            status=status,
+            total_rows_collected=total_rows_collected,
+            ocr_provider=capture_payload.ocr.provider,
+            ignored_line_count=len(parsed_payload.ignored_lines),
+            ignored_line_reasons=summarize_ignored_lines(parsed_payload.ignored_lines),
+            page_summaries=parsed_payload.page_summaries,
+            ocr_stop_hints=ocr_stop_hints,
+            ocr_stop_recommendation=ocr_stop_recommendation,
+            pipeline_stop_recommendation=pipeline_stop_recommendation,
+            stop_policy={
                 "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
                 "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
             },
-        },
-    )
-    stop_on_recommendation_mode = _resolve_stop_on_recommendation(
-        requested_stop_on_recommendation=stop_on_recommendation,
-        request=request,
-        key="stop_on_recommendation",
-        default_mode="off",
-    )
-    should_skip_import = _should_skip_import_on_recommendation(
-        mode=stop_on_recommendation_mode,
-        pipeline_stop_recommendation=pipeline_stop_recommendation,
-    )
-
-    if should_skip_import:
-        import_skipped = True
-        skip_reason = pipeline_stop_recommendation["primary_reason"]
-        season_id = None
-        snapshot_id = None
-        entry_ids: list[int] = []
-        status = None
-        total_rows_collected = None
-    else:
-        import_result = import_parsed_capture_payload(
-            parsed_payload,
-            api_client or ApiClient(base_url),
         )
-        import_skipped = False
-        skip_reason = None
-        season_id = import_result.season_id
-        snapshot_id = import_result.snapshot_id
-        entry_ids = import_result.entry_ids
-        status = import_result.status
-        total_rows_collected = import_result.total_rows_collected
-
-    return CapturePipelineResult(
-        output_dir=capture_result.output_dir,
-        manifest_path=capture_result.manifest_path,
-        image_paths=capture_result.image_paths,
-        requested_page_count=capture_result.requested_page_count,
-        captured_page_count=len(capture_result.image_paths),
-        stopped_reason=capture_result.stopped_reason,
-        import_skipped=import_skipped,
-        skip_reason=skip_reason,
-        season_id=season_id,
-        snapshot_id=snapshot_id,
-        entry_ids=entry_ids,
-        status=status,
-        total_rows_collected=total_rows_collected,
-        ocr_provider=capture_payload.ocr.provider,
-        ignored_line_count=len(parsed_payload.ignored_lines),
-        ignored_line_reasons=summarize_ignored_lines(parsed_payload.ignored_lines),
-        page_summaries=parsed_payload.page_summaries,
-        ocr_stop_hints=ocr_stop_hints,
-        ocr_stop_recommendation=ocr_stop_recommendation,
-        pipeline_stop_recommendation=pipeline_stop_recommendation,
-        stop_policy={
-            "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
-            "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
-        },
-    )
+        _write_pipeline_result_artifact(
+            result=result,
+            request_path=request_path,
+        )
+        return result
+    except Exception as exc:
+        _write_pipeline_error_artifact(
+            output_dir=_resolve_pipeline_output_dir(
+                request=request,
+                capture_result=capture_result,
+            ),
+            request_path=request_path,
+            stage=current_stage,
+            error=exc,
+        )
+        raise
 
 
 def _resolve_pipeline_ocr_provider(
@@ -215,6 +260,94 @@ def _resolve_pipeline_ocr_provider(
         return None
 
     return "tesseract"
+
+
+def _load_existing_capture_result(
+    request: AdbCaptureRequest,
+    *,
+    require_existing: bool = False,
+) -> AdbCaptureResult | None:
+    output_dir = request.adb.output_dir
+    if not output_dir.exists():
+        if require_existing:
+            raise MockImportError(
+                "resume-only가 지정됐지만 기존 output_dir가 없습니다. "
+                f"output_dir={output_dir}"
+            )
+        return None
+
+    manifest_path = output_dir / "manifest.json"
+    if not manifest_path.exists():
+        if any(output_dir.iterdir()):
+            raise MockImportError(
+                "기존 output_dir가 비어 있지 않지만 resume 가능한 manifest.json이 없습니다. "
+                f"새 output_dir를 지정하거나 디렉터리를 비우세요: {output_dir}"
+            )
+        if require_existing:
+            raise MockImportError(
+                "resume-only가 지정됐지만 기존 manifest.json이 없습니다. "
+                f"output_dir={output_dir}"
+            )
+        return None
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise MockImportError(
+            f"resume용 manifest.json 파싱에 실패했습니다: {manifest_path} ({exc})"
+        ) from exc
+
+    capture = manifest.get("capture")
+    if not isinstance(capture, dict):
+        raise MockImportError(
+            f"resume용 manifest.json에 capture 정보가 없습니다: {manifest_path}"
+        )
+
+    pages = manifest.get("pages")
+    if not isinstance(pages, list):
+        raise MockImportError(
+            f"resume용 manifest.json에 pages 배열이 없습니다: {manifest_path}"
+        )
+
+    image_paths: list[Path] = []
+    for index, page in enumerate(pages, start=1):
+        if not isinstance(page, dict) or not isinstance(page.get("image_path"), str):
+            raise MockImportError(
+                "resume용 manifest.json pages 형식이 올바르지 않습니다. "
+                f"manifest={manifest_path}, page_index={index}"
+            )
+        image_paths.append(output_dir / page["image_path"])
+
+    requested_page_count = capture.get("requested_page_count", len(image_paths))
+    try:
+        parsed_requested_page_count = int(requested_page_count)
+    except (TypeError, ValueError) as exc:
+        raise MockImportError(
+            "resume용 manifest.json capture.requested_page_count가 정수가 아닙니다. "
+            f"manifest={manifest_path}"
+        ) from exc
+
+    return AdbCaptureResult(
+        output_dir=output_dir,
+        manifest_path=manifest_path,
+        image_paths=image_paths,
+        requested_page_count=parsed_requested_page_count,
+        stopped_reason=_normalize_optional_string(capture.get("stopped_reason")),
+        stopped_source=_normalize_optional_string(capture.get("stopped_source")),
+        stopped_level=_normalize_optional_string(capture.get("stopped_level")),
+    )
+
+
+def _clear_pipeline_output_dir(output_dir: Path) -> None:
+    if not output_dir.exists():
+        return
+    if not output_dir.is_dir():
+        raise MockImportError(f"output_dir가 디렉터리가 아닙니다: {output_dir}")
+    for child in output_dir.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
 
 
 def _resolve_stop_on_recommendation(
@@ -291,6 +424,124 @@ def _build_pipeline_stop_recommendation(
         "primary_reason": None,
         "reasons": [],
     }
+
+
+def _resolve_pipeline_output_dir(
+    *,
+    request: AdbCaptureRequest,
+    capture_result: AdbCaptureResult | None,
+) -> Path:
+    if capture_result is not None:
+        return capture_result.output_dir
+    return request.adb.output_dir
+
+
+def _normalize_optional_string(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _write_pipeline_result_artifact(
+    *,
+    result: CapturePipelineResult,
+    request_path: str | Path,
+) -> None:
+    artifact_path = result.output_dir / "pipeline-result.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "request_path": str(Path(request_path)),
+                "output_dir": str(result.output_dir),
+                "manifest_path": str(result.manifest_path),
+                "image_paths": [str(path) for path in result.image_paths],
+                "resumed_from_output": result.resumed_from_output,
+                "requested_page_count": result.requested_page_count,
+                "captured_page_count": result.captured_page_count,
+                "stopped_reason": result.stopped_reason,
+                "import_skipped": result.import_skipped,
+                "skip_reason": result.skip_reason,
+                "season_id": result.season_id,
+                "snapshot_id": result.snapshot_id,
+                "entry_count": len(result.entry_ids),
+                "entry_ids": result.entry_ids,
+                "status": result.status,
+                "total_rows_collected": result.total_rows_collected,
+                "ocr_provider": result.ocr_provider,
+                "ignored_line_count": result.ignored_line_count,
+                "ignored_line_reasons": result.ignored_line_reasons,
+                "page_summaries": result.page_summaries,
+                "ocr_stop_hints": result.ocr_stop_hints,
+                "ocr_stop_recommendation": result.ocr_stop_recommendation,
+                "pipeline_stop_recommendation": result.pipeline_stop_recommendation,
+                "stop_policy": result.stop_policy,
+                "recovery": _build_pipeline_recovery_payload(
+                    output_dir=result.output_dir,
+                    request_path=request_path,
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    _unlink_if_exists(result.output_dir / "pipeline-error.json")
+
+
+def _write_pipeline_error_artifact(
+    *,
+    output_dir: Path,
+    request_path: str | Path,
+    stage: str,
+    error: Exception,
+) -> None:
+    if not output_dir.exists() or not output_dir.is_dir():
+        return
+
+    artifact_path = output_dir / "pipeline-error.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "request_path": str(Path(request_path)),
+                "output_dir": str(output_dir),
+                "stage": stage,
+                "error_type": type(error).__name__,
+                "message": str(error),
+                "recovery": _build_pipeline_recovery_payload(
+                    output_dir=output_dir,
+                    request_path=request_path,
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    _unlink_if_exists(output_dir / "pipeline-result.json")
+
+
+def _build_pipeline_recovery_payload(
+    output_dir: Path,
+    request_path: str | Path,
+) -> dict[str, str]:
+    return {
+        "capture_import_command": (
+            "backend/.venv/bin/python "
+            f"collector/capture_import.py {output_dir}"
+        ),
+        "resume_pipeline_command": (
+            "backend/.venv/bin/python "
+            f"collector/run_capture_pipeline.py --resume-only --output-dir {output_dir} {request_path}"
+        ),
+    }
+
+
+def _unlink_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
 
 
 def _build_after_capture_page_callback(
@@ -434,6 +685,8 @@ def _build_runtime_ocr_config(
         command=ocr_command or request.ocr.get("command"),
         language=ocr_language or request.ocr.get("language"),
         psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
+        reuse_cached_sidecar=True,
+        persist_sidecar=True,
     )
 
 
@@ -485,6 +738,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="OCR page segmentation mode override. tesseract provider에서 --psm으로 전달합니다.",
     )
     parser.add_argument(
+        "--reuse-tesseract-sidecar",
+        action="store_true",
+        help="tesseract provider에서 기존 OCR sidecar(.txt)가 있으면 재사용합니다.",
+    )
+    parser.add_argument(
+        "--no-persist-tesseract-sidecar",
+        action="store_true",
+        help="tesseract provider에서 OCR 결과 sidecar(.txt)를 저장하지 않습니다.",
+    )
+    parser.add_argument(
         "--stop-on-recommendation",
         action="store_true",
         help="hard stop recommendation이 있으면 backend import를 건너뜁니다.",
@@ -504,6 +767,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="soft/hard stop recommendation이 있으면 남은 캡처를 생략합니다.",
     )
+    parser.add_argument(
+        "--resume-only",
+        action="store_true",
+        help="기존 output_dir의 manifest.json이 있을 때만 resume하고 새 캡처는 하지 않습니다.",
+    )
+    parser.add_argument(
+        "--force-recapture",
+        action="store_true",
+        help="기존 output_dir 내용을 지우고 처음부터 다시 캡처합니다.",
+    )
     return parser
 
 
@@ -517,6 +790,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             "--stop-capture-on-recommendation과 --stop-capture-on-soft-recommendation은 함께 사용할 수 없습니다."
         )
+    if args.resume_only and args.force_recapture:
+        parser.error("--resume-only와 --force-recapture는 함께 사용할 수 없습니다.")
 
     stop_on_recommendation: str | None = None
     if args.stop_on_soft_recommendation:
@@ -541,8 +816,12 @@ def main(argv: list[str] | None = None) -> int:
             ocr_command=args.ocr_command,
             ocr_language=args.ocr_language,
             ocr_psm=args.ocr_psm,
+            reuse_tesseract_sidecar=True if args.reuse_tesseract_sidecar else None,
+            persist_tesseract_sidecar=False if args.no_persist_tesseract_sidecar else None,
             stop_on_recommendation=stop_on_recommendation,
             stop_capture_on_recommendation=stop_capture_on_recommendation,
+            resume_only=args.resume_only,
+            force_recapture=args.force_recapture,
         )
     except MockImportError as exc:
         print(str(exc), file=sys.stderr)
@@ -554,6 +833,7 @@ def main(argv: list[str] | None = None) -> int:
                 "output_dir": str(result.output_dir),
                 "manifest_path": str(result.manifest_path),
                 "image_paths": [str(path) for path in result.image_paths],
+                "resumed_from_output": result.resumed_from_output,
                 "requested_page_count": result.requested_page_count,
                 "captured_page_count": result.captured_page_count,
                 "stopped_reason": result.stopped_reason,

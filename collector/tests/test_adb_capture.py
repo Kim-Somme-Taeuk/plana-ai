@@ -85,16 +85,24 @@ def test_capture_adb_screenshot_writes_manifest_and_image(tmp_path: Path) -> Non
     )
 
     class FakeAdbClient:
+        def __init__(self):
+            self.preflight_calls: list[str | None] = []
+
+        def preflight(self, *, device_serial):
+            self.preflight_calls.append(device_serial)
+
         def capture_screenshot(self, *, device_serial):
             assert device_serial is None
             return b"\x89PNG\r\n\x1a\nfake"
 
-    result = capture_adb_screenshot(request, FakeAdbClient())
+    client = FakeAdbClient()
+    result = capture_adb_screenshot(request, client)
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["ocr"]["provider"] == "tesseract"
     assert manifest["pages"] == [{"image_path": "page-001.png"}]
     assert result.image_paths[0].read_bytes().startswith(b"\x89PNG")
+    assert client.preflight_calls == [None]
 
 
 def test_capture_adb_screenshot_supports_multi_page_scroll(
@@ -466,6 +474,102 @@ def test_adb_client_uses_swipe_command(monkeypatch: pytest.MonkeyPatch) -> None:
         "600",
         "200",
     ]
+
+
+def test_adb_client_preflight_accepts_single_connected_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args, capture_output, check):
+        assert args == ["adb", "devices"]
+        assert capture_output is True
+        assert check is False
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=b"List of devices attached\nemulator-5554\tdevice\n",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+    client.preflight(device_serial=None)
+
+
+def test_adb_client_preflight_requires_serial_for_multiple_devices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args, capture_output, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=(
+                b"List of devices attached\n"
+                b"emulator-5554\tdevice\n"
+                b"device-01\tdevice\n"
+            ),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+
+    with pytest.raises(MockImportError) as exc_info:
+        client.preflight(device_serial=None)
+
+    assert "여러 adb device가 연결되어 있어 device_serial 지정이 필요합니다" in str(
+        exc_info.value
+    )
+    assert "emulator-5554(device)" in str(exc_info.value)
+
+
+def test_adb_client_preflight_rejects_missing_requested_serial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args, capture_output, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=b"List of devices attached\nemulator-5554\tdevice\n",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+
+    with pytest.raises(MockImportError) as exc_info:
+        client.preflight(device_serial="device-01")
+
+    assert "지정한 adb device를 찾지 못했습니다" in str(exc_info.value)
+    assert "device_serial=device-01" in str(exc_info.value)
+
+
+def test_adb_client_preflight_rejects_unavailable_device_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args, capture_output, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=b"List of devices attached\ndevice-01\tunauthorized\n",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+
+    with pytest.raises(MockImportError) as exc_info:
+        client.preflight(device_serial="device-01")
+
+    assert "지정한 adb device를 사용할 수 없습니다" in str(exc_info.value)
+    assert "state=unauthorized" in str(exc_info.value)
 
 
 def test_adb_client_fails_when_command_missing(monkeypatch: pytest.MonkeyPatch) -> None:

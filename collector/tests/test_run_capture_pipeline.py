@@ -9,7 +9,19 @@ import pytest
 import collector.capture_import as capture_import
 import collector.run_capture_pipeline as capture_pipeline
 from collector.adb_capture import PipelineStopPolicy
+from collector.mock_import import ApiError
 from collector.run_capture_pipeline import run_capture_pipeline
+
+
+class SnapshotAwareApiClientMixin:
+    def list_seasons(self):
+        return []
+
+    def list_snapshots(self, season_id):
+        return []
+
+    def list_entries(self, snapshot_id):
+        return []
 
 
 def test_run_capture_pipeline_captures_and_imports_with_tesseract(
@@ -26,7 +38,7 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
             assert device_serial is None
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
 
@@ -50,7 +62,7 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
                 "total_rows_collected": 2,
             }
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         assert args == [
             "tesseract",
             str((tmp_path / "capture-output" / "page-001.png").resolve()),
@@ -90,6 +102,7 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.status == "completed"
     assert result.total_rows_collected == 2
     assert result.ocr_provider == "tesseract"
+    assert result.resumed_from_output is False
     assert result.requested_page_count == 1
     assert result.captured_page_count == 1
     assert result.stopped_reason is None
@@ -114,6 +127,17 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     }
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
+    pipeline_result = json.loads(
+        (tmp_path / "capture-output" / "pipeline-result.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert pipeline_result["status"] == "completed"
+    assert pipeline_result["entry_count"] == 2
+    assert pipeline_result["recovery"]["capture_import_command"].endswith(
+        "collector/capture_import.py "
+        f"{tmp_path / 'capture-output'}"
+    )
     assert [call[0] for call in api_client.calls] == [
         "create_season",
         "create_snapshot",
@@ -137,7 +161,7 @@ def test_run_capture_pipeline_defaults_to_tesseract_without_explicit_provider(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -154,7 +178,7 @@ def test_run_capture_pipeline_defaults_to_tesseract_without_explicit_provider(
                 "total_rows_collected": 1,
             }
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         assert args[:3] == [
             "tesseract",
             str((tmp_path / "capture-output" / "page-001.png").resolve()),
@@ -181,6 +205,294 @@ def test_run_capture_pipeline_defaults_to_tesseract_without_explicit_provider(
     assert result.ocr_provider == "tesseract"
 
 
+def test_run_capture_pipeline_resumes_existing_capture_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-resume-season",
+    )
+    output_dir = tmp_path / "capture-output"
+    output_dir.mkdir()
+    (output_dir / "page-001.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    (output_dir / "page-001.txt").write_text(
+        "1\tCached OCR\t12345678\t0.99\n",
+        encoding="utf-8",
+    )
+    (output_dir / "pipeline-error.json").write_text("{}", encoding="utf-8")
+    (output_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "season": {
+                    "event_type": "total_assault",
+                    "server": "kr",
+                    "boss_name": "Binah",
+                    "terrain": "outdoor",
+                    "season_label": "pipeline-resume-season",
+                },
+                "snapshot": {
+                    "captured_at": "2026-04-16T12:00:00Z",
+                    "note": "adb screenshot capture",
+                },
+                "ocr": {
+                    "provider": "tesseract",
+                    "language": "eng",
+                    "psm": 6,
+                },
+                "capture": {
+                    "requested_page_count": 3,
+                    "captured_page_count": 1,
+                    "stopped_reason": "repeated_frame",
+                    "stopped_source": "capture",
+                    "stopped_level": "hard",
+                },
+                "pages": [
+                    {
+                        "image_path": "page-001.png",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    class UnusedAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            raise AssertionError("기존 capture output을 resume해야 합니다")
+
+    class FakeApiClient(SnapshotAwareApiClientMixin):
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 1,
+            }
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(
+        capture_import.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("resume에서는 cached sidecar를 재사용해야 합니다")),
+    )
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(output_dir),
+        adb_client=UnusedAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.resumed_from_output is True
+    assert result.requested_page_count == 3
+    assert result.captured_page_count == 1
+    assert result.stopped_reason == "repeated_frame"
+    assert result.entry_ids == [1]
+    pipeline_result = json.loads(
+        (output_dir / "pipeline-result.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_result["resumed_from_output"] is True
+    assert not (output_dir / "pipeline-error.json").exists()
+
+
+def test_run_capture_pipeline_rejects_nonempty_output_without_manifest(tmp_path: Path) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-invalid-resume-season",
+        include_ocr=False,
+    )
+    output_dir = tmp_path / "capture-output"
+    output_dir.mkdir()
+    (output_dir / "page-001.png").write_bytes(b"fake")
+
+    class UnusedAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            raise AssertionError("resume 실패 시 캡처로 진행하면 안 됩니다")
+
+    with pytest.raises(capture_import.MockImportError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(output_dir),
+            adb_client=UnusedAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+        )
+
+    assert "resume 가능한 manifest.json이 없습니다" in str(exc_info.value)
+    pipeline_error = json.loads(
+        (output_dir / "pipeline-error.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_error["stage"] == "capture"
+    assert pipeline_error["error_type"] == "MockImportError"
+
+
+def test_run_capture_pipeline_resume_only_requires_existing_manifest(tmp_path: Path) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-resume-only-season",
+        include_ocr=False,
+    )
+
+    class UnusedAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            raise AssertionError("resume-only에서는 새 캡처를 하면 안 됩니다")
+
+    with pytest.raises(capture_import.MockImportError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(tmp_path / "capture-output"),
+            adb_client=UnusedAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+            resume_only=True,
+        )
+
+    assert "resume-only가 지정됐지만 기존 output_dir가 없습니다" in str(exc_info.value)
+
+
+def test_run_capture_pipeline_force_recapture_clears_existing_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-force-recapture-season",
+    )
+    output_dir = tmp_path / "capture-output"
+    output_dir.mkdir()
+    (output_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    (output_dir / "pipeline-error.json").write_text("{}", encoding="utf-8")
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_calls = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_calls += 1
+            return b"\x89PNG\r\n\x1a\nfresh"
+
+    class FakeApiClient(SnapshotAwareApiClientMixin):
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 1}
+
+    def fake_run(args, capture_output, text, check, **kwargs):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tFresh OCR\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    adb_client = FakeAdbClient()
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(output_dir),
+        adb_client=adb_client,
+        api_client=FakeApiClient(),
+        force_recapture=True,
+    )
+
+    assert adb_client.capture_calls == 1
+    assert result.resumed_from_output is False
+    assert json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))["pages"] == [
+        {"image_path": "page-001.png"}
+    ]
+
+
+def test_run_capture_pipeline_reuses_existing_season_on_duplicate_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-existing-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    class FakeApiClient(SnapshotAwareApiClientMixin):
+        def create_season(self, payload):
+            raise ApiError(409, "Season label already exists")
+
+        def list_seasons(self):
+            return [
+                {
+                    "id": 909,
+                    "event_type": "total_assault",
+                    "server": "kr",
+                    "boss_name": "Binah",
+                    "armor_type": None,
+                    "terrain": "outdoor",
+                    "season_label": "pipeline-existing-season",
+                    "started_at": None,
+                    "ended_at": None,
+                }
+            ]
+
+        def create_snapshot(self, season_id, payload):
+            assert season_id == 909
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {
+                "id": snapshot_id,
+                "status": status,
+                "total_rows_collected": 1,
+            }
+
+    def fake_run(args, capture_output, text, check, **kwargs):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.season_id == 909
+    assert result.snapshot_id == 202
+
+
 def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -194,7 +506,7 @@ def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def __init__(self):
             self.snapshot_payload: dict[str, object] | None = None
 
@@ -215,7 +527,7 @@ def test_run_capture_pipeline_persists_pipeline_stop_details_in_snapshot_note(
                 "total_rows_collected": 1,
             }
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -276,7 +588,7 @@ def test_run_capture_pipeline_preserves_explicit_sidecar_provider(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class UnusedApiClient:
+    class UnusedApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             raise AssertionError("sidecar 단계에서 실패해야 합니다")
 
@@ -307,11 +619,11 @@ def test_run_capture_pipeline_propagates_import_error_after_capture(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class FailingApiClient:
+    class FailingApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             raise RuntimeError("unexpected import failure")
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -333,6 +645,18 @@ def test_run_capture_pipeline_propagates_import_error_after_capture(
 
     assert "unexpected import failure" in str(exc_info.value)
     assert (tmp_path / "capture-output" / "manifest.json").exists()
+    pipeline_error = json.loads(
+        (tmp_path / "capture-output" / "pipeline-error.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert pipeline_error["stage"] == "import"
+    assert pipeline_error["error_type"] == "RuntimeError"
+    assert pipeline_error["message"] == "unexpected import failure"
+    assert pipeline_error["recovery"]["capture_import_command"].endswith(
+        "collector/capture_import.py "
+        f"{tmp_path / 'capture-output'}"
+    )
 
 
 def test_run_capture_pipeline_returns_repeated_frame_metadata(
@@ -370,7 +694,7 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -387,7 +711,7 @@ def test_run_capture_pipeline_returns_repeated_frame_metadata(
                 "total_rows_collected": 1,
             }
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_path = Path(args[1]).name
         return subprocess.CompletedProcess(
             args=args,
@@ -444,7 +768,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -461,7 +785,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
                 "total_rows_collected": 1,
             }
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -535,11 +859,11 @@ def test_run_capture_pipeline_skips_import_when_stop_recommendation_is_enabled(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class UnusedApiClient:
+    class UnusedApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             raise AssertionError("import는 건너뛰어야 합니다")
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -560,6 +884,13 @@ def test_run_capture_pipeline_skips_import_when_stop_recommendation_is_enabled(
 
     assert result.import_skipped is True
     assert result.skip_reason == "noisy_last_page"
+    pipeline_result = json.loads(
+        (tmp_path / "capture-output" / "pipeline-result.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert pipeline_result["import_skipped"] is True
+    assert pipeline_result["skip_reason"] == "noisy_last_page"
     assert result.season_id is None
     assert result.snapshot_id is None
     assert result.entry_ids == []
@@ -580,11 +911,11 @@ def test_run_capture_pipeline_cli_flag_skips_import_on_recommendation(
         def capture_screenshot(self, *, device_serial):
             return b"\x89PNG\r\n\x1a\nfake"
 
-    class UnusedApiClient:
+    class UnusedApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             raise AssertionError("import는 건너뛰어야 합니다")
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -644,7 +975,7 @@ def test_run_capture_pipeline_does_not_skip_import_for_soft_recommendation_in_ha
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -661,7 +992,7 @@ def test_run_capture_pipeline_does_not_skip_import_for_soft_recommendation_in_ha
                 "total_rows_collected": 2,
             }
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_path = Path(args[1]).name
         return subprocess.CompletedProcess(
             args=args,
@@ -730,11 +1061,11 @@ def test_run_capture_pipeline_skips_import_for_soft_recommendation_in_any_mode(
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class UnusedApiClient:
+    class UnusedApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             raise AssertionError("import는 건너뛰어야 합니다")
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_path = Path(args[1]).name
         return subprocess.CompletedProcess(
             args=args,
@@ -799,7 +1130,7 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation(
         def swipe(self, *, device_serial, swipe):
             self.swipes.append(swipe)
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -812,7 +1143,7 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation(
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 2}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         return subprocess.CompletedProcess(
             args=args,
@@ -883,7 +1214,7 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation_by_def
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -896,7 +1227,7 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation_by_def
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 2}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         return subprocess.CompletedProcess(
             args=args,
@@ -961,7 +1292,7 @@ def test_run_capture_pipeline_does_not_stop_capture_early_when_explicitly_disabl
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -974,7 +1305,7 @@ def test_run_capture_pipeline_does_not_stop_capture_early_when_explicitly_disabl
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 3}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         stdout_by_image = {
             "page-001.png": "1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.98\n",
@@ -1039,7 +1370,7 @@ def test_run_capture_pipeline_treats_duplicate_last_page_as_hard_ocr_stop(
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -1052,7 +1383,7 @@ def test_run_capture_pipeline_treats_duplicate_last_page_as_hard_ocr_stop(
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 4}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         stdout_by_image = {
             "page-001.png": "1\tPlana\t12345678\t0.99\n2\tArona\t12000000\t0.98\n",
@@ -1160,7 +1491,7 @@ def test_run_capture_pipeline_stops_capture_early_for_soft_recommendation_in_any
         def swipe(self, *, device_serial, swipe):
             self.swipes.append(swipe)
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -1173,7 +1504,7 @@ def test_run_capture_pipeline_stops_capture_early_for_soft_recommendation_in_any
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 4}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         stdout_by_image = {
             "page-001.png": "1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.98\n",
@@ -1247,7 +1578,7 @@ def test_run_capture_pipeline_does_not_stop_capture_before_minimum_ocr_stop_page
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -1260,7 +1591,7 @@ def test_run_capture_pipeline_does_not_stop_capture_before_minimum_ocr_stop_page
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 3}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         stdout_by_image = {
             "page-001.png": "header\n1\tPlana\t12345678\t0.99\nfooter\n",
@@ -1326,7 +1657,7 @@ def test_run_capture_pipeline_does_not_stop_capture_early_for_single_soft_recomm
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -1339,7 +1670,7 @@ def test_run_capture_pipeline_does_not_stop_capture_early_for_single_soft_recomm
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 4}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         stdout_by_image = {
             "page-001.png": "1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.98\n",
@@ -1410,7 +1741,7 @@ def test_run_capture_pipeline_supports_custom_soft_stop_repeat_threshold(
         def swipe(self, *, device_serial, swipe):
             return None
 
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def create_season(self, payload):
             return {"id": 101, **payload}
 
@@ -1423,7 +1754,7 @@ def test_run_capture_pipeline_supports_custom_soft_stop_repeat_threshold(
         def update_snapshot_status(self, snapshot_id, status):
             return {"id": snapshot_id, "status": status, "total_rows_collected": 4}
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, check, **kwargs):
         image_name = Path(args[1]).name
         stdout_by_image = {
             "page-001.png": "1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.98\n",

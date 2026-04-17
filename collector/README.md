@@ -13,6 +13,17 @@
 4. `run_capture_pipeline.py`
    `adb_capture -> capture_import -> backend import`를 한 번에 실행하는 상위 파이프라인
 
+Windows 단일 실행파일용 통합 진입점:
+
+- `launcher.py`
+  `mock`, `capture`, `adb`, `pipeline`를 하나의 실행파일에서 고르는 통합 CLI
+- `plana_collector.spec`
+  PyInstaller one-file 빌드 spec
+- `../scripts/build_collector.ps1`
+  Windows에서 `dist/plana-collector.exe`를 만드는 빌드 스크립트
+- `../scripts/run_collector_pipeline.ps1`
+  Windows에서 `adb`, `tesseract`, `python` 경로를 변수로 묶어서 pipeline을 짧게 실행하는 헬퍼
+
 프로젝트 전체 개요는 [README.md](../README.md)를 먼저 참고하세요.
 
 ## 1. mock import
@@ -35,7 +46,11 @@ backend/.venv/bin/python collector/mock_import.py collector/mock_data/sample_inv
 주의:
 
 - backend API를 그대로 호출합니다.
-- 같은 파일을 다시 넣으면 `season_label` 중복으로 실패합니다.
+- 같은 `season_label`이 이미 있으면 해당 시즌을 재사용해 새 snapshot을 추가합니다.
+- 다만 같은 `season_label`인데 시즌 메타데이터가 다르면 안전하게 실패합니다.
+- 같은 snapshot 식별자(`captured_at`, `source_type`, `note`)가 이미 있으면 해당 snapshot을 재사용합니다.
+- 재실행 시 기존 snapshot이 `collecting`이면 누락된 entry만 이어서 적재하고 `completed`까지 마무리합니다.
+- 재실행 시 기존 snapshot entry 내용이 다르거나, `completed` snapshot에 entry가 누락돼 있으면 충돌로 간주하고 실패합니다.
 - 같은 파일 안에 중복 `rank`가 있으면 import 전에 `duplicate_rank`로 실패합니다.
 - season 생성 이후 entry 입력 또는 completed 처리 단계에서 실패하면 snapshot은 `failed`로 전환을 시도합니다.
 
@@ -57,6 +72,13 @@ backend/.venv/bin/python collector/mock_import.py collector/mock_data/sample_inv
 3. sidecar 읽기 또는 OCR 실행
 4. OCR line 파싱
 5. backend API로 season / snapshot / entries / completed 적재
+
+주의:
+
+- 내부적으로 `mock_import.py` 재사용 로직을 타므로, 같은 season/snapshot으로 재실행해도 누락된 entry만 이어서 적재할 수 있습니다.
+- 다만 기존 snapshot 내용과 새 입력이 충돌하면 안전하게 실패합니다.
+- `tesseract` provider는 기본적으로 OCR 결과를 `.txt` sidecar로 저장합니다.
+- 이후 `--reuse-tesseract-sidecar` 또는 manifest의 `ocr.reuse_cached_sidecar=true`로 기존 OCR 결과를 재사용할 수 있습니다.
 
 ### 입력 예시
 
@@ -175,10 +197,17 @@ backend/.venv/bin/python collector/capture_import.py \
 현재 범위:
 
 - 한 번 또는 여러 번의 screenshot 캡처
+- 캡처 전 `adb devices` 기반 사전 점검
 - `manifest.json` 자동 생성
 - OCR provider 설정 전달
 - multi-page `capture -> swipe -> capture` 반복
 - screenshot 바이트 동일 / 과거 프레임 재등장 시 조기 종료
+
+사전 점검 규칙:
+
+- 연결된 device가 없으면 캡처 전에 바로 실패합니다.
+- device가 여러 대면 `--device-serial` 또는 `adb.device_serial` 지정이 필요합니다.
+- 지정한 device가 `offline` / `unauthorized` 상태면 캡처 전에 바로 실패합니다.
 
 샘플 요청:
 
@@ -199,6 +228,18 @@ backend/.venv/bin/python collector/adb_capture.py collector/adb_data/sample_scro
 1. `adb_capture.py`로 screenshot 캡처
 2. `capture_import.py`로 OCR/파싱
 3. backend API로 season / snapshot / entries / completed 적재
+
+파이프라인 산출물:
+
+- 성공 또는 import skip 시 output 디렉터리에 `pipeline-result.json`을 남깁니다.
+- 캡처 이후 단계에서 실패하면 output 디렉터리에 `pipeline-error.json`을 남깁니다.
+- 두 파일 모두 재개용 `collector/capture_import.py <output_dir>`와
+  `collector/run_capture_pipeline.py --output-dir <output_dir> <request_path>` 명령을 함께 기록합니다.
+- output 디렉터리에 기존 `manifest.json`이 있으면 ADB 캡처를 건너뛰고 자동 resume합니다.
+- 자동 resume 시 `tesseract` OCR 결과 `.txt`가 있으면 기본적으로 이를 재사용합니다.
+- 새로 캡처부터 다시 하고 싶으면 빈 output 디렉터리를 쓰거나 다른 output 디렉터리를 지정해야 합니다.
+- 강제로 처음부터 다시 캡처하려면 `--force-recapture`를 사용합니다.
+- 기존 output만 사용해 import부터 재개하려면 `--resume-only`를 사용합니다.
 
 실행:
 
@@ -259,6 +300,34 @@ collector만:
 
 ```bash
 backend/.venv/bin/pytest collector/tests -q
+```
+
+Windows 단일 exe 빌드:
+
+```powershell
+.\scripts\build_collector.ps1
+.\dist\plana-collector.exe mock collector\mock_data\sample_valid_snapshot.json
+.\dist\plana-collector.exe capture collector\capture_data\sample_valid_capture
+.\dist\plana-collector.exe adb collector\adb_data\sample_request.json
+.\dist\plana-collector.exe pipeline collector\adb_data\sample_request.json
+```
+
+PowerShell에서 외부 툴 경로가 필요하면:
+
+```powershell
+.\dist\plana-collector.exe pipeline `
+  --adb-command "C:\Users\<user>\AppData\Local\Android\Sdk\platform-tools\adb.exe" `
+  --ocr-command "C:\Program Files\Tesseract-OCR\tesseract.exe" `
+  collector\adb_data\sample_request.json
+```
+
+Windows PowerShell 헬퍼 스크립트:
+
+```powershell
+.\scripts\run_collector_pipeline.ps1
+.\scripts\run_collector_pipeline.ps1 -DeviceSerial "R3CR60SGTND"
+.\scripts\run_collector_pipeline.ps1 -OutputDir .\collector\capture_runs\manual_test
+.\scripts\run_collector_pipeline.ps1 -ResumeOnly -OutputDir .\collector\capture_runs\manual_test
 ```
 
 backend 포함:

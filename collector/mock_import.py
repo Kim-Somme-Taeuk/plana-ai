@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ if str(BACKEND_DIR) not in sys.path:
 from app.core.ranking_entry_validation import (
     ValidationIssueCode,
     summarize_snapshot_entries,
+    validate_ranking_entry,
 )
 
 DEFAULT_API_BASE_URL = "http://localhost:8000"
@@ -62,6 +64,12 @@ class ApiClient:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
 
+    def list_seasons(self) -> list[dict[str, Any]]:
+        response = self._request("GET", "/seasons")
+        if not isinstance(response, list):
+            raise MockImportError("GET /seasons 응답 형식이 예상과 다릅니다.")
+        return response
+
     def create_season(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/seasons", payload)
 
@@ -76,6 +84,17 @@ class ApiClient:
             payload,
         )
 
+    def list_snapshots(self, season_id: int) -> list[dict[str, Any]]:
+        response = self._request(
+            "GET",
+            f"/seasons/{season_id}/ranking-snapshots",
+        )
+        if not isinstance(response, list):
+            raise MockImportError(
+                "GET /seasons/{season_id}/ranking-snapshots 응답 형식이 예상과 다릅니다."
+            )
+        return response
+
     def create_entry(
         self,
         snapshot_id: int,
@@ -86,6 +105,17 @@ class ApiClient:
             f"/ranking-snapshots/{snapshot_id}/entries",
             payload,
         )
+
+    def list_entries(self, snapshot_id: int) -> list[dict[str, Any]]:
+        response = self._request(
+            "GET",
+            f"/ranking-snapshots/{snapshot_id}/entries",
+        )
+        if not isinstance(response, list):
+            raise MockImportError(
+                "GET /ranking-snapshots/{snapshot_id}/entries 응답 형식이 예상과 다릅니다."
+            )
+        return response
 
     def update_snapshot_status(
         self,
@@ -103,7 +133,7 @@ class ApiClient:
         method: str,
         path: str,
         payload: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> Any:
         body = None
         headers = {
             "Accept": "application/json",
@@ -186,28 +216,42 @@ def import_mock_payload(
 ) -> ImportResult:
     snapshot_id: int | None = None
 
-    try:
-        season = client.create_season(_build_season_payload(payload.season))
-    except ApiError as exc:
-        raise MockImportError(
-            "season 생성에 실패했습니다. "
-            f"status={exc.status_code}, detail={exc.detail}. "
-            "같은 season_label이 이미 존재하면 기본 동작은 실패입니다."
-        ) from exc
+    season = _resolve_or_create_season(
+        client=client,
+        payload=_build_season_payload(payload.season),
+    )
+    expected_snapshot_payload = _build_snapshot_payload(payload.snapshot)
 
-    try:
-        snapshot = client.create_snapshot(
-            season["id"],
-            _build_snapshot_payload(payload.snapshot),
-        )
-        snapshot_id = snapshot["id"]
-    except ApiError as exc:
-        raise MockImportError(
-            f"snapshot 생성에 실패했습니다. status={exc.status_code}, detail={exc.detail}"
-        ) from exc
+    snapshot = _resolve_or_create_snapshot(
+        client=client,
+        season_id=season["id"],
+        payload=expected_snapshot_payload,
+    )
+    snapshot_id = snapshot["id"]
+    existing_entries_by_rank = _get_existing_entries_by_rank(
+        client=client,
+        snapshot=snapshot,
+    )
 
     entry_ids: list[int] = []
     for index, entry in enumerate(payload.entries, start=1):
+        existing_entry = existing_entries_by_rank.get(int(entry["rank"]))
+        if existing_entry is not None:
+            expected_entry_state = _build_expected_entry_state(entry)
+            if not _entry_matches_expected(existing_entry, expected_entry_state):
+                raise MockImportError(
+                    "기존 snapshot entry와 충돌합니다. "
+                    f"snapshot_id={snapshot['id']}, rank={entry['rank']}"
+                )
+            entry_ids.append(existing_entry["id"])
+            continue
+
+        if snapshot["status"] != "collecting":
+            raise MockImportError(
+                "기존 snapshot이 collecting 상태가 아니라 누락된 entry를 이어서 넣을 수 없습니다. "
+                f"snapshot_id={snapshot['id']}, status={snapshot['status']}"
+            )
+
         try:
             created_entry = client.create_entry(
                 snapshot["id"],
@@ -225,6 +269,16 @@ def import_mock_payload(
                 )
             ) from exc
         entry_ids.append(created_entry["id"])
+        existing_entries_by_rank[int(entry["rank"])] = created_entry
+
+    if snapshot["status"] == "completed":
+        return ImportResult(
+            season_id=season["id"],
+            snapshot_id=snapshot["id"],
+            entry_ids=entry_ids,
+            status=snapshot["status"],
+            total_rows_collected=snapshot.get("total_rows_collected"),
+        )
 
     try:
         completed_snapshot = client.update_snapshot_status(snapshot["id"], "completed")
@@ -247,6 +301,186 @@ def import_mock_payload(
         status=completed_snapshot["status"],
         total_rows_collected=completed_snapshot.get("total_rows_collected"),
     )
+
+
+def _resolve_or_create_snapshot(
+    *,
+    client: ApiClient,
+    season_id: int,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    existing_snapshot = _find_existing_snapshot(
+        client=client,
+        season_id=season_id,
+        payload=payload,
+    )
+    if existing_snapshot is not None:
+        return existing_snapshot
+
+    try:
+        return client.create_snapshot(season_id, payload)
+    except ApiError as exc:
+        raise MockImportError(
+            f"snapshot 생성에 실패했습니다. status={exc.status_code}, detail={exc.detail}"
+        ) from exc
+
+
+def _find_existing_snapshot(
+    *,
+    client: ApiClient,
+    season_id: int,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    try:
+        snapshots = client.list_snapshots(season_id)
+    except ApiError as exc:
+        raise MockImportError(
+            "기존 snapshot 조회에 실패했습니다. "
+            f"status={exc.status_code}, detail={exc.detail}"
+        ) from exc
+
+    expected_captured_at = _normalize_optional_datetime(payload.get("captured_at"))
+    expected_source_type = payload.get("source_type")
+    expected_note = payload.get("note")
+
+    for snapshot in snapshots:
+        if (
+            _normalize_optional_datetime(snapshot.get("captured_at"))
+            != expected_captured_at
+        ):
+            continue
+        if snapshot.get("source_type") != expected_source_type:
+            continue
+        if snapshot.get("note") != expected_note:
+            continue
+        if snapshot.get("status") not in {"collecting", "completed"}:
+            continue
+        return snapshot
+
+    return None
+
+
+def _get_existing_entries_by_rank(
+    *,
+    client: ApiClient,
+    snapshot: dict[str, Any],
+) -> dict[int, dict[str, Any]]:
+    try:
+        entries = client.list_entries(snapshot["id"])
+    except ApiError as exc:
+        raise MockImportError(
+            "기존 snapshot entry 조회에 실패했습니다. "
+            f"snapshot_id={snapshot['id']}, status={exc.status_code}, detail={exc.detail}"
+        ) from exc
+
+    entries_by_rank: dict[int, dict[str, Any]] = {}
+    for entry in entries:
+        rank = entry.get("rank")
+        if isinstance(rank, int):
+            entries_by_rank[rank] = entry
+    return entries_by_rank
+
+
+def _resolve_or_create_season(
+    *,
+    client: ApiClient,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        return client.create_season(payload)
+    except ApiError as exc:
+        if exc.status_code != 409:
+            raise MockImportError(
+                "season 생성에 실패했습니다. "
+                f"status={exc.status_code}, detail={exc.detail}"
+            ) from exc
+
+    existing_season = _find_existing_season_by_label(
+        client=client,
+        season_label=payload["season_label"],
+    )
+    if existing_season is None:
+        raise MockImportError(
+            "season_label 중복이 감지됐지만 기존 season을 찾지 못했습니다. "
+            f"season_label={payload['season_label']}"
+        )
+
+    mismatched_fields = _collect_season_mismatched_fields(
+        expected=payload,
+        actual=existing_season,
+    )
+    if mismatched_fields:
+        joined_fields = ", ".join(mismatched_fields)
+        raise MockImportError(
+            "기존 season을 재사용할 수 없습니다. "
+            f"season_label={payload['season_label']}, mismatched_fields={joined_fields}"
+        )
+
+    return existing_season
+
+
+def _find_existing_season_by_label(
+    *,
+    client: ApiClient,
+    season_label: str,
+) -> dict[str, Any] | None:
+    try:
+        seasons = client.list_seasons()
+    except ApiError as exc:
+        raise MockImportError(
+            "기존 season 조회에 실패했습니다. "
+            f"status={exc.status_code}, detail={exc.detail}"
+        ) from exc
+
+    for season in seasons:
+        if season.get("season_label") == season_label:
+            return season
+    return None
+
+
+def _collect_season_mismatched_fields(
+    *,
+    expected: dict[str, Any],
+    actual: dict[str, Any],
+) -> list[str]:
+    mismatched_fields: list[str] = []
+
+    for field_name in (
+        "event_type",
+        "server",
+        "boss_name",
+        "armor_type",
+        "terrain",
+        "season_label",
+    ):
+        if actual.get(field_name) != expected.get(field_name):
+            mismatched_fields.append(field_name)
+
+    for field_name in ("started_at", "ended_at"):
+        expected_value = _normalize_optional_datetime(expected.get(field_name))
+        actual_value = _normalize_optional_datetime(actual.get(field_name))
+        if expected_value != actual_value:
+            mismatched_fields.append(field_name)
+
+    return mismatched_fields
+
+
+def _normalize_optional_datetime(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if normalized.endswith("Z"):
+            normalized = f"{normalized[:-1]}+00:00"
+        try:
+            return datetime.fromisoformat(normalized).isoformat()
+        except ValueError:
+            return normalized
+    return str(value)
 
 
 def _build_season_payload(season: dict[str, Any]) -> dict[str, Any]:
@@ -282,6 +516,38 @@ def _build_entry_payload(entry: dict[str, Any]) -> dict[str, Any]:
         "is_valid": entry.get("is_valid", True),
         "validation_issue": entry.get("validation_issue"),
     }
+
+
+def _build_expected_entry_state(entry: dict[str, Any]) -> dict[str, Any]:
+    payload = _build_entry_payload(entry)
+    validation = validate_ranking_entry(
+        rank=payload["rank"],
+        score=payload["score"],
+        player_name=payload.get("player_name"),
+        ocr_confidence=payload.get("ocr_confidence"),
+    )
+    payload["is_valid"] = validation.is_valid
+    payload["validation_issue"] = validation.validation_issue
+    return payload
+
+
+def _entry_matches_expected(
+    actual: dict[str, Any],
+    expected: dict[str, Any],
+) -> bool:
+    for field_name in (
+        "rank",
+        "score",
+        "player_name",
+        "ocr_confidence",
+        "raw_text",
+        "image_path",
+        "is_valid",
+        "validation_issue",
+    ):
+        if actual.get(field_name) != expected.get(field_name):
+            return False
+    return True
 
 
 def _validate_snapshot_entries(entries: list[dict[str, Any]]) -> None:

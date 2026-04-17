@@ -85,6 +85,8 @@ class OcrConfig:
     command: str | None
     language: str | None
     psm: int | None
+    reuse_cached_sidecar: bool
+    persist_sidecar: bool
 
 
 @dataclass(frozen=True)
@@ -119,6 +121,8 @@ def load_capture_import_payload(
     ocr_command: str | None = None,
     ocr_language: str | None = None,
     ocr_psm: int | None = None,
+    reuse_tesseract_sidecar: bool | None = None,
+    persist_tesseract_sidecar: bool | None = None,
 ) -> CaptureImportPayload:
     manifest_path = _resolve_manifest_path(path)
 
@@ -147,6 +151,8 @@ def load_capture_import_payload(
         command_override=ocr_command,
         language_override=ocr_language,
         psm_override=ocr_psm,
+        reuse_cached_sidecar_override=reuse_tesseract_sidecar,
+        persist_sidecar_override=persist_tesseract_sidecar,
     )
 
     capture_pages = [
@@ -748,17 +754,20 @@ def _resolve_existing_path(base_dir: Path, value: str, label: str) -> Path:
 
 
 def _resolve_ocr_text_path(base_dir: Path, page: CapturePage) -> Path:
-    if page.ocr_text_path is not None:
-        return _resolve_existing_path(base_dir, page.ocr_text_path, "ocr_text_path")
-
-    image_path = (base_dir / page.image_path).resolve()
-    inferred_path = image_path.with_suffix(".txt")
+    inferred_path = _resolve_ocr_sidecar_path(base_dir, page)
     if not inferred_path.exists():
         raise MockImportError(
             "ocr_text_path가 없고 기본 OCR sidecar(.txt)도 찾을 수 없습니다: "
             f"{inferred_path}"
         )
     return inferred_path
+
+
+def _resolve_ocr_sidecar_path(base_dir: Path, page: CapturePage) -> Path:
+    if page.ocr_text_path is not None:
+        return (base_dir / page.ocr_text_path).resolve()
+    image_path = (base_dir / page.image_path).resolve()
+    return image_path.with_suffix(".txt")
 
 
 def _load_ocr_text(
@@ -771,9 +780,32 @@ def _load_ocr_text(
     if ocr.provider == OCR_PROVIDER_SIDECAR:
         return _resolve_ocr_text_path(base_dir, page).read_text(encoding="utf-8")
     if ocr.provider == OCR_PROVIDER_TESSERACT:
-        return _run_tesseract_ocr(image_path, ocr)
+        return _load_tesseract_ocr_text(
+            base_dir=base_dir,
+            page=page,
+            image_path=image_path,
+            ocr=ocr,
+        )
 
     raise MockImportError(f"지원하지 않는 OCR provider입니다: {ocr.provider}")
+
+
+def _load_tesseract_ocr_text(
+    *,
+    base_dir: Path,
+    page: CapturePage,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> str:
+    sidecar_path = _resolve_ocr_sidecar_path(base_dir, page)
+    if ocr.reuse_cached_sidecar and sidecar_path.exists():
+        return sidecar_path.read_text(encoding="utf-8")
+
+    ocr_text = _run_tesseract_ocr(image_path, ocr)
+    if ocr.persist_sidecar:
+        sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+        sidecar_path.write_text(ocr_text + "\n", encoding="utf-8")
+    return ocr_text
 
 
 def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
@@ -795,6 +827,8 @@ def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
             args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except OSError as exc:
@@ -802,14 +836,17 @@ def _run_tesseract_ocr(image_path: Path, ocr: OcrConfig) -> str:
             f"tesseract 실행에 실패했습니다: command={command!r}, image_path={image_path}"
         ) from exc
 
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+
     if result.returncode != 0:
-        stderr = (result.stderr or "").strip() or "unknown error"
+        stderr = stderr or "unknown error"
         raise MockImportError(
             "tesseract OCR에 실패했습니다. "
             f"image_path={image_path}, returncode={result.returncode}, stderr={stderr}"
         )
 
-    ocr_text = result.stdout.strip()
+    ocr_text = stdout
     if not ocr_text:
         raise MockImportError(
             f"tesseract OCR 결과가 비어 있습니다: image_path={image_path}"
@@ -824,6 +861,8 @@ def _build_ocr_config(
     command_override: str | None,
     language_override: str | None,
     psm_override: int | None,
+    reuse_cached_sidecar_override: bool | None,
+    persist_sidecar_override: bool | None,
 ) -> OcrConfig:
     ocr_mapping = _require_optional_mapping(raw_ocr, "ocr")
 
@@ -847,11 +886,32 @@ def _build_ocr_config(
     if provider == OCR_PROVIDER_TESSERACT and command is None:
         command = DEFAULT_TESSERACT_COMMAND
 
+    raw_reuse_cached_sidecar = (
+        reuse_cached_sidecar_override
+        if reuse_cached_sidecar_override is not None
+        else ocr_mapping.get("reuse_cached_sidecar", False)
+    )
+    raw_persist_sidecar = (
+        persist_sidecar_override
+        if persist_sidecar_override is not None
+        else ocr_mapping.get("persist_sidecar", provider == OCR_PROVIDER_TESSERACT)
+    )
+    reuse_cached_sidecar = _parse_boolean_option(
+        raw_reuse_cached_sidecar,
+        "ocr.reuse_cached_sidecar",
+    )
+    persist_sidecar = _parse_boolean_option(
+        raw_persist_sidecar,
+        "ocr.persist_sidecar",
+    )
+
     return OcrConfig(
         provider=provider,
         command=command,
         language=language,
         psm=psm,
+        reuse_cached_sidecar=reuse_cached_sidecar,
+        persist_sidecar=persist_sidecar,
     )
 
 
@@ -1508,6 +1568,12 @@ def _require_fields(
         raise MockImportError(f"{label}에 필수 필드가 없습니다: {joined}")
 
 
+def _parse_boolean_option(value: Any, label: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise MockImportError(f"{label}는 true 또는 false 여야 합니다.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="이미지 기반 capture manifest를 backend API로 주입합니다.",
@@ -1542,6 +1608,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="OCR page segmentation mode override. tesseract provider에서 --psm으로 전달합니다.",
     )
+    parser.add_argument(
+        "--reuse-tesseract-sidecar",
+        action="store_true",
+        help="tesseract provider에서 기존 OCR sidecar(.txt)가 있으면 재사용합니다.",
+    )
+    parser.add_argument(
+        "--no-persist-tesseract-sidecar",
+        action="store_true",
+        help="tesseract provider에서 OCR 결과 sidecar(.txt)를 저장하지 않습니다.",
+    )
     return parser
 
 
@@ -1556,6 +1632,8 @@ def main(argv: list[str] | None = None) -> int:
             ocr_command=args.ocr_command,
             ocr_language=args.ocr_language,
             ocr_psm=args.ocr_psm,
+            reuse_tesseract_sidecar=True if args.reuse_tesseract_sidecar else None,
+            persist_tesseract_sidecar=False if args.no_persist_tesseract_sidecar else None,
         )
         parsed_payload = parse_capture_payload(payload)
         ignored_line_reasons = summarize_ignored_lines(parsed_payload.ignored_lines)

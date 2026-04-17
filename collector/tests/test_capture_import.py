@@ -19,6 +19,17 @@ from collector.capture_import import (
 from collector.mock_import import MockImportError
 
 
+class SnapshotAwareApiClientMixin:
+    def list_seasons(self):
+        return []
+
+    def list_snapshots(self, season_id):
+        return []
+
+    def list_entries(self, snapshot_id):
+        return []
+
+
 def test_load_capture_import_payload_reads_manifest_directory(tmp_path: Path) -> None:
     _write_capture_page(
         tmp_path,
@@ -1148,7 +1159,7 @@ def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_dupli
 
 
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
-    class FakeApiClient:
+    class FakeApiClient(SnapshotAwareApiClientMixin):
         def __init__(self):
             self.calls: list[tuple[str, dict[str, object] | str]] = []
 
@@ -1528,7 +1539,7 @@ def test_build_mock_payload_from_capture_runs_tesseract_ocr(
         ocr={"provider": "tesseract", "language": "eng", "psm": 6},
     )
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, encoding, errors, check):
         assert args == [
             "tesseract",
             str((tmp_path / "page-001.png").resolve()),
@@ -1540,6 +1551,8 @@ def test_build_mock_payload_from_capture_runs_tesseract_ocr(
         ]
         assert capture_output is True
         assert text is True
+        assert encoding == "utf-8"
+        assert errors == "replace"
         assert check is False
         return subprocess.CompletedProcess(
             args=args,
@@ -1557,6 +1570,9 @@ def test_build_mock_payload_from_capture_runs_tesseract_ocr(
     assert len(mock_payload.entries) == 2
     assert mock_payload.entries[1]["rank"] == 10
     assert mock_payload.entries[1]["player_name"] == "Arona"
+    assert (tmp_path / "page-001.txt").read_text(encoding="utf-8") == (
+        "1\tPlana\t12345678\t0.99\n10\tArona\t12000000\t0.97\n"
+    )
 
 
 def test_build_mock_payload_from_capture_prefers_tesseract_over_explicit_sidecar_path(
@@ -1586,7 +1602,7 @@ def test_build_mock_payload_from_capture_prefers_tesseract_over_explicit_sidecar
         ocr={"provider": "tesseract", "language": "eng", "psm": 6},
     )
 
-    def fake_run(args, capture_output, text, check):
+    def fake_run(args, capture_output, text, encoding, errors, check):
         assert args == [
             "tesseract",
             str((tmp_path / "page-001.png").resolve()),
@@ -1598,6 +1614,8 @@ def test_build_mock_payload_from_capture_prefers_tesseract_over_explicit_sidecar
         ]
         assert capture_output is True
         assert text is True
+        assert encoding == "utf-8"
+        assert errors == "replace"
         assert check is False
         return subprocess.CompletedProcess(
             args=args,
@@ -1616,6 +1634,78 @@ def test_build_mock_payload_from_capture_prefers_tesseract_over_explicit_sidecar
     assert mock_payload.entries[0]["player_name"] == "Fresh OCR"
     assert mock_payload.entries[0]["score"] == 12345678
     assert mock_payload.entries[0]["ocr_confidence"] == 0.99
+    assert explicit_sidecar.read_text(encoding="utf-8") == "1\tFresh OCR\t12345678\t0.99\n"
+
+
+def test_build_mock_payload_from_capture_can_reuse_cached_tesseract_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "unused sidecar\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tesseract-reuse-sidecar-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "reuse_cached_sidecar": True},
+    )
+    (tmp_path / "page-001.txt").write_text(
+        "1\tCached OCR\t12345678\t0.88\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(
+        capture_import.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("cached sidecar를 재사용해야 합니다")),
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert len(mock_payload.entries) == 1
+    assert mock_payload.entries[0]["player_name"] == "Cached OCR"
+    assert mock_payload.entries[0]["ocr_confidence"] == pytest.approx(0.88)
+
+
+def test_build_mock_payload_from_capture_can_disable_tesseract_sidecar_persist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "unused sidecar\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-tesseract-no-sidecar-persist-season",
+        pages=[{"image_path": "page-001.png"}],
+        snapshot={"captured_at": "2026-04-16T10:00:00Z"},
+        ocr={"provider": "tesseract", "persist_sidecar": False},
+    )
+    (tmp_path / "page-001.txt").unlink()
+
+    def fake_run(args, capture_output, text, encoding, errors, check):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="1\tPlana\t12345678\t0.99\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    payload = load_capture_import_payload(tmp_path)
+    build_mock_payload_from_capture(payload)
+
+    assert not (tmp_path / "page-001.txt").exists()
 
 
 def test_build_mock_payload_from_capture_fails_when_tesseract_missing(
