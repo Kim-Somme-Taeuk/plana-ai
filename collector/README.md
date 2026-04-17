@@ -330,6 +330,18 @@ Windows PowerShell 헬퍼 스크립트:
 .\scripts\run_collector_pipeline.ps1 -ResumeOnly -OutputDir .\collector\capture_runs\manual_test
 ```
 
+Blue Archive fixture 정확도 평가:
+
+```bash
+backend/.venv/bin/python collector/evaluate_blue_archive_fixtures.py
+```
+
+Windows:
+
+```powershell
+.\.collector-venv\Scripts\python.exe collector\evaluate_blue_archive_fixtures.py --ocr-command "C:\Program Files\Tesseract-OCR\tesseract.exe"
+```
+
 backend 포함:
 
 ```bash
