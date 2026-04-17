@@ -340,6 +340,7 @@ Windows:
 
 ```powershell
 .\.collector-venv\Scripts\python.exe collector\evaluate_blue_archive_fixtures.py --ocr-command "C:\Program Files\Tesseract-OCR\tesseract.exe"
+.\scripts\evaluate_blue_archive_fixtures.ps1
 ```
 
 backend 포함:
