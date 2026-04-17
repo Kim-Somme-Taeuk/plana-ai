@@ -200,33 +200,67 @@ export function SummaryCards({
         <h2>스냅샷 요약</h2>
         <StatusBadge status={summary.status} />
       </div>
-      <div className={styles.statsGrid}>
-        <StatCard label="스냅샷 ID" value={String(summary.snapshot_id)} />
-        <StatCard label="시즌 ID" value={String(summary.season_id)} />
-        <StatCard label="수집 시각" value={formatDate(summary.captured_at)} />
-        <StatCard
-          label="수집 행 수"
-          value={
-            summary.total_rows_collected !== null
-              ? String(summary.total_rows_collected)
-              : "-"
-          }
-        />
-        <StatCard label="유효 엔트리" value={String(summary.valid_entry_count)} />
-        <StatCard
-          label="무효 엔트리"
-          value={String(summary.invalid_entry_count)}
-        />
-        <StatCard
-          label="최고 점수"
-          value={formatNullableNumber(summary.highest_score)}
-        />
-        <StatCard
-          label="최저 점수"
-          value={formatNullableNumber(summary.lowest_score)}
-        />
-        <StatCard label="입력 소스" value={formatSourceType(snapshot.source_type)} />
-        <StatCard label="메모" value={formatSnapshotNote(snapshot.note)} />
+      <div className={styles.compactSummaryGrid}>
+        <div className={styles.subPanel}>
+          <div className={styles.panelTitle}>
+            <h3>기본 정보</h3>
+          </div>
+          <div className={styles.keyValueList}>
+            <div className={styles.keyValueRow}>
+              <span>스냅샷 ID</span>
+              <strong>{summary.snapshot_id.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>시즌 ID</span>
+              <strong>{summary.season_id.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>수집 시각</span>
+              <strong>{formatDate(summary.captured_at)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>입력 소스</span>
+              <strong>{formatSourceType(snapshot.source_type)}</strong>
+            </div>
+          </div>
+        </div>
+        <div className={styles.subPanel}>
+          <div className={styles.panelTitle}>
+            <h3>품질 요약</h3>
+          </div>
+          <div className={styles.keyValueList}>
+            <div className={styles.keyValueRow}>
+              <span>수집 행 수</span>
+              <strong>
+                {summary.total_rows_collected !== null
+                  ? summary.total_rows_collected.toLocaleString()
+                  : "-"}
+              </strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>유효 엔트리</span>
+              <strong>{summary.valid_entry_count.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>무효 엔트리</span>
+              <strong>{summary.invalid_entry_count.toLocaleString()}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>최고 점수</span>
+              <strong>{formatNullableNumber(summary.highest_score)}</strong>
+            </div>
+            <div className={styles.keyValueRow}>
+              <span>최저 점수</span>
+              <strong>{formatNullableNumber(summary.lowest_score)}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className={styles.longformBlock}>
+        <div className={styles.panelTitle}>
+          <h3>메모</h3>
+        </div>
+        <p className={styles.longformText}>{formatSnapshotNote(snapshot.note)}</p>
       </div>
     </section>
   );
@@ -1360,183 +1394,201 @@ export function SeasonValidationSeriesPanel({
               </div>
             </div>
           </div>
-          <div className={styles.seriesChart}>
-            {series.points.map((point) => {
-              const heightPercent =
-                point.invalid_ratio > 0
-                  ? Math.max((point.invalid_ratio / maxInvalidRatio) * 100, 12)
-                  : 10;
-              return (
-                <div key={point.snapshot_id} className={styles.seriesBar}>
-                  <div className={styles.seriesBarTrack}>
-                    <div
-                      className={`${styles.seriesBarFill} ${
-                        point.invalid_ratio === 0 ? styles.seriesBarMuted : ""
-                      }`}
-                      style={{ height: `${heightPercent}%` }}
-                    />
-                  </div>
-                  <span className={styles.seriesBarValue}>
-                    {formatPercent(point.invalid_ratio)}
-                  </span>
-                  <span className={styles.seriesBarLabel}>
-                    #{point.snapshot_id}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>스냅샷</th>
-                  <th>상태</th>
-                  <th>수집 시각</th>
-                  <th>무효 비율</th>
-                  <th>무효 엔트리</th>
-                  <th>주요 이슈</th>
-                  <th>수집 중단</th>
-                  <th>무시된 OCR</th>
-                  <th>비교</th>
-                </tr>
-              </thead>
-              <tbody>
-                {series.points.map((point, index) => {
-                  const previousPoint = index > 0 ? series.points[index - 1] : null;
-                  const isCurrentCompare =
-                    selectedCompareLeftId === previousPoint?.snapshot_id &&
-                    selectedCompareRightId === point.snapshot_id;
-
+          <div className={styles.sectionStack}>
+            <div className={styles.subPanel}>
+              <div className={styles.sectionHeader}>
+                <h3>시계열 막대</h3>
+                <span className={styles.muted}>
+                  막대 높이로 무효 비율 흐름을 먼저 보고, 아래 목록에서 세부 비교로 내려갑니다.
+                </span>
+              </div>
+              <div className={styles.seriesChart}>
+                {series.points.map((point) => {
+                  const heightPercent =
+                    point.invalid_ratio > 0
+                      ? Math.max((point.invalid_ratio / maxInvalidRatio) * 100, 12)
+                      : 10;
                   return (
-                    <tr key={point.snapshot_id}>
-                      <td>
-                        <Link href={`/snapshots/${point.snapshot_id}`}>
-                          #{point.snapshot_id}
-                        </Link>
-                      </td>
-                      <td>
-                        <StatusBadge status={point.status} />
-                      </td>
-                      <td>{formatDate(point.captured_at)}</td>
-                      <td>{formatPercent(point.invalid_ratio)}</td>
-                      <td>
-                        {point.invalid_entry_count > 0 ? (
-                          <Link
-                            href={`/snapshots/${point.snapshot_id}?isValid=false`}
-                            className={styles.linkButton}
-                          >
-                            {point.invalid_entry_count.toLocaleString()}
-                          </Link>
-                        ) : (
-                          "0"
-                        )}
-                      </td>
-                      <td>
-                        {point.top_validation_issue ? (
-                          <Link
-                            href={`/snapshots/${point.snapshot_id}?validationIssue=${encodeURIComponent(
-                              point.top_validation_issue.code,
-                            )}&isValid=false`}
-                            className={styles.issueCodeLink}
-                          >
-                            <span className={styles.issueCode}>
-                              {point.top_validation_issue.code}
-                            </span>
-                          </Link>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td>{formatCollectorStop(point.collector_diagnostics)}</td>
-                      <td>
-                        {point.collector_diagnostics
-                          ? point.collector_diagnostics.ignored_line_count.toLocaleString()
-                          : "-"}
-                      </td>
-                      <td>
-                        <div className={styles.compareTableActions}>
-                          {previousPoint ? (
-                            <>
-                              <Link
-                                href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
-                                  compareRank ? `&rank=${compareRank}` : ""
-                                }${
-                                  selectedStatus && selectedStatus !== "all"
-                                    ? `&status=${selectedStatus}`
-                                    : ""
-                                }${
-                                  selectedSource && selectedSource !== "all"
-                                    ? `&source=${encodeURIComponent(selectedSource)}`
-                                    : ""
-                                }${
-                                  collectorFilter && collectorFilter !== "all"
-                                    ? `&collector=${collectorFilter}`
-                                    : ""
-                                }${
-                                  captureStopReason && captureStopReason !== "all"
-                                    ? `&captureStopReason=${encodeURIComponent(captureStopReason)}`
-                                    : ""
-                                }${
-                                  ocrStopReason && ocrStopReason !== "all"
-                                    ? `&ocrStopReason=${encodeURIComponent(ocrStopReason)}`
-                                    : ""
-                                }${
-                                  pipelineStopReason &&
-                                  pipelineStopReason !== "all"
-                                    ? `&pipelineStopReason=${encodeURIComponent(pipelineStopReason)}`
-                                    : ""
-                                }${
-                                  pipelineStopSource &&
-                                  pipelineStopSource !== "all"
-                                    ? `&pipelineStopSource=${encodeURIComponent(pipelineStopSource)}`
-                                    : ""
-                                }${
-                                  pipelineStopLevel &&
-                                  pipelineStopLevel !== "all"
-                                    ? `&pipelineStopLevel=${encodeURIComponent(pipelineStopLevel)}`
-                                    : ""
-                                }${
-                                  ignoredReason && ignoredReason !== "all"
-                                    ? `&ignoredReason=${encodeURIComponent(ignoredReason)}`
-                                    : ""
-                                }${
-                                  ignoredGroup && ignoredGroup !== "all"
-                                    ? `&ignoredGroup=${encodeURIComponent(ignoredGroup)}`
-                                    : ""
-                                }${
-                                  pageSignal && pageSignal !== "all"
-                                    ? `&pageSignal=${encodeURIComponent(pageSignal)}`
-                                    : ""
-                                }${
-                                  ocrStopLevel && ocrStopLevel !== "all"
-                                    ? `&ocrStopLevel=${encodeURIComponent(ocrStopLevel)}`
-                                    : ""
-                                }`}
-                                className={styles.linkButton}
-                              >
-                                이전과 비교
-                              </Link>
-                              {isCurrentCompare ? (
-                                <span className={styles.inlineChip}>현재 비교</span>
-                              ) : null}
-                            </>
-                          ) : (
-                            <span className={styles.muted}>-</span>
-                          )}
-                          <Link
-                            href={`/snapshots/${point.snapshot_id}`}
-                            className={styles.linkButton}
-                          >
-                            상세
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
+                    <div key={point.snapshot_id} className={styles.seriesBar}>
+                      <div className={styles.seriesBarTrack}>
+                        <div
+                          className={`${styles.seriesBarFill} ${
+                            point.invalid_ratio === 0 ? styles.seriesBarMuted : ""
+                          }`}
+                          style={{ height: `${heightPercent}%` }}
+                        />
+                      </div>
+                      <span className={styles.seriesBarValue}>
+                        {formatPercent(point.invalid_ratio)}
+                      </span>
+                      <span className={styles.seriesBarLabel}>
+                        #{point.snapshot_id}
+                      </span>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            </div>
+            <div className={styles.subPanel}>
+              <div className={styles.sectionHeader}>
+                <h3>스냅샷별 세부 목록</h3>
+                <span className={styles.muted}>
+                  무효 엔트리, 주요 이슈, collector 진단 흐름을 보면서 바로 compare로 연결합니다.
+                </span>
+              </div>
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>스냅샷</th>
+                      <th>상태</th>
+                      <th>수집 시각</th>
+                      <th>무효 비율</th>
+                      <th>무효 엔트리</th>
+                      <th>주요 이슈</th>
+                      <th>수집 중단</th>
+                      <th>무시된 OCR</th>
+                      <th>비교</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {series.points.map((point, index) => {
+                      const previousPoint = index > 0 ? series.points[index - 1] : null;
+                      const isCurrentCompare =
+                        selectedCompareLeftId === previousPoint?.snapshot_id &&
+                        selectedCompareRightId === point.snapshot_id;
+
+                      return (
+                        <tr key={point.snapshot_id}>
+                          <td>
+                            <Link href={`/snapshots/${point.snapshot_id}`}>
+                              #{point.snapshot_id}
+                            </Link>
+                          </td>
+                          <td>
+                            <StatusBadge status={point.status} />
+                          </td>
+                          <td>{formatDate(point.captured_at)}</td>
+                          <td>{formatPercent(point.invalid_ratio)}</td>
+                          <td>
+                            {point.invalid_entry_count > 0 ? (
+                              <Link
+                                href={`/snapshots/${point.snapshot_id}?isValid=false`}
+                                className={styles.linkButton}
+                              >
+                                {point.invalid_entry_count.toLocaleString()}
+                              </Link>
+                            ) : (
+                              "0"
+                            )}
+                          </td>
+                          <td>
+                            {point.top_validation_issue ? (
+                              <Link
+                                href={`/snapshots/${point.snapshot_id}?validationIssue=${encodeURIComponent(
+                                  point.top_validation_issue.code,
+                                )}&isValid=false`}
+                                className={styles.issueCodeLink}
+                              >
+                                <span className={styles.issueCode}>
+                                  {point.top_validation_issue.code}
+                                </span>
+                              </Link>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td>{formatCollectorStop(point.collector_diagnostics)}</td>
+                          <td>
+                            {point.collector_diagnostics
+                              ? point.collector_diagnostics.ignored_line_count.toLocaleString()
+                              : "-"}
+                          </td>
+                          <td>
+                            <div className={styles.compareTableActions}>
+                              {previousPoint ? (
+                                <>
+                                  <Link
+                                    href={`/seasons/${series.season_id}?compareLeft=${previousPoint.snapshot_id}&compareRight=${point.snapshot_id}${
+                                      compareRank ? `&rank=${compareRank}` : ""
+                                    }${
+                                      selectedStatus && selectedStatus !== "all"
+                                        ? `&status=${selectedStatus}`
+                                        : ""
+                                    }${
+                                      selectedSource && selectedSource !== "all"
+                                        ? `&source=${encodeURIComponent(selectedSource)}`
+                                        : ""
+                                    }${
+                                      collectorFilter && collectorFilter !== "all"
+                                        ? `&collector=${collectorFilter}`
+                                        : ""
+                                    }${
+                                      captureStopReason && captureStopReason !== "all"
+                                        ? `&captureStopReason=${encodeURIComponent(captureStopReason)}`
+                                        : ""
+                                    }${
+                                      ocrStopReason && ocrStopReason !== "all"
+                                        ? `&ocrStopReason=${encodeURIComponent(ocrStopReason)}`
+                                        : ""
+                                    }${
+                                      pipelineStopReason &&
+                                      pipelineStopReason !== "all"
+                                        ? `&pipelineStopReason=${encodeURIComponent(pipelineStopReason)}`
+                                        : ""
+                                    }${
+                                      pipelineStopSource &&
+                                      pipelineStopSource !== "all"
+                                        ? `&pipelineStopSource=${encodeURIComponent(pipelineStopSource)}`
+                                        : ""
+                                    }${
+                                      pipelineStopLevel &&
+                                      pipelineStopLevel !== "all"
+                                        ? `&pipelineStopLevel=${encodeURIComponent(pipelineStopLevel)}`
+                                        : ""
+                                    }${
+                                      ignoredReason && ignoredReason !== "all"
+                                        ? `&ignoredReason=${encodeURIComponent(ignoredReason)}`
+                                        : ""
+                                    }${
+                                      ignoredGroup && ignoredGroup !== "all"
+                                        ? `&ignoredGroup=${encodeURIComponent(ignoredGroup)}`
+                                        : ""
+                                    }${
+                                      pageSignal && pageSignal !== "all"
+                                        ? `&pageSignal=${encodeURIComponent(pageSignal)}`
+                                        : ""
+                                    }${
+                                      ocrStopLevel && ocrStopLevel !== "all"
+                                        ? `&ocrStopLevel=${encodeURIComponent(ocrStopLevel)}`
+                                        : ""
+                                    }`}
+                                    className={styles.linkButton}
+                                  >
+                                    이전과 비교
+                                  </Link>
+                                  {isCurrentCompare ? (
+                                    <span className={styles.inlineChip}>현재 비교</span>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <span className={styles.muted}>-</span>
+                              )}
+                              <Link
+                                href={`/snapshots/${point.snapshot_id}`}
+                                className={styles.linkButton}
+                              >
+                                상세
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </>
       )}
