@@ -185,6 +185,11 @@ def run_capture_pipeline(
             mode=stop_on_recommendation_mode,
             pipeline_stop_recommendation=pipeline_stop_recommendation,
         )
+        result_pipeline_stop_recommendation = _finalize_pipeline_stop_recommendation(
+            pipeline_stop_recommendation=pipeline_stop_recommendation,
+            should_skip_import=should_skip_import,
+            capture_stopped_reason=capture_result.stopped_reason,
+        )
 
         if should_skip_import:
             import_skipped = True
@@ -229,7 +234,7 @@ def run_capture_pipeline(
             page_summaries=parsed_payload.page_summaries,
             ocr_stop_hints=ocr_stop_hints,
             ocr_stop_recommendation=ocr_stop_recommendation,
-            pipeline_stop_recommendation=pipeline_stop_recommendation,
+            pipeline_stop_recommendation=result_pipeline_stop_recommendation,
             stop_policy={
                 "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
                 "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
@@ -425,6 +430,25 @@ def _build_pipeline_stop_recommendation(
             "reasons": reasons,
         }
 
+    return {
+        "should_stop": False,
+        "level": None,
+        "source": None,
+        "primary_reason": None,
+        "reasons": [],
+    }
+
+
+def _finalize_pipeline_stop_recommendation(
+    *,
+    pipeline_stop_recommendation: dict[str, Any],
+    should_skip_import: bool,
+    capture_stopped_reason: str | None,
+) -> dict[str, Any]:
+    if should_skip_import:
+        return pipeline_stop_recommendation
+    if capture_stopped_reason is not None:
+        return pipeline_stop_recommendation
     return {
         "should_stop": False,
         "level": None,

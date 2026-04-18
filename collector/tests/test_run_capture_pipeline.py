@@ -1191,16 +1191,11 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation(
     assert result.captured_page_count == 3
     assert result.stopped_reason is None
     assert result.pipeline_stop_recommendation == {
-        "should_stop": True,
-        "level": "hard",
-        "source": "ocr",
-        "primary_reason": "duplicate_last_page",
-        "reasons": [
-            "sparse_last_page",
-            "overlapping_last_page",
-            "duplicate_last_page",
-            "noisy_last_page",
-        ],
+        "should_stop": False,
+        "level": None,
+        "source": None,
+        "primary_reason": None,
+        "reasons": [],
     }
     assert result.import_skipped is False
 
@@ -1445,11 +1440,11 @@ def test_run_capture_pipeline_does_not_stop_capture_early_for_duplicate_last_pag
         },
     ]
     assert result.pipeline_stop_recommendation == {
-        "should_stop": True,
-        "level": "soft",
-        "source": "ocr",
-        "primary_reason": "sparse_last_page",
-        "reasons": ["sparse_last_page"],
+        "should_stop": False,
+        "level": None,
+        "source": None,
+        "primary_reason": None,
+        "reasons": [],
     }
 
 
