@@ -41,6 +41,6 @@
     }
   },
   "pipeline": {
-    "max_rank": 12000
+    "max_rank": 7
   }
 }
