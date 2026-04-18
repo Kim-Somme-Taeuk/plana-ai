@@ -37,10 +37,10 @@
       "end_x": 800,
       "end_y": 380,
       "duration_ms": 500,
-      "settle_delay_ms": 1600
+      "settle_delay_ms": 1200
     }
   },
   "pipeline": {
-    "max_rank": 3
+    "max_rank": 12000
   }
 }
