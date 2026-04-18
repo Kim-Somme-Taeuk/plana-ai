@@ -3142,10 +3142,10 @@ def _ocr_blue_archive_row_rank_from_original_image(
                     parsed_ranks.append(rank)
 
     if prefixed_ranks:
-        return Counter(prefixed_ranks).most_common(1)[0][0]
+        return _select_preferred_blue_archive_rank_candidate(prefixed_ranks)
     if not parsed_ranks:
         return None
-    return Counter(parsed_ranks).most_common(1)[0][0]
+    return _select_preferred_blue_archive_rank_candidate(parsed_ranks)
 
 
 def _ocr_blue_archive_row_difficulty(
