@@ -2794,6 +2794,27 @@ def test_should_attempt_blue_archive_absolute_rank_anchor_for_small_contiguous_r
     assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([20, 22]) is False
 
 
+def test_resolve_blue_archive_absolute_rank_base_from_detected_ranks() -> None:
+    assert (
+        capture_import._resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+            [3522, None, 3524]
+        )
+        == 3522
+    )
+    assert (
+        capture_import._resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+            [None, 16110, None]
+        )
+        == 16109
+    )
+    assert (
+        capture_import._resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+            [1, 2, 3]
+        )
+        is None
+    )
+
+
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
     difficulty = capture_import._resolve_blue_archive_page_difficulty(
         [

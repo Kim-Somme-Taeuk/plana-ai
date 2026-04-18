@@ -1688,6 +1688,18 @@ def _parse_blue_archive_fixed_rows(
         return []
 
     resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    absolute_rank_base = None
+    if page_index == 1:
+        absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+            detected_ranks
+        )
+    if absolute_rank_base is not None:
+        resolved_ranks = list(
+            range(
+                absolute_rank_base,
+                absolute_rank_base + len(resolved_ranks),
+            )
+        )
     absolute_rank_anchor_source: str | None = None
     absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor(
         prepared_image_path=prepared_image_path,
@@ -2036,6 +2048,21 @@ def _should_attempt_blue_archive_absolute_rank_anchor(
     if first_rank <= 0 or first_rank > 100:
         return False
     return resolved_ranks == list(range(first_rank, first_rank + len(resolved_ranks)))
+
+
+def _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+    detected_ranks: list[int | None],
+) -> int | None:
+    base_candidates: list[int] = []
+    for index, rank in enumerate(detected_ranks):
+        if rank is None or rank <= 100:
+            continue
+        base_rank = rank - index
+        if base_rank > 100:
+            base_candidates.append(base_rank)
+    if not base_candidates:
+        return None
+    return Counter(base_candidates).most_common(1)[0][0]
 
 
 def _resolve_blue_archive_page_difficulty(
