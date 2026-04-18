@@ -389,7 +389,8 @@ def _retrofit_blue_archive_absolute_page_ranks(
         return parsed_pages, page_metadata
 
     anchor_page_index, anchor_first_rank = _select_blue_archive_absolute_retrofit_anchor(
-        page_metadata=page_metadata
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
     )
     if anchor_page_index is None or anchor_first_rank is None:
         return parsed_pages, page_metadata
@@ -449,9 +450,10 @@ def _retrofit_blue_archive_absolute_page_ranks(
 
 def _select_blue_archive_absolute_retrofit_anchor(
     *,
+    parsed_pages: list[list[dict[str, Any]]],
     page_metadata: list[dict[str, Any]],
 ) -> tuple[int | None, int | None]:
-    candidates: list[tuple[int, int, int]] = []
+    candidates: list[tuple[int, int, int, str]] = []
     source_priority = {
         "row_base": 3,
         "original": 2,
@@ -463,14 +465,94 @@ def _select_blue_archive_absolute_retrofit_anchor(
         anchor = metadata.get("absolute_rank_anchor")
         anchor_source = metadata.get("absolute_rank_anchor_source")
         if isinstance(base, int) and base > 100:
-            candidates.append((-source_priority.get(str(base_source), 0), index, base))
-        elif isinstance(anchor, int) and anchor > 100:
-            candidates.append((-source_priority.get(str(anchor_source), 0), index, anchor))
+            candidates.append((index, base, source_priority.get(str(base_source), 0), str(base_source)))
+        if isinstance(anchor, int) and anchor > 100:
+            candidates.append((index, anchor, source_priority.get(str(anchor_source), 0), str(anchor_source)))
     if not candidates:
         return None, None
-    candidates.sort()
-    _, index, anchor_rank = candidates[0]
-    return index, anchor_rank
+
+    scored_candidates: list[tuple[int, int, int, int, int]] = []
+    for index, anchor_rank, priority, _source in candidates:
+        predicted_first_ranks = _simulate_blue_archive_retrofit_first_ranks(
+            parsed_pages=parsed_pages,
+            anchor_page_index=index,
+            anchor_first_rank=anchor_rank,
+        )
+        disagreement_penalty = 0
+        matched_pages = 0
+        for page_index, metadata in enumerate(page_metadata):
+            predicted = predicted_first_ranks[page_index]
+            if predicted is None:
+                continue
+            expected_values = [
+                value
+                for value in (
+                    metadata.get("absolute_rank_base"),
+                    metadata.get("absolute_rank_anchor"),
+                )
+                if isinstance(value, int) and value > 100
+            ]
+            if not expected_values:
+                continue
+            disagreement_penalty += min(abs(predicted - value) for value in expected_values)
+            matched_pages += 1
+        scored_candidates.append(
+            (
+                disagreement_penalty,
+                -matched_pages,
+                -priority,
+                -anchor_rank,
+                index,
+            )
+        )
+
+    scored_candidates.sort()
+    _, _, _, negative_anchor_rank, index = scored_candidates[0]
+    return index, -negative_anchor_rank
+
+
+def _simulate_blue_archive_retrofit_first_ranks(
+    *,
+    parsed_pages: list[list[dict[str, Any]]],
+    anchor_page_index: int,
+    anchor_first_rank: int,
+) -> list[int | None]:
+    first_ranks: list[int | None] = [None] * len(parsed_pages)
+    first_ranks[anchor_page_index] = anchor_first_rank
+
+    for index in range(anchor_page_index, 0, -1):
+        current_first_rank = first_ranks[index]
+        previous_page_entries = parsed_pages[index - 1]
+        current_page_entries = parsed_pages[index]
+        if current_first_rank is None or not previous_page_entries or not current_page_entries:
+            continue
+        overlap_count = _count_overlap_alignment_entries(
+            previous_page_entries=previous_page_entries,
+            current_page_entries=current_page_entries,
+        )
+        if overlap_count > 0:
+            previous_last_rank = current_first_rank + overlap_count - 1
+        else:
+            previous_last_rank = current_first_rank - 1
+        first_ranks[index - 1] = previous_last_rank - len(previous_page_entries) + 1
+
+    for index in range(anchor_page_index + 1, len(parsed_pages)):
+        previous_first_rank = first_ranks[index - 1]
+        previous_page_entries = parsed_pages[index - 1]
+        current_page_entries = parsed_pages[index]
+        if previous_first_rank is None or not previous_page_entries or not current_page_entries:
+            continue
+        previous_last_rank = previous_first_rank + len(previous_page_entries) - 1
+        overlap_count = _count_overlap_alignment_entries(
+            previous_page_entries=previous_page_entries,
+            current_page_entries=current_page_entries,
+        )
+        if overlap_count > 0:
+            first_ranks[index] = previous_last_rank - overlap_count + 1
+        else:
+            first_ranks[index] = previous_last_rank + 1
+
+    return first_ranks
 
 
 def _build_capture_page_summaries(

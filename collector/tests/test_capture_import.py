@@ -2756,6 +2756,50 @@ def test_parse_capture_payload_realigns_blue_archive_insane_without_overlap_from
     ]
 
 
+def test_select_blue_archive_absolute_retrofit_anchor_prefers_consistent_later_base() -> None:
+    parsed_pages = [
+        [
+            {"rank": 1, "player_name": "Torment", "score": 40100000},
+            {"rank": 2, "player_name": "Torment", "score": 40097600},
+            {"rank": 3, "player_name": "Torment", "score": 40090640},
+        ],
+        [
+            {"rank": 1, "player_name": "Torment", "score": 40090640},
+            {"rank": 2, "player_name": "Torment", "score": 40090480},
+            {"rank": 3, "player_name": "Torment", "score": 40090160},
+        ],
+        [
+            {"rank": 1, "player_name": "Torment", "score": 40090160},
+            {"rank": 2, "player_name": "Torment", "score": 40089920},
+        ],
+    ]
+    page_metadata = [
+        {
+            "absolute_rank_base": 2001,
+            "absolute_rank_base_source": "row_base",
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+        },
+        {
+            "absolute_rank_base": 3524,
+            "absolute_rank_base_source": "row_base",
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+        },
+        {
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+        },
+    ]
+
+    assert capture_import._select_blue_archive_absolute_retrofit_anchor(
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
+    ) == (1, 3524)
+
+
 def test_parse_blue_archive_rank_candidate_trims_common_ui_suffix_noise() -> None:
     assert capture_import._parse_blue_archive_rank_candidate("1200147") == 12001
     assert capture_import._parse_blue_archive_rank_candidate("1200291") == 12002
