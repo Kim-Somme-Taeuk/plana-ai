@@ -1704,39 +1704,63 @@ def _ocr_blue_archive_page_absolute_rank_anchor(
             threshold=160,
         ),
     ]
-    candidates: list[str] = []
-    for x_ratios, y_ratios in (
+    candidates: list[tuple[tuple[float, float], str]] = []
+    focused_regions = (
+        ((0.14, 0.44), (top_ratio, min(bottom_ratio, top_ratio + 0.18))),
+        ((0.16, 0.48), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
+        ((0.18, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
         ((0.18, 0.60), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
         ((0.16, 0.64), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
-    ):
+    )
+    for x_ratios, y_ratios in focused_regions:
         candidates.extend(
-            _ocr_prepared_image_ratio_region_candidates(
-                prepared_image_path=prepared_image_path,
-                x_ratios=x_ratios,
-                y_ratios=y_ratios,
-                attempts=attempts,
-                base_ocr=ocr,
-            )
+            [
+                (x_ratios, candidate)
+                for candidate in _ocr_prepared_image_ratio_region_candidates(
+                    prepared_image_path=prepared_image_path,
+                    x_ratios=x_ratios,
+                    y_ratios=y_ratios,
+                    attempts=attempts,
+                    base_ocr=ocr,
+                )
+            ]
         )
 
     prefixed_ranks: list[int] = []
-    for candidate in candidates:
+    focused_numeric_ranks: list[int] = []
+    broad_numeric_ranks: list[int] = []
+    for x_ratios, candidate in candidates:
         normalized_candidate = _normalize_unicode_ocr_text(candidate)
-        if "rank" not in normalized_candidate.lower():
-            continue
+        lowered_candidate = normalized_candidate.lower()
         rank_candidates = _extract_rank_candidates_from_text(normalized_candidate)
-        for rank in rank_candidates:
-            if rank > len(resolved_ranks):
-                prefixed_ranks.append(rank)
-        if prefixed_ranks:
+        if "rank" in lowered_candidate:
+            for rank in rank_candidates:
+                if rank > len(resolved_ranks):
+                    prefixed_ranks.append(rank)
+            if not rank_candidates:
+                rank = _parse_blue_archive_rank_candidate(normalized_candidate)
+                if rank is not None and rank > len(resolved_ranks):
+                    prefixed_ranks.append(rank)
             continue
-        rank = _parse_blue_archive_rank_candidate(normalized_candidate)
-        if rank is not None and rank > len(resolved_ranks):
-            prefixed_ranks.append(rank)
 
-    if not prefixed_ranks:
-        return None
-    return Counter(prefixed_ranks).most_common(1)[0][0]
+        for rank in rank_candidates:
+            if rank <= len(resolved_ranks):
+                continue
+            if x_ratios[1] <= 0.52:
+                if rank >= 1000:
+                    focused_numeric_ranks.append(rank)
+            else:
+                if rank >= 1000:
+                    broad_numeric_ranks.append(rank)
+
+    if prefixed_ranks:
+        return Counter(prefixed_ranks).most_common(1)[0][0]
+    if focused_numeric_ranks:
+        return Counter(focused_numeric_ranks).most_common(1)[0][0]
+    if broad_numeric_ranks:
+        return Counter(broad_numeric_ranks).most_common(1)[0][0]
+
+    return None
 
 
 def _resolve_blue_archive_page_difficulty(

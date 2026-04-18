@@ -2630,6 +2630,35 @@ def test_parse_blue_archive_fixed_rows_uses_absolute_rank_anchor_when_row_ranks_
     assert [entry["rank"] for entry in entries] == [3522, 3523, 3524]
 
 
+def test_ocr_blue_archive_page_absolute_rank_anchor_accepts_large_numeric_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["3522", "3522", "40,100,000"] if kwargs["x_ratios"][1] <= 0.52 else ["40,100,000"],
+    )
+
+    anchor = capture_import._ocr_blue_archive_page_absolute_rank_anchor(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        row_bands=((0.02, 0.31), (0.35, 0.65), (0.69, 0.98)),
+        resolved_ranks=[1, 2, 3],
+    )
+
+    assert anchor == 3522
+
+
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
     difficulty = capture_import._resolve_blue_archive_page_difficulty(
         [
