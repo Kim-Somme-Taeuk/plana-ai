@@ -2659,6 +2659,39 @@ def test_ocr_blue_archive_page_absolute_rank_anchor_accepts_large_numeric_candid
     assert anchor == 3522
 
 
+def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_uses_rank_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (Path("prepared.png"), lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: "Rank 3522\nTorment 40,100,000",
+    )
+
+    anchor = capture_import._ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        resolved_ranks=[1, 2, 3],
+    )
+
+    assert anchor == 3522
+
+
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
     difficulty = capture_import._resolve_blue_archive_page_difficulty(
         [

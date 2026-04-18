@@ -1651,6 +1651,12 @@ def _parse_blue_archive_fixed_rows(
         row_bands=row_bands,
         resolved_ranks=resolved_ranks,
     )
+    if absolute_rank_anchor is None:
+        absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
+            image_path=image_path,
+            ocr=ocr,
+            resolved_ranks=resolved_ranks,
+        )
     if absolute_rank_anchor is not None:
         resolved_ranks = list(
             range(
@@ -1762,6 +1768,76 @@ def _ocr_blue_archive_page_absolute_rank_anchor(
         return Counter(broad_numeric_ranks).most_common(1)[0][0]
 
     return None
+
+
+def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    resolved_ranks: list[int],
+) -> int | None:
+    if not resolved_ranks:
+        return None
+    if resolved_ranks != list(range(1, len(resolved_ranks) + 1)):
+        return None
+
+    original_anchor_ocr = OcrConfig(
+        provider=ocr.provider,
+        command=ocr.command,
+        language="eng",
+        psm=6,
+        extra_args=("-c", "preserve_interword_spaces=1"),
+        crop=OcrCrop(
+            left_ratio=0.37,
+            top_ratio=0.24,
+            right_ratio=0.57,
+            bottom_ratio=0.42,
+        ),
+        upscale_ratio=max(2.0, ocr.upscale_ratio),
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+
+    candidates: list[int] = []
+    for attempt in (
+        original_anchor_ocr,
+        OcrConfig(
+            provider=ocr.provider,
+            command=ocr.command,
+            language="eng",
+            psm=11,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            crop=original_anchor_ocr.crop,
+            upscale_ratio=original_anchor_ocr.upscale_ratio,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+    ):
+        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+        try:
+            text = _run_tesseract_command(
+                prepared_image_path=prepared_image_path,
+                original_image_path=image_path,
+                ocr=attempt,
+                output_kind="text",
+            )
+        except MockImportError:
+            continue
+        finally:
+            cleanup()
+
+        normalized_text = _normalize_unicode_ocr_text(text)
+        for rank in _extract_rank_candidates_from_text(normalized_text):
+            if rank > len(resolved_ranks):
+                candidates.append(rank)
+        if not candidates:
+            rank = _parse_blue_archive_rank_candidate(normalized_text)
+            if rank is not None and rank > len(resolved_ranks):
+                candidates.append(rank)
+
+    if not candidates:
+        return None
+    return Counter(candidates).most_common(1)[0][0]
 
 
 def _resolve_blue_archive_page_difficulty(
