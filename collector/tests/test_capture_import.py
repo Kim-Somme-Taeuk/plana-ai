@@ -3009,6 +3009,11 @@ def test_parse_blue_archive_rank_candidate_accepts_common_ocr_digit_substitution
     assert capture_import._parse_blue_archive_rank_candidate("12OO1") == 12001
 
 
+def test_extract_rank_candidates_from_text_joins_split_rank_digits() -> None:
+    assert capture_import._extract_rank_candidates_from_text("Rank 35 22 Torment 40,100,000") == [3522]
+    assert capture_import._extract_rank_candidates_from_text("Rank 16 109 Insane 27,771,072") == [16109]
+
+
 def test_ocr_blue_archive_row_rank_from_original_image_uses_rank_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -3659,6 +3659,35 @@ def _extract_rank_candidates_from_text(raw_line: str) -> list[int]:
                 candidates.append(rank)
             break
 
+    normalized_tokens = [_normalize_unicode_ocr_text(token).strip() for token in tokens]
+    for index, token in enumerate(normalized_tokens):
+        lowered_token = token.lower()
+        if not (
+            lowered_token.startswith("rank")
+            or lowered_token.startswith("no")
+            or token.startswith(("#", "№"))
+        ):
+            continue
+        digit_parts: list[str] = []
+        for candidate_token in normalized_tokens[index + 1 : index + 4]:
+            normalized_part = _normalize_rank_ocr_token(candidate_token)
+            if not normalized_part.isdigit():
+                break
+            if len("".join(digit_parts)) + len(normalized_part) > 5:
+                break
+            digit_parts.append(normalized_part)
+        if not digit_parts:
+            continue
+        combined_rank = _parse_blue_archive_rank_candidate("".join(digit_parts))
+        if combined_rank is not None:
+            for part in digit_parts:
+                if part.isdigit():
+                    part_rank = int(part)
+                    if part_rank in candidates and len(part) < len(str(combined_rank)):
+                        candidates.remove(part_rank)
+            if combined_rank not in candidates:
+                candidates.append(combined_rank)
+
     return candidates
 
 
