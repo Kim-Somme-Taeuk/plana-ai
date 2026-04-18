@@ -1808,7 +1808,7 @@ def _parse_blue_archive_fixed_rows(
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
             )
-        if page_index == 1 and rank is not None and rank <= max(20, len(row_bands) + 2):
+        if rank is not None and rank <= max(20, len(row_bands) + 2):
             original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
                 image_path=image_path,
                 ocr=ocr,
@@ -1867,17 +1867,15 @@ def _parse_blue_archive_fixed_rows(
         return []
 
     resolved_ranks = _resolve_anchor_ranks(detected_ranks)
-    absolute_rank_base = None
-    if page_index == 1:
-        absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
-            detected_ranks
+    absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+        detected_ranks
+    )
+    if absolute_rank_base is None:
+        absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_original_rows(
+            image_path=image_path,
+            ocr=ocr,
+            row_bands=row_bands,
         )
-        if absolute_rank_base is None:
-            absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_original_rows(
-                image_path=image_path,
-                ocr=ocr,
-                row_bands=row_bands,
-            )
     absolute_rank_base_source: str | None = None
     absolute_rank_anchor_source: str | None = None
     if absolute_rank_base is not None:

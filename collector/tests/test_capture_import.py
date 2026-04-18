@@ -2899,6 +2899,75 @@ def test_parse_blue_archive_fixed_rows_ignores_small_original_row_rank_noise(
     assert [entry["rank"] for entry in entries] == [1, 2, 3]
 
 
+def test_parse_blue_archive_fixed_rows_uses_original_row_rank_on_later_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    combined = iter(
+        [
+            (1, "Insane", 27_771_072),
+            (2, "Insane", 27_770_049),
+            (3, "Insane", 27_768_256),
+        ]
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: next(combined),
+    )
+    original_ranks = iter([16109, 16110, 16111, 16109, 16110, 16111])
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: next(original_ranks),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
+        lambda **kwargs: None,
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        image_path=Path("page.png"),
+        prepared_image_path=Path("prepared.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=0.9,
+        page_index=2,
+    )
+
+    assert [entry["rank"] for entry in entries] == [16109, 16110, 16111]
+    assert entries[0]["_absolute_rank_base"] == 16109
+    assert entries[0]["_absolute_rank_base_source"] == "row_base"
+
+
 def test_ocr_blue_archive_page_absolute_rank_anchor_accepts_large_numeric_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
