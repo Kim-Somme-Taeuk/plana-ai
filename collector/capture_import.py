@@ -1706,9 +1706,10 @@ def _ocr_blue_archive_page_absolute_rank_anchor(
     ]
     candidates: list[tuple[tuple[float, float], str]] = []
     focused_regions = (
-        ((0.14, 0.44), (top_ratio, min(bottom_ratio, top_ratio + 0.18))),
-        ((0.16, 0.48), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
-        ((0.18, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
+        ((0.06, 0.42), (top_ratio, min(bottom_ratio, top_ratio + 0.18))),
+        ((0.08, 0.44), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
+        ((0.06, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
+        ((0.08, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
         ((0.18, 0.60), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
         ((0.16, 0.64), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
     )
@@ -2520,6 +2521,9 @@ def _ocr_blue_archive_row_rank(
     ]
     candidates: list[str] = []
     for x_ratios, y_ratios in (
+        ((0.06, 0.42), (top_ratio, min(bottom_ratio, top_ratio + 0.18))),
+        ((0.08, 0.44), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
+        ((0.06, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
         ((0.18, 0.48), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
         ((0.18, 0.56), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
         ((0.22, 0.60), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
