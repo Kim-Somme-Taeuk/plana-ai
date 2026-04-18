@@ -2567,6 +2567,69 @@ def test_parse_blue_archive_fixed_rows_propagates_page_difficulty(
     ]
 
 
+def test_parse_blue_archive_fixed_rows_uses_absolute_rank_anchor_when_row_ranks_fall_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, None, None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor",
+        lambda **kwargs: 3522,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: {
+            0.02: 40100000,
+            0.35: 40097600,
+            0.69: 40090640,
+        }[kwargs["top_ratio"]],
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        prepared_image_path=Path("page.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [entry["rank"] for entry in entries] == [3522, 3523, 3524]
+
+
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
     difficulty = capture_import._resolve_blue_archive_page_difficulty(
         [

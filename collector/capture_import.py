@@ -1645,6 +1645,19 @@ def _parse_blue_archive_fixed_rows(
         return []
 
     resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor(
+        prepared_image_path=prepared_image_path,
+        ocr=ocr,
+        row_bands=row_bands,
+        resolved_ranks=resolved_ranks,
+    )
+    if absolute_rank_anchor is not None:
+        resolved_ranks = list(
+            range(
+                absolute_rank_anchor,
+                absolute_rank_anchor + len(resolved_ranks),
+            )
+        )
     normalized_entries: list[dict[str, Any]] = []
     rank_index = 0
     for entry in entries:
@@ -1653,6 +1666,77 @@ def _parse_blue_archive_fixed_rows(
     if not _blue_archive_scores_are_non_increasing(normalized_entries):
         return []
     return normalized_entries
+
+
+def _ocr_blue_archive_page_absolute_rank_anchor(
+    *,
+    prepared_image_path: Path,
+    ocr: OcrConfig,
+    row_bands: tuple[tuple[float, float], ...],
+    resolved_ranks: list[int],
+) -> int | None:
+    if not row_bands or not resolved_ranks:
+        return None
+    if resolved_ranks != list(range(1, len(resolved_ranks) + 1)):
+        return None
+
+    top_ratio, bottom_ratio = row_bands[0]
+    attempts = [
+        OcrRegionAttempt(
+            language="eng",
+            psm=6,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            threshold=None,
+        ),
+        OcrRegionAttempt(
+            language="eng",
+            psm=7,
+            extra_args=(
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+            ),
+            threshold=None,
+        ),
+        OcrRegionAttempt(
+            language="eng",
+            psm=11,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            threshold=160,
+        ),
+    ]
+    candidates: list[str] = []
+    for x_ratios, y_ratios in (
+        ((0.18, 0.60), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
+        ((0.16, 0.64), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
+    ):
+        candidates.extend(
+            _ocr_prepared_image_ratio_region_candidates(
+                prepared_image_path=prepared_image_path,
+                x_ratios=x_ratios,
+                y_ratios=y_ratios,
+                attempts=attempts,
+                base_ocr=ocr,
+            )
+        )
+
+    prefixed_ranks: list[int] = []
+    for candidate in candidates:
+        normalized_candidate = _normalize_unicode_ocr_text(candidate)
+        if "rank" not in normalized_candidate.lower():
+            continue
+        rank_candidates = _extract_rank_candidates_from_text(normalized_candidate)
+        for rank in rank_candidates:
+            if rank > len(resolved_ranks):
+                prefixed_ranks.append(rank)
+        if prefixed_ranks:
+            continue
+        rank = _parse_blue_archive_rank_candidate(normalized_candidate)
+        if rank is not None and rank > len(resolved_ranks):
+            prefixed_ranks.append(rank)
+
+    if not prefixed_ranks:
+        return None
+    return Counter(prefixed_ranks).most_common(1)[0][0]
 
 
 def _resolve_blue_archive_page_difficulty(
