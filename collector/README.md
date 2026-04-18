@@ -213,6 +213,7 @@ backend/.venv/bin/python collector/capture_import.py \
 
 - [adb_data/sample_request.json](adb_data/sample_request.json)
 - [adb_data/sample_scroll_request.json](adb_data/sample_scroll_request.json)
+- [adb_data/mumu_scroll_request.json](adb_data/mumu_scroll_request.json)
 
 실행:
 

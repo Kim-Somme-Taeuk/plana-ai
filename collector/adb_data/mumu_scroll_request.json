@@ -1,0 +1,43 @@
+{
+  "season": {
+    "event_type": "total_assault",
+    "server": "kr",
+    "boss_name": "Binah",
+    "armor_type": "heavy",
+    "terrain": "outdoor",
+    "season_label": "adb-mumu-scroll-sample-season-20260418-a"
+  },
+  "snapshot": {
+    "captured_at": "2026-04-18T00:00:00Z",
+    "note": "sample mumu multi-page leaderboard capture"
+  },
+  "ocr": {
+    "provider": "tesseract",
+    "language": "eng",
+    "psm": 11,
+    "crop": {
+      "left_ratio": 0.39,
+      "top_ratio": 0.34,
+      "right_ratio": 0.56,
+      "bottom_ratio": 0.94
+    },
+    "upscale_ratio": 2.0,
+    "extra_args": [
+      "-c",
+      "preserve_interword_spaces=1"
+    ]
+  },
+  "adb": {
+    "output_dir": "../capture_runs/mumu_scroll_capture",
+    "page_count": 3,
+    "stop_on_duplicate_frame": true,
+    "swipe": {
+      "start_x": 500,
+      "start_y": 1600,
+      "end_x": 500,
+      "end_y": 600,
+      "duration_ms": 200,
+      "settle_delay_ms": 800
+    }
+  }
+}
