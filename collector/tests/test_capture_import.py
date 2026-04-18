@@ -4552,6 +4552,7 @@ def test_prune_blue_archive_sparse_rank_violation_pages_drops_sparse_jump_pages(
             "absolute_rank_anchor_source": None,
             "absolute_rank_base": None,
             "absolute_rank_base_source": None,
+            "is_blue_archive_layout": True,
         },
         {
             "page_index": 2,
@@ -4561,6 +4562,7 @@ def test_prune_blue_archive_sparse_rank_violation_pages_drops_sparse_jump_pages(
             "absolute_rank_anchor_source": None,
             "absolute_rank_base": None,
             "absolute_rank_base_source": None,
+            "is_blue_archive_layout": True,
         },
         {
             "page_index": 3,
@@ -4570,6 +4572,7 @@ def test_prune_blue_archive_sparse_rank_violation_pages_drops_sparse_jump_pages(
             "absolute_rank_anchor_source": None,
             "absolute_rank_base": None,
             "absolute_rank_base_source": None,
+            "is_blue_archive_layout": True,
         },
     ]
 

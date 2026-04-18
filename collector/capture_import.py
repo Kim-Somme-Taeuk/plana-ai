@@ -312,6 +312,10 @@ def parse_capture_payload(
             ),
             None,
         )
+        page_is_blue_archive_layout = any(
+            bool(entry.get("_blue_archive_layout"))
+            for entry in page_entries
+        )
         ignored_lines.extend(page_ignored_lines)
         page_metadata.append(
             {
@@ -322,6 +326,7 @@ def parse_capture_payload(
                 "absolute_rank_anchor_source": page_absolute_rank_anchor_source,
                 "absolute_rank_base": page_absolute_rank_base,
                 "absolute_rank_base_source": page_absolute_rank_base_source,
+                "is_blue_archive_layout": page_is_blue_archive_layout,
             }
         )
         parsed_pages.append(page_entries)
@@ -633,8 +638,7 @@ def _prune_blue_archive_sparse_rank_violation_pages(
 
         if (
             previous_kept_entries
-            and _is_blue_archive_like_page_entries(previous_kept_entries)
-            and _is_blue_archive_like_page_entries(page_entries)
+            and metadata.get("is_blue_archive_layout") is True
             and _should_drop_sparse_blue_archive_page(
                 previous_page_entries=previous_kept_entries,
                 current_page_entries=page_entries,
@@ -650,20 +654,6 @@ def _prune_blue_archive_sparse_rank_violation_pages(
         previous_kept_entries = page_entries
 
     return adjusted_pages, adjusted_metadata
-
-
-def _is_blue_archive_like_page_entries(
-    page_entries: list[dict[str, Any]],
-) -> bool:
-    if not page_entries:
-        return False
-    return all(
-        isinstance(entry.get("player_name"), str)
-        and entry["player_name"] in DIFFICULTY_PRIORITY
-        and isinstance(entry.get("score"), int)
-        for entry in page_entries
-    )
-
 
 def _should_drop_sparse_blue_archive_page(
     *,
@@ -1857,12 +1847,12 @@ def _parse_tesseract_layout_entries(
                         candidate_entries=normalized_entries,
                     )
                     if _is_sufficient_blue_archive_fixed_row_entries(normalized_entries):
-                        return normalized_entries
+                        return _tag_blue_archive_layout_entries(normalized_entries)
                     if not _should_continue_blue_archive_layout_attempt(
                         entries=normalized_entries,
                         recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
-                        return normalized_entries
+                        return _tag_blue_archive_layout_entries(normalized_entries)
 
             try:
                 tsv_text = _run_tesseract_command(
@@ -1911,7 +1901,7 @@ def _parse_tesseract_layout_entries(
                         recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
                         continue
-                    return normalized_entries
+                    return _tag_blue_archive_layout_entries(normalized_entries)
                 return _normalize_tesseract_page_entry_ranks(entries)
 
             for line_words in _group_tesseract_words_by_line(words):
@@ -1940,7 +1930,7 @@ def _parse_tesseract_layout_entries(
                         recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
                         continue
-                    return normalized_entries
+                    return _tag_blue_archive_layout_entries(normalized_entries)
                 return _normalize_tesseract_page_entry_ranks(entries)
 
             entries = _parse_blue_archive_fixed_rows(
@@ -1960,12 +1950,12 @@ def _parse_tesseract_layout_entries(
                     entries=normalized_entries,
                     recovered_ranks=get_recovered_blue_archive_ranks(),
                 ):
-                    return normalized_entries
+                    return _tag_blue_archive_layout_entries(normalized_entries)
         finally:
             cleanup()
 
     if best_blue_archive_entries:
-        return best_blue_archive_entries
+        return _tag_blue_archive_layout_entries(best_blue_archive_entries)
     return []
 
 
@@ -2299,6 +2289,18 @@ def _apply_blue_archive_original_row_ranks(
             }
         )
     return normalized_entries
+
+
+def _tag_blue_archive_layout_entries(
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            **entry,
+            "_blue_archive_layout": True,
+        }
+        for entry in entries
+    ]
 
 
 def _should_continue_blue_archive_layout_attempt(
