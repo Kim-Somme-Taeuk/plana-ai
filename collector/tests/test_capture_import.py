@@ -4240,19 +4240,7 @@ def test_apply_blue_archive_original_row_ranks_prefers_existing_entries_when_no_
 
     applied = capture_import._apply_blue_archive_original_row_ranks(
         entries=entries,
-        prepared_image_path=Path("prepared.png"),
-        image_path=Path("page.png"),
-        ocr=capture_import.OcrConfig(
-            provider="tesseract",
-            command="tesseract",
-            language="eng",
-            psm=11,
-            extra_args=(),
-            crop=None,
-            upscale_ratio=1.0,
-            reuse_cached_sidecar=False,
-            persist_sidecar=False,
-        ),
+        recovered_ranks=None,
     )
 
     assert applied == entries
@@ -4275,19 +4263,7 @@ def test_apply_blue_archive_original_row_ranks_uses_recovered_ranks(
 
     applied = capture_import._apply_blue_archive_original_row_ranks(
         entries=entries,
-        prepared_image_path=Path("prepared.png"),
-        image_path=Path("page.png"),
-        ocr=capture_import.OcrConfig(
-            provider="tesseract",
-            command="tesseract",
-            language="eng",
-            psm=11,
-            extra_args=(),
-            crop=None,
-            upscale_ratio=1.0,
-            reuse_cached_sidecar=False,
-            persist_sidecar=False,
-        ),
+        recovered_ranks=[3522, 3523, 3524],
     )
 
     assert [(entry["rank"], entry["score"]) for entry in applied] == [

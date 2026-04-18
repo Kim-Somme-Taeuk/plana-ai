@@ -1732,6 +1732,20 @@ def _parse_tesseract_layout_entries(
     for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
         prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
         try:
+            recovered_blue_archive_ranks: list[int] | None = None
+
+            def get_recovered_blue_archive_ranks() -> list[int] | None:
+                nonlocal recovered_blue_archive_ranks
+                if not prefer_blue_archive_fixed_rows:
+                    return None
+                if recovered_blue_archive_ranks is None:
+                    recovered_blue_archive_ranks = _recover_blue_archive_original_row_ranks(
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                    )
+                return recovered_blue_archive_ranks
+
             if prefer_blue_archive_fixed_rows:
                 entries = _parse_blue_archive_fixed_rows(
                     prepared_image_path=prepared_image_path,
@@ -1750,9 +1764,7 @@ def _parse_tesseract_layout_entries(
                         return normalized_entries
                     if not _should_continue_blue_archive_layout_attempt(
                         entries=normalized_entries,
-                        prepared_image_path=prepared_image_path,
-                        image_path=image_path,
-                        ocr=attempt_ocr,
+                        recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
                         return normalized_entries
 
@@ -1791,9 +1803,7 @@ def _parse_tesseract_layout_entries(
                 if prefer_blue_archive_fixed_rows:
                     entries = _apply_blue_archive_original_row_ranks(
                         entries=entries,
-                        prepared_image_path=prepared_image_path,
-                        image_path=image_path,
-                        ocr=attempt_ocr,
+                        recovered_ranks=get_recovered_blue_archive_ranks(),
                     )
                     normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
                     best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
@@ -1802,9 +1812,7 @@ def _parse_tesseract_layout_entries(
                     )
                     if _should_continue_blue_archive_layout_attempt(
                         entries=normalized_entries,
-                        prepared_image_path=prepared_image_path,
-                        image_path=image_path,
-                        ocr=attempt_ocr,
+                        recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
                         continue
                     return normalized_entries
@@ -1824,9 +1832,7 @@ def _parse_tesseract_layout_entries(
                 if prefer_blue_archive_fixed_rows:
                     entries = _apply_blue_archive_original_row_ranks(
                         entries=entries,
-                        prepared_image_path=prepared_image_path,
-                        image_path=image_path,
-                        ocr=attempt_ocr,
+                        recovered_ranks=get_recovered_blue_archive_ranks(),
                     )
                     normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
                     best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
@@ -1835,9 +1841,7 @@ def _parse_tesseract_layout_entries(
                     )
                     if _should_continue_blue_archive_layout_attempt(
                         entries=normalized_entries,
-                        prepared_image_path=prepared_image_path,
-                        image_path=image_path,
-                        ocr=attempt_ocr,
+                        recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
                         continue
                     return normalized_entries
@@ -1858,9 +1862,7 @@ def _parse_tesseract_layout_entries(
                 )
                 if not _should_continue_blue_archive_layout_attempt(
                     entries=normalized_entries,
-                    prepared_image_path=prepared_image_path,
-                    image_path=image_path,
-                    ocr=attempt_ocr,
+                    recovered_ranks=get_recovered_blue_archive_ranks(),
                 ):
                     return normalized_entries
         finally:
@@ -2165,15 +2167,8 @@ def _parse_blue_archive_fixed_rows(
 def _apply_blue_archive_original_row_ranks(
     *,
     entries: list[dict[str, Any]],
-    prepared_image_path: Path,
-    image_path: Path,
-    ocr: OcrConfig,
+    recovered_ranks: list[int] | None,
 ) -> list[dict[str, Any]]:
-    recovered_ranks = _recover_blue_archive_original_row_ranks(
-        prepared_image_path=prepared_image_path,
-        image_path=image_path,
-        ocr=ocr,
-    )
     if not recovered_ranks or len(recovered_ranks) < len(entries):
         return entries
 
@@ -2213,15 +2208,8 @@ def _apply_blue_archive_original_row_ranks(
 def _should_continue_blue_archive_layout_attempt(
     *,
     entries: list[dict[str, Any]],
-    prepared_image_path: Path,
-    image_path: Path,
-    ocr: OcrConfig,
+    recovered_ranks: list[int] | None,
 ) -> bool:
-    recovered_ranks = _recover_blue_archive_original_row_ranks(
-        prepared_image_path=prepared_image_path,
-        image_path=image_path,
-        ocr=ocr,
-    )
     expected_entry_count = len(recovered_ranks or [])
     if expected_entry_count <= 1:
         return False
