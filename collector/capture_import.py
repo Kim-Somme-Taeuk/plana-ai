@@ -251,6 +251,7 @@ def parse_capture_payload(
     ignored_lines: list[IgnoredOcrLine] = []
     page_summaries: list[dict[str, Any]] = []
     previous_page_ranks: set[int] | None = None
+    previous_page_entries: list[dict[str, Any]] = []
     seen_ranks: set[int] = set()
 
     for page_index, page in enumerate(payload.pages, start=1):
@@ -268,6 +269,10 @@ def parse_capture_payload(
             ocr=payload.ocr,
             default_ocr_confidence=page.default_ocr_confidence,
             page_index=page_index,
+        )
+        page_entries = _realign_overlapping_page_entry_ranks(
+            previous_page_entries=previous_page_entries,
+            current_page_entries=page_entries,
         )
         ignored_lines.extend(page_ignored_lines)
         current_page_ranks = {entry["rank"] for entry in page_entries}
@@ -310,6 +315,7 @@ def parse_capture_payload(
             if entry["rank"] not in seen_ranks
         )
         seen_ranks.update(current_page_ranks)
+        previous_page_entries = [dict(entry) for entry in page_entries]
         previous_page_ranks = current_page_ranks
 
     if validate_snapshot_entries:
@@ -333,6 +339,72 @@ def parse_capture_payload(
         ignored_lines=ignored_lines,
         page_summaries=page_summaries,
     )
+
+
+def _realign_overlapping_page_entry_ranks(
+    *,
+    previous_page_entries: list[dict[str, Any]],
+    current_page_entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not previous_page_entries or not current_page_entries:
+        return current_page_entries
+    if not (
+        _supports_overlap_rank_alignment(previous_page_entries)
+        and _supports_overlap_rank_alignment(current_page_entries)
+    ):
+        return current_page_entries
+
+    overlap_size = _find_overlap_rank_alignment_size(
+        previous_page_entries=previous_page_entries,
+        current_page_entries=current_page_entries,
+    )
+    if overlap_size <= 0:
+        return current_page_entries
+
+    anchor_rank = previous_page_entries[-overlap_size]["rank"]
+    return [
+        {
+            **entry,
+            "rank": anchor_rank + index,
+        }
+        for index, entry in enumerate(current_page_entries)
+    ]
+
+
+def _supports_overlap_rank_alignment(entries: list[dict[str, Any]]) -> bool:
+    if not entries:
+        return False
+    return all(
+        isinstance(entry.get("rank"), int)
+        and isinstance(entry.get("score"), int)
+        and isinstance(entry.get("player_name"), str)
+        and entry["player_name"] in DIFFICULTY_PRIORITY
+        for entry in entries
+    )
+
+
+def _find_overlap_rank_alignment_size(
+    *,
+    previous_page_entries: list[dict[str, Any]],
+    current_page_entries: list[dict[str, Any]],
+) -> int:
+    previous_keys = [
+        _build_overlap_rank_alignment_key(entry)
+        for entry in previous_page_entries
+    ]
+    current_keys = [
+        _build_overlap_rank_alignment_key(entry)
+        for entry in current_page_entries
+    ]
+    max_overlap = min(len(previous_keys), len(current_keys))
+    for overlap_size in range(max_overlap, 0, -1):
+        if previous_keys[-overlap_size:] == current_keys[:overlap_size]:
+            return overlap_size
+    return 0
+
+
+def _build_overlap_rank_alignment_key(entry: dict[str, Any]) -> tuple[str, int]:
+    return (str(entry["player_name"]), int(entry["score"]))
 
 
 def import_capture_payload(
