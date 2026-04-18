@@ -1629,6 +1629,15 @@ def _parse_blue_archive_fixed_rows(
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
             )
+        if page_index == 1 and rank is not None and rank <= max(20, len(row_bands) + 2):
+            original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
+                image_path=image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+            if original_image_rank is not None and original_image_rank > len(row_bands):
+                rank = original_image_rank
         if difficulty is None:
             difficulty = _ocr_blue_archive_row_difficulty(
                 prepared_image_path=prepared_image_path,
@@ -2690,6 +2699,113 @@ def _ocr_blue_archive_row_rank(
         rank = _parse_blue_archive_rank_candidate(candidate)
         if rank is not None:
             parsed_ranks.append(rank)
+    if prefixed_ranks:
+        return Counter(prefixed_ranks).most_common(1)[0][0]
+    if not parsed_ranks:
+        return None
+    return Counter(parsed_ranks).most_common(1)[0][0]
+
+
+def _ocr_blue_archive_row_rank_from_original_image(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+) -> int | None:
+    crop = ocr.crop
+    if crop is None or not image_path.exists():
+        return None
+
+    crop_width = crop.right_ratio - crop.left_ratio
+    crop_height = crop.bottom_ratio - crop.top_ratio
+    region_crops = (
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
+            top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.02))),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.84)),
+            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.24))),
+        ),
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.04)),
+            top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.01))),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.88)),
+            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.26))),
+        ),
+        OcrCrop(
+            left_ratio=0.375,
+            top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.01))),
+            right_ratio=0.54,
+            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.26))),
+        ),
+    )
+
+    parsed_ranks: list[int] = []
+    prefixed_ranks: list[int] = []
+    for region_crop in region_crops:
+        for attempt in (
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=6,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                crop=region_crop,
+                upscale_ratio=max(2.5, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=8,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,",
+                ),
+                crop=region_crop,
+                upscale_ratio=max(2.5, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=11,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                crop=region_crop,
+                upscale_ratio=max(2.5, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+        ):
+            prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+            try:
+                text = _run_tesseract_command(
+                    prepared_image_path=prepared_image_path,
+                    original_image_path=image_path,
+                    ocr=attempt,
+                    output_kind="text",
+                )
+            except MockImportError:
+                continue
+            finally:
+                cleanup()
+
+            normalized_text = _normalize_unicode_ocr_text(text)
+            rank_candidates = _extract_rank_candidates_from_text(normalized_text)
+            if "rank" in normalized_text.lower():
+                prefixed_ranks.extend(rank for rank in rank_candidates if rank > 0)
+            parsed_ranks.extend(rank for rank in rank_candidates if rank > 0)
+            if not rank_candidates:
+                rank = _parse_blue_archive_rank_candidate(normalized_text)
+                if rank is not None:
+                    if "rank" in normalized_text.lower():
+                        prefixed_ranks.append(rank)
+                    parsed_ranks.append(rank)
+
     if prefixed_ranks:
         return Counter(prefixed_ranks).most_common(1)[0][0]
     if not parsed_ranks:

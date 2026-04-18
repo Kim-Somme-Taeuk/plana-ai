@@ -2748,6 +2748,45 @@ def test_parse_blue_archive_rank_candidate_accepts_common_ocr_digit_substitution
     assert capture_import._parse_blue_archive_rank_candidate("12OO1") == 12001
 
 
+def test_ocr_blue_archive_row_rank_from_original_image_uses_rank_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (Path("prepared.png"), lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: "Rank 3522\nTorment 40,100,000",
+    )
+
+    rank = capture_import._ocr_blue_archive_row_rank_from_original_image(
+        image_path=Path(__file__),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+    )
+
+    assert rank == 3522
+
+
 def test_should_attempt_blue_archive_absolute_rank_anchor_for_small_contiguous_ranks() -> None:
     assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([1, 2, 3]) is True
     assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([20, 21]) is True
