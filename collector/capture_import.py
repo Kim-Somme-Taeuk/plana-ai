@@ -298,6 +298,22 @@ def parse_capture_payload(
             ),
             None,
         )
+        page_absolute_rank_base = next(
+            (
+                entry.get("_absolute_rank_base")
+                for entry in page_entries
+                if entry.get("_absolute_rank_base") is not None
+            ),
+            None,
+        )
+        page_absolute_rank_base_source = next(
+            (
+                entry.get("_absolute_rank_base_source")
+                for entry in page_entries
+                if entry.get("_absolute_rank_base_source") is not None
+            ),
+            None,
+        )
         ignored_lines.extend(page_ignored_lines)
         current_page_ranks = {entry["rank"] for entry in page_entries}
         overlap_count = 0
@@ -333,6 +349,8 @@ def parse_capture_payload(
                 else 0.0,
                 "absolute_rank_anchor": page_absolute_rank_anchor,
                 "absolute_rank_anchor_source": page_absolute_rank_anchor_source,
+                "absolute_rank_base": page_absolute_rank_base,
+                "absolute_rank_base_source": page_absolute_rank_base_source,
             }
         )
         entries.extend(
@@ -1022,13 +1040,17 @@ def _compact_blue_archive_rank_debug(
     first_page = page_summaries[0]
     anchor = first_page.get("absolute_rank_anchor")
     source = first_page.get("absolute_rank_anchor_source")
+    base = first_page.get("absolute_rank_base")
+    base_source = first_page.get("absolute_rank_base_source")
     first_rank = first_page.get("first_rank")
     last_rank = first_page.get("last_rank")
-    if anchor is None and source is None:
+    if anchor is None and source is None and base is None and base_source is None:
         return None
     return {
         "a": anchor,
         "s": source,
+        "b": base,
+        "bs": base_source,
         "f": first_rank,
         "l": last_rank,
     }
@@ -1792,6 +1814,8 @@ def _parse_blue_archive_fixed_rows(
                 "rank": resolved_ranks[rank_index],
                 "_absolute_rank_anchor": absolute_rank_anchor,
                 "_absolute_rank_anchor_source": absolute_rank_anchor_source,
+                "_absolute_rank_base": absolute_rank_base,
+                "_absolute_rank_base_source": absolute_rank_base_source,
             }
         )
         rank_index += 1

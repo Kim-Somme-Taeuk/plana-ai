@@ -435,6 +435,8 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "new_rank_ratio": 1.0,
             "absolute_rank_anchor": None,
             "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
         }
     ]
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
@@ -488,14 +490,18 @@ def test_build_collector_details_payload_compacts_blue_archive_rank_debug() -> N
                 "new_rank_count": 3,
                 "new_rank_ratio": 1.0,
                 "absolute_rank_anchor": 3522,
-                "absolute_rank_anchor_source": "row_base",
+                "absolute_rank_anchor_source": "original",
+                "absolute_rank_base": 3522,
+                "absolute_rank_base_source": "row_base",
             }
         ]
     )
 
     assert payload["ba"] == {
         "a": 3522,
-        "s": "row_base",
+        "s": "original",
+        "b": 3522,
+        "bs": "row_base",
         "f": 3522,
         "l": 3524,
     }
@@ -713,6 +719,8 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "new_rank_ratio": 1.0,
             "absolute_rank_anchor": None,
             "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
         },
         {
             "page_index": 2,
@@ -731,6 +739,8 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "new_rank_ratio": 1.0,
             "absolute_rank_anchor": None,
             "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
         },
     ]
     assert parsed_payload.mock_payload.snapshot["note"] == "capture import test fixture"
@@ -782,6 +792,8 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "new_rank_ratio": 0.0,
         "absolute_rank_anchor": None,
         "absolute_rank_anchor_source": None,
+        "absolute_rank_base": None,
+        "absolute_rank_base_source": None,
     }
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
     assert note_lines[0] == "capture import test fixture"
