@@ -361,9 +361,11 @@ def _realign_overlapping_page_entry_ranks(
     if overlap_alignment is None:
         return current_page_entries
 
-    previous_anchor_index, current_anchor_index, _overlap_size = overlap_alignment
-    anchor_rank = previous_page_entries[previous_anchor_index]["rank"]
-    base_rank = anchor_rank - current_anchor_index
+    base_rank = _resolve_overlap_alignment_base_rank(
+        previous_page_entries=previous_page_entries,
+        current_page_entries=current_page_entries,
+        overlap_alignment=overlap_alignment,
+    )
     return [
         {
             **entry,
@@ -429,6 +431,42 @@ def _find_overlap_rank_alignment(
             ):
                 best_alignment = candidate
     return best_alignment
+
+
+def _resolve_overlap_alignment_base_rank(
+    *,
+    previous_page_entries: list[dict[str, Any]],
+    current_page_entries: list[dict[str, Any]],
+    overlap_alignment: tuple[int, int, int],
+) -> int:
+    previous_anchor_index, current_anchor_index, overlap_size = overlap_alignment
+    anchor_rank = previous_page_entries[previous_anchor_index]["rank"]
+    base_rank = anchor_rank - current_anchor_index
+    if current_anchor_index != 0 or overlap_size != 1:
+        return base_rank
+
+    previous_keys = [
+        _build_overlap_rank_alignment_key(entry)
+        for entry in previous_page_entries
+    ]
+    current_first_key = _build_overlap_rank_alignment_key(current_page_entries[0])
+    if previous_keys[-1] != current_first_key:
+        return base_rank
+
+    if (
+        previous_anchor_index == len(previous_page_entries) - 1
+        and len(current_page_entries) < len(previous_page_entries)
+    ):
+        return previous_page_entries[-1]["rank"] + 1
+
+    trailing_duplicate_count = 0
+    for previous_key in reversed(previous_keys):
+        if previous_key != current_first_key:
+            break
+        trailing_duplicate_count += 1
+    if trailing_duplicate_count <= 1:
+        return base_rank
+    return previous_page_entries[-1]["rank"] + 1
 
 
 def _build_overlap_rank_alignment_key(entry: dict[str, Any]) -> tuple[str, int]:

@@ -671,7 +671,11 @@ def _build_capture_stop_decision(
     if captured_page_count < stop_policy.min_pages_before_ocr_stop:
         return None
 
-    if level == "hard" and reason in {"noisy_last_page", "duplicate_last_page"}:
+    if level == "hard" and reason in {
+        "noisy_last_page",
+        "duplicate_last_page",
+        "malformed_last_page",
+    }:
         return None
 
     if level == "hard":

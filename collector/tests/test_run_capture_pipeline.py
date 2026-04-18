@@ -1453,6 +1453,85 @@ def test_run_capture_pipeline_does_not_stop_capture_early_for_duplicate_last_pag
     }
 
 
+def test_run_capture_pipeline_does_not_stop_capture_early_for_malformed_last_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-malformed-last-page-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["adb"]["page_count"] = 4
+    request_payload["adb"]["swipe"] = {
+        "start_x": 500,
+        "start_y": 1600,
+        "end_x": 500,
+        "end_y": 600,
+        "duration_ms": 200,
+        "settle_delay_ms": 0,
+    }
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2", b"PNG-3", b"PNG-4"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            return None
+
+    class FakeApiClient(SnapshotAwareApiClientMixin):
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 5}
+
+    def fake_run(args, capture_output, text, check, **kwargs):
+        image_name = Path(args[1]).name
+        stdout_by_image = {
+            "page-001.png": "1\tPlana\t12345678\t0.99\n2\tArona\t12000000\t0.98\n",
+            "page-002.png": "3\tSensei\t11000000\t0.98\n4\tMari\t10900000\t0.97\n",
+            "page-003.png": "junk line\nstill bad\n5\tNoa\t10800000\t0.97\n",
+            "page-004.png": "6\tMika\t10700000\t0.97\n",
+        }
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=stdout_by_image[image_name],
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.captured_page_count == 4
+    assert result.stopped_reason is None
+    assert result.import_skipped is False
+
+
 def test_build_capture_stop_decision_supports_repeated_stale_last_page_soft_stop() -> None:
     stop_decision = capture_pipeline._build_capture_stop_decision(
         mode="any",
