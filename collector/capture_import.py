@@ -935,6 +935,9 @@ def _build_collector_details_payload(
         }
         if ocr_stop_recommendation["should_stop"]:
             payload["o"] = ocr_stop_recommendation["primary_reason"]
+    blue_archive_rank_debug = _compact_blue_archive_rank_debug(page_summaries)
+    if blue_archive_rank_debug:
+        payload["ba"] = blue_archive_rank_debug
     if extra_details:
         payload.setdefault("p", len(page_summaries))
         if ocr_stop_recommendation["should_stop"]:
@@ -1009,6 +1012,26 @@ def _compact_extra_collector_details(extra_details: dict[str, Any]) -> dict[str,
             "t": stop_policy.get("soft_stop_repeat_threshold"),
         }
     return compact
+
+
+def _compact_blue_archive_rank_debug(
+    page_summaries: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not page_summaries:
+        return None
+    first_page = page_summaries[0]
+    anchor = first_page.get("absolute_rank_anchor")
+    source = first_page.get("absolute_rank_anchor_source")
+    first_rank = first_page.get("first_rank")
+    last_rank = first_page.get("last_rank")
+    if anchor is None and source is None:
+        return None
+    return {
+        "a": anchor,
+        "s": source,
+        "f": first_rank,
+        "l": last_rank,
+    }
 
 
 def _strip_collector_note_lines(note: object) -> str:
@@ -1699,6 +1722,7 @@ def _parse_blue_archive_fixed_rows(
                 ocr=ocr,
                 row_bands=row_bands,
             )
+    absolute_rank_base_source: str | None = None
     absolute_rank_anchor_source: str | None = None
     if absolute_rank_base is not None:
         resolved_ranks = list(
@@ -1707,16 +1731,22 @@ def _parse_blue_archive_fixed_rows(
                 absolute_rank_base + len(resolved_ranks),
             )
         )
+        absolute_rank_base_source = "row_base"
         absolute_rank_anchor_source = "row_base"
-    absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor(
+
+    prepared_absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor(
         prepared_image_path=prepared_image_path,
         ocr=ocr,
         row_bands=row_bands,
         resolved_ranks=resolved_ranks,
     )
-    if absolute_rank_anchor is not None:
+    absolute_rank_anchor = prepared_absolute_rank_anchor
+    if _is_valid_blue_archive_page_one_absolute_anchor(
+        prepared_absolute_rank_anchor,
+        page_index=page_index,
+    ):
         absolute_rank_anchor_source = "prepared"
-    if absolute_rank_anchor is None:
+    else:
         absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
             image_path=image_path,
             ocr=ocr,
@@ -1724,14 +1754,20 @@ def _parse_blue_archive_fixed_rows(
             resolved_ranks=resolved_ranks,
             page_index=page_index,
         )
-        if absolute_rank_anchor is not None:
+        if _is_valid_blue_archive_page_one_absolute_anchor(
+            absolute_rank_anchor,
+            page_index=page_index,
+        ):
             absolute_rank_anchor_source = "original"
-    if not _is_valid_blue_archive_page_one_absolute_anchor(
+        else:
+            absolute_rank_anchor = None
+            absolute_rank_anchor_source = absolute_rank_base_source
+    if absolute_rank_anchor is not None and not _is_valid_blue_archive_page_one_absolute_anchor(
         absolute_rank_anchor,
         page_index=page_index,
     ):
         absolute_rank_anchor = None
-        absolute_rank_anchor_source = None
+        absolute_rank_anchor_source = absolute_rank_base_source
     if absolute_rank_anchor is not None:
         resolved_ranks = list(
             range(

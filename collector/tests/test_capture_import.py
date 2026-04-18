@@ -445,6 +445,8 @@ def test_parse_capture_payload_ignores_non_entry_lines(
         "ocr_stop=noisy_last_page(hard)"
     )
     assert note_lines[2].startswith("collector_json: ")
+    payload = json.loads(note_lines[2].split("collector_json: ", 1)[1])
+    assert "ba" not in payload
 
 
 def test_parse_capture_payload_classifies_separator_lines(
@@ -468,6 +470,35 @@ def test_parse_capture_payload_classifies_separator_lines(
     assert len(parsed_payload.mock_payload.entries) == 1
     assert parsed_payload.ignored_lines[0].reason == "separator_line"
     assert ignored_summary == [{"reason": "separator_line", "count": 1}]
+
+
+def test_build_collector_details_payload_compacts_blue_archive_rank_debug() -> None:
+    payload = capture_import._build_collector_details_payload(
+        [
+            {
+                "page_index": 1,
+                "entry_count": 3,
+                "ignored_line_count": 0,
+                "ignored_line_reasons": [],
+                "first_rank": 3522,
+                "last_rank": 3524,
+                "overlap_with_previous_count": 0,
+                "overlap_with_previous_ratio": 0.0,
+                "overlap_with_previous_ranks": [],
+                "new_rank_count": 3,
+                "new_rank_ratio": 1.0,
+                "absolute_rank_anchor": 3522,
+                "absolute_rank_anchor_source": "row_base",
+            }
+        ]
+    )
+
+    assert payload["ba"] == {
+        "a": 3522,
+        "s": "row_base",
+        "f": 3522,
+        "l": 3524,
+    }
 
 
 def test_parse_capture_payload_classifies_korean_header_footer_and_pagination_lines(
@@ -2636,6 +2667,81 @@ def test_parse_blue_archive_fixed_rows_uses_absolute_rank_anchor_when_row_ranks_
     )
 
     assert [entry["rank"] for entry in entries] == [3522, 3523, 3524]
+
+
+def test_parse_blue_archive_fixed_rows_uses_original_anchor_when_prepared_anchor_is_small_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, "Torment", 40_100_000),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: 40_100_000,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor",
+        lambda **kwargs: 20,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
+        lambda **kwargs: 3522,
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        image_path=Path("page.png"),
+        prepared_image_path=Path("prepared.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=0.9,
+        page_index=1,
+    )
+
+    assert [entry["rank"] for entry in entries] == [3522, 3523, 3524]
+    assert entries[0]["_absolute_rank_anchor_source"] == "original"
 
 
 def test_ocr_blue_archive_page_absolute_rank_anchor_accepts_large_numeric_candidates(
