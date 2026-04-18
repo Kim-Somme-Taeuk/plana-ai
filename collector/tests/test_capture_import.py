@@ -3075,6 +3075,81 @@ def test_parse_blue_archive_fixed_rows_uses_original_anchor_when_prepared_anchor
     assert entries[0]["_absolute_rank_anchor_source"] == "original"
 
 
+def test_parse_blue_archive_fixed_rows_ignores_small_absolute_anchor_on_later_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, "Torment", 40_100_000),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: 40_100_000,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor",
+        lambda **kwargs: 20,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
+        lambda **kwargs: None,
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        image_path=Path("page.png"),
+        prepared_image_path=Path("prepared.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=0.9,
+        page_index=2,
+    )
+
+    assert [entry["rank"] for entry in entries] == [1, 2, 3]
+    assert entries[0]["_absolute_rank_anchor"] is None
+
+
 def test_parse_blue_archive_fixed_rows_keeps_row_base_when_anchor_deviates_too_far(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3599,7 +3674,7 @@ def test_is_valid_blue_archive_page_one_absolute_anchor() -> None:
     assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(3522, page_index=1) is True
     assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=1) is False
     assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(None, page_index=1) is False
-    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=2) is True
+    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=2) is False
 
 
 def test_resolve_blue_archive_absolute_rank_base_from_original_rows(

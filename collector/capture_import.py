@@ -2434,8 +2434,6 @@ def _is_valid_blue_archive_page_one_absolute_anchor(
 ) -> bool:
     if anchor is None:
         return False
-    if page_index != 1:
-        return True
     return anchor > 100
 
 
