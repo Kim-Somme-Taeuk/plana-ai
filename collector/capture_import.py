@@ -1692,6 +1692,7 @@ def _parse_blue_archive_fixed_rows(
         absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
             image_path=image_path,
             ocr=ocr,
+            row_bands=row_bands,
             resolved_ranks=resolved_ranks,
             page_index=page_index,
         )
@@ -1826,6 +1827,7 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
     *,
     image_path: Path,
     ocr: OcrConfig,
+    row_bands: tuple[tuple[float, float], ...],
     resolved_ranks: list[int],
     page_index: int,
 ) -> int | None:
@@ -1854,6 +1856,24 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
     else:
         crop_width = crop.right_ratio - crop.left_ratio
         crop_height = crop.bottom_ratio - crop.top_ratio
+        if row_bands:
+            top_ratio, bottom_ratio = row_bands[0]
+            anchor_crops.extend(
+                [
+                    OcrCrop(
+                        left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
+                        top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.02))),
+                        right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.84)),
+                        bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.24))),
+                    ),
+                    OcrCrop(
+                        left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.04)),
+                        top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.01))),
+                        right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.88)),
+                        bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.26))),
+                    ),
+                ]
+            )
         anchor_crops.extend(
             [
                 OcrCrop(

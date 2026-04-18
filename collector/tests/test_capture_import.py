@@ -2694,6 +2694,7 @@ def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_uses_ran
             reuse_cached_sidecar=False,
             persist_sidecar=False,
         ),
+        row_bands=((0.02, 0.31), (0.35, 0.65), (0.69, 0.98)),
         resolved_ranks=[1, 2, 3],
         page_index=1,
     )
@@ -2733,6 +2734,7 @@ def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_accepts_
             reuse_cached_sidecar=False,
             persist_sidecar=False,
         ),
+        row_bands=((0.02, 0.31), (0.35, 0.65), (0.69, 0.98)),
         resolved_ranks=[20, 21],
         page_index=1,
     )
