@@ -251,6 +251,7 @@ def parse_capture_payload(
     ignored_lines: list[IgnoredOcrLine] = []
     page_summaries: list[dict[str, Any]] = []
     previous_page_ranks: set[int] | None = None
+    seen_ranks: set[int] = set()
 
     for page_index, page in enumerate(payload.pages, start=1):
         image_path = _resolve_existing_path(payload.base_dir, page.image_path, "image_path")
@@ -268,7 +269,6 @@ def parse_capture_payload(
             default_ocr_confidence=page.default_ocr_confidence,
             page_index=page_index,
         )
-        entries.extend(page_entries)
         ignored_lines.extend(page_ignored_lines)
         current_page_ranks = {entry["rank"] for entry in page_entries}
         overlap_count = 0
@@ -304,6 +304,12 @@ def parse_capture_payload(
                 else 0.0,
             }
         )
+        entries.extend(
+            entry
+            for entry in page_entries
+            if entry["rank"] not in seen_ranks
+        )
+        seen_ranks.update(current_page_ranks)
         previous_page_ranks = current_page_ranks
 
     if validate_snapshot_entries:

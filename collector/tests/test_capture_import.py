@@ -1127,7 +1127,7 @@ def test_build_ocr_stop_hints_detects_empty_and_overlapping_last_page() -> None:
     }
 
 
-def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_duplicate_rank(
+def test_build_mock_payload_from_capture_dedupes_overlapping_page_ranks(
     tmp_path: Path,
 ) -> None:
     _write_capture_page(
@@ -1151,11 +1151,13 @@ def test_build_mock_payload_from_capture_reports_overlapping_page_pairs_on_dupli
 
     payload = load_capture_import_payload(tmp_path)
 
-    with pytest.raises(MockImportError) as exc_info:
-        build_mock_payload_from_capture(payload)
+    mock_payload = build_mock_payload_from_capture(payload)
 
-    assert "duplicate_rank" in str(exc_info.value)
-    assert "overlapping_page_pairs=1-2" in str(exc_info.value)
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in mock_payload.entries] == [
+        (1, "Plana", 12345678),
+        (2, "Arona", 12000000),
+        (3, "Sensei", 11000000),
+    ]
 
 
 def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
@@ -1218,7 +1220,7 @@ def test_import_capture_payload_calls_api_in_order(tmp_path: Path) -> None:
     ]
 
 
-def test_build_mock_payload_from_capture_rejects_duplicate_ranks(tmp_path: Path) -> None:
+def test_build_mock_payload_from_capture_dedupes_duplicate_rank_across_pages(tmp_path: Path) -> None:
     _write_capture_page(
         tmp_path,
         "page-001.png",
@@ -1240,6 +1242,27 @@ def test_build_mock_payload_from_capture_rejects_duplicate_ranks(tmp_path: Path)
                 "image_path": "page-002.png",
             },
         ],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+
+    mock_payload = build_mock_payload_from_capture(payload)
+
+    assert [(entry["rank"], entry["player_name"], entry["score"]) for entry in mock_payload.entries] == [
+        (1, "Plana", 12345678),
+    ]
+
+
+def test_build_mock_payload_from_capture_rejects_duplicate_ranks_within_page(tmp_path: Path) -> None:
+    _write_capture_page(
+        tmp_path,
+        "page-001.png",
+        "1\tPlana\t12345678\t0.99\n1\tArona\t12000000\t0.97\n",
+    )
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-same-page-duplicate-rank-season",
+        pages=[{"image_path": "page-001.png"}],
     )
 
     payload = load_capture_import_payload(tmp_path)

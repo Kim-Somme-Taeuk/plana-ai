@@ -35,9 +35,9 @@
       "start_x": 800,
       "start_y": 720,
       "end_x": 800,
-      "end_y": 260,
-      "duration_ms": 300,
-      "settle_delay_ms": 1200
+      "end_y": 380,
+      "duration_ms": 500,
+      "settle_delay_ms": 1600
     }
   }
 }
