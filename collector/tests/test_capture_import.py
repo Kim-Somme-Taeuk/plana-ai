@@ -433,6 +433,8 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "overlap_with_previous_ranks": [],
             "new_rank_count": 1,
             "new_rank_ratio": 1.0,
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
         }
     ]
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
@@ -678,6 +680,8 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_ranks": [],
             "new_rank_count": 2,
             "new_rank_ratio": 1.0,
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
         },
         {
             "page_index": 2,
@@ -694,6 +698,8 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_ranks": [],
             "new_rank_count": 2,
             "new_rank_ratio": 1.0,
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
         },
     ]
     assert parsed_payload.mock_payload.snapshot["note"] == "capture import test fixture"
@@ -743,6 +749,8 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "overlap_with_previous_ranks": [],
         "new_rank_count": 0,
         "new_rank_ratio": 0.0,
+        "absolute_rank_anchor": None,
+        "absolute_rank_anchor_source": None,
     }
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
     assert note_lines[0] == "capture import test fixture"

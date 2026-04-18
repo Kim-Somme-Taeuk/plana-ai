@@ -274,6 +274,22 @@ def parse_capture_payload(
             previous_page_entries=previous_page_entries,
             current_page_entries=page_entries,
         )
+        page_absolute_rank_anchor = next(
+            (
+                entry.get("_absolute_rank_anchor")
+                for entry in page_entries
+                if entry.get("_absolute_rank_anchor") is not None
+            ),
+            None,
+        )
+        page_absolute_rank_anchor_source = next(
+            (
+                entry.get("_absolute_rank_anchor_source")
+                for entry in page_entries
+                if entry.get("_absolute_rank_anchor_source") is not None
+            ),
+            None,
+        )
         ignored_lines.extend(page_ignored_lines)
         current_page_ranks = {entry["rank"] for entry in page_entries}
         overlap_count = 0
@@ -307,15 +323,17 @@ def parse_capture_payload(
                 )
                 if current_page_ranks
                 else 0.0,
+                "absolute_rank_anchor": page_absolute_rank_anchor,
+                "absolute_rank_anchor_source": page_absolute_rank_anchor_source,
             }
         )
         entries.extend(
-            entry
+            _strip_internal_entry_fields(entry)
             for entry in page_entries
             if entry["rank"] not in seen_ranks
         )
         seen_ranks.update(current_page_ranks)
-        previous_page_entries = [dict(entry) for entry in page_entries]
+        previous_page_entries = [_strip_internal_entry_fields(entry) for entry in page_entries]
         previous_page_ranks = current_page_ranks
 
     if validate_snapshot_entries:
@@ -339,6 +357,14 @@ def parse_capture_payload(
         ignored_lines=ignored_lines,
         page_summaries=page_summaries,
     )
+
+
+def _strip_internal_entry_fields(entry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in entry.items()
+        if not key.startswith("_")
+    }
 
 
 def _realign_overlapping_page_entry_ranks(
@@ -1645,12 +1671,15 @@ def _parse_blue_archive_fixed_rows(
         return []
 
     resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    absolute_rank_anchor_source: str | None = None
     absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor(
         prepared_image_path=prepared_image_path,
         ocr=ocr,
         row_bands=row_bands,
         resolved_ranks=resolved_ranks,
     )
+    if absolute_rank_anchor is not None:
+        absolute_rank_anchor_source = "prepared"
     if absolute_rank_anchor is None:
         absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
             image_path=image_path,
@@ -1658,6 +1687,8 @@ def _parse_blue_archive_fixed_rows(
             resolved_ranks=resolved_ranks,
             page_index=page_index,
         )
+        if absolute_rank_anchor is not None:
+            absolute_rank_anchor_source = "original"
     if absolute_rank_anchor is not None:
         resolved_ranks = list(
             range(
@@ -1668,7 +1699,14 @@ def _parse_blue_archive_fixed_rows(
     normalized_entries: list[dict[str, Any]] = []
     rank_index = 0
     for entry in entries:
-        normalized_entries.append({**entry, "rank": resolved_ranks[rank_index]})
+        normalized_entries.append(
+            {
+                **entry,
+                "rank": resolved_ranks[rank_index],
+                "_absolute_rank_anchor": absolute_rank_anchor,
+                "_absolute_rank_anchor_source": absolute_rank_anchor_source,
+            }
+        )
         rank_index += 1
     if not _blue_archive_scores_are_non_increasing(normalized_entries):
         return []

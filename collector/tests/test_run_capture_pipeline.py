@@ -839,6 +839,8 @@ def test_run_capture_pipeline_tracks_ignored_lines(
             "overlap_with_previous_ranks": [],
             "new_rank_count": 1,
             "new_rank_ratio": 1.0,
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
         }
     ]
 
