@@ -4516,6 +4516,92 @@ def test_parse_tesseract_layout_entries_prefers_richer_later_blue_archive_attemp
     ]
 
 
+def test_parse_blue_archive_page_entries_limits_attempts_to_two(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_path = tmp_path / "blue-archive-page.png"
+    from PIL import Image
+
+    Image.new("RGB", (1600, 900), color="white").save(image_path)
+
+    attempt_one = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.37,
+            top_ratio=0.34,
+            right_ratio=0.56,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=1.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+    attempt_two = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.34,
+            top_ratio=0.34,
+            right_ratio=0.58,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=1.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+    attempt_three = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.31,
+            top_ratio=0.33,
+            right_ratio=0.59,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=1.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_iter_tesseract_layout_ocr_attempts",
+        lambda ocr: [attempt_one, attempt_two, attempt_three],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (image_path, lambda: None),
+    )
+
+    attempt_calls: list[float] = []
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_blue_archive_fixed_rows",
+        lambda **kwargs: (attempt_calls.append(kwargs["ocr"].crop.left_ratio) or []),
+    )
+
+    entries = capture_import._parse_blue_archive_page_entries(
+        image_path=image_path,
+        ocr=attempt_one,
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert entries == []
+    assert attempt_calls == [0.37, 0.34]
+
+
 def test_has_strong_blue_archive_absolute_row_rank_signal_requires_two_close_hits() -> None:
     assert capture_import._has_strong_blue_archive_absolute_row_rank_signal(
         [3522, 3523, None]

@@ -2038,7 +2038,10 @@ def _parse_blue_archive_page_entries(
     page_index: int,
 ) -> list[dict[str, Any]]:
     best_blue_archive_entries: list[dict[str, Any]] = []
-    for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
+    attempt_ocrs = _iter_tesseract_layout_ocr_attempts(ocr)
+    if not ocr.blue_archive_fast_path:
+        attempt_ocrs = attempt_ocrs[:2]
+    for attempt_ocr in attempt_ocrs:
         prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
         try:
             entries = _parse_blue_archive_fixed_rows(
