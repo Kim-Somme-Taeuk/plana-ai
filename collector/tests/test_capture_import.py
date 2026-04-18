@@ -3428,6 +3428,45 @@ def test_ocr_blue_archive_row_rank_from_original_image_prefers_longer_absolute_c
     assert rank == 3522
 
 
+def test_ocr_blue_archive_row_rank_from_original_image_joins_split_rank_digits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (Path("prepared.png"), lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: "Rank 35 22\nTorment 40,100,000",
+    )
+
+    rank = capture_import._ocr_blue_archive_row_rank_from_original_image(
+        image_path=Path(__file__),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+    )
+
+    assert rank == 3522
+
+
 def test_parse_blue_archive_rank_candidate_accepts_common_ocr_digit_substitutions() -> None:
     assert capture_import._parse_blue_archive_rank_candidate("3S22") == 3522
     assert capture_import._parse_blue_archive_rank_candidate("16I09") == 16109

@@ -3073,6 +3073,24 @@ def _ocr_blue_archive_row_rank_from_original_image(
             right_ratio=0.58,
             bottom_ratio=min(1.0, row_rank_bottom),
         ),
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
+            top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.00))),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.96)),
+            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.28))),
+        ),
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.14)),
+            top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.00))),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 1.00)),
+            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.30))),
+        ),
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.08)),
+            top_ratio=max(0.0, row_top_absolute),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.98)),
+            bottom_ratio=min(1.0, row_rank_bottom + ((row_bottom_absolute - row_top_absolute) * 0.04)),
+        ),
     )
 
     parsed_ranks: list[int] = []
@@ -3087,6 +3105,20 @@ def _ocr_blue_archive_row_rank_from_original_image(
                 extra_args=("-c", "preserve_interword_spaces=1"),
                 crop=region_crop,
                 upscale_ratio=max(2.5, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=7,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ,",
+                ),
+                crop=region_crop,
+                upscale_ratio=max(3.0, ocr.upscale_ratio),
                 reuse_cached_sidecar=False,
                 persist_sidecar=False,
             ),
