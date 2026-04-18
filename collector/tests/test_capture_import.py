@@ -889,6 +889,138 @@ def test_parse_capture_payload_retrofits_blue_archive_absolute_ranks_from_later_
     assert parsed_payload.page_summaries[2]["absolute_rank_base_source"] == "retrofit"
 
 
+def test_parse_capture_payload_retrofits_blue_archive_absolute_ranks_without_overlap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(tmp_path, "page-001.png", "unused\n")
+    _write_capture_page(tmp_path, "page-002.png", "unused\n")
+    _write_capture_page(tmp_path, "page-003.png", "unused\n")
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-blue-archive-retrofit-no-overlap-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+            {"image_path": "page-003.png"},
+        ],
+    )
+
+    page_entries = iter(
+        [
+            (
+                [
+                    {
+                        "rank": 1,
+                        "score": 27771072,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 2,
+                        "score": 27770049,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 3,
+                        "score": 27768256,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                ],
+                [],
+            ),
+            (
+                [
+                    {
+                        "rank": 4,
+                        "score": 27768100,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": 16112,
+                        "_absolute_rank_base_source": "row_base",
+                    },
+                    {
+                        "rank": 5,
+                        "score": 27768000,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": 16112,
+                        "_absolute_rank_base_source": "row_base",
+                    },
+                ],
+                [],
+            ),
+            (
+                [
+                    {
+                        "rank": 5,
+                        "score": 27768000,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 6,
+                        "score": 27767900,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 7,
+                        "score": 27767800,
+                        "player_name": "Insane",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                ],
+                [],
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(capture_import, "_load_ocr_text", lambda **kwargs: "unused")
+    monkeypatch.setattr(capture_import, "_parse_page_entries", lambda **kwargs: next(page_entries))
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload, validate_snapshot_entries=False)
+
+    assert [entry["rank"] for entry in parsed_payload.mock_payload.entries] == [
+        16109,
+        16110,
+        16111,
+        16112,
+        16113,
+        16114,
+        16115,
+    ]
+    assert parsed_payload.page_summaries[0]["first_rank"] == 16109
+    assert parsed_payload.page_summaries[1]["first_rank"] == 16112
+    assert parsed_payload.page_summaries[2]["first_rank"] == 16113
+    assert parsed_payload.page_summaries[0]["absolute_rank_base_source"] == "retrofit"
+    assert parsed_payload.page_summaries[1]["absolute_rank_base_source"] == "row_base"
+    assert parsed_payload.page_summaries[2]["absolute_rank_base_source"] == "retrofit"
+
+
 def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
     tmp_path: Path,
 ) -> None:
