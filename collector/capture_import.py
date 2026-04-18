@@ -2386,25 +2386,42 @@ def _ocr_blue_archive_row_rank(
             OcrRegionAttempt(
                 language="eng",
                 psm=7,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+                ),
                 threshold=None,
             ),
             OcrRegionAttempt(
                 language="eng",
                 psm=8,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789"),
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+                ),
                 threshold=180,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=6,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                threshold=None,
             ),
         ],
         base_ocr=ocr,
     )
+    parsed_ranks: list[int] = []
     for candidate in candidates:
-        normalized = _normalize_rank_ocr_token(candidate)
-        if normalized.isdigit():
-            rank = int(normalized)
-            if 0 < rank <= 100000:
-                return rank
-    return None
+        rank_candidates = _extract_rank_candidates_from_text(candidate)
+        if rank_candidates:
+            parsed_ranks.extend(rank_candidates)
+            continue
+        rank = _parse_blue_archive_rank_candidate(candidate)
+        if rank is not None:
+            parsed_ranks.append(rank)
+    if not parsed_ranks:
+        return None
+    return Counter(parsed_ranks).most_common(1)[0][0]
 
 
 def _ocr_blue_archive_row_difficulty(
@@ -3046,13 +3063,15 @@ def _extract_rank_candidates_from_text(raw_line: str) -> list[int]:
                 stripped_candidate[:1].isdigit()
                 or stripped_candidate.startswith(("#", "№"))
                 or lowered_candidate.startswith("no")
+                or lowered_candidate.startswith("rank")
                 or stripped_candidate.endswith("위")
             ):
                 continue
             rank = _parse_blue_archive_rank_candidate(candidate)
             if rank is None:
                 continue
-            candidates.append(rank)
+            if rank not in candidates:
+                candidates.append(rank)
             break
 
     return candidates
@@ -3277,6 +3296,9 @@ def _normalize_integer_ocr_token(value: str) -> str:
 def _normalize_rank_ocr_token(value: str) -> str:
     normalized = _normalize_unicode_ocr_text(value).strip().rstrip(OCR_EDGE_PUNCTUATION)
     lowered = normalized.lower()
+    if lowered.startswith("rank"):
+        normalized = normalized[4:].lstrip(" .:-#")
+        lowered = normalized.lower()
     if lowered.startswith("no."):
         normalized = normalized[3:]
     elif lowered.startswith("no"):

@@ -2435,6 +2435,13 @@ def test_parse_blue_archive_rank_candidate_trims_common_ui_suffix_noise() -> Non
     assert capture_import._parse_blue_archive_rank_candidate("1200291") == 12002
     assert capture_import._parse_blue_archive_rank_candidate("1200347") == 12003
     assert capture_import._parse_blue_archive_rank_candidate("1611091") == 16110
+    assert capture_import._parse_blue_archive_rank_candidate("Rank 3522") == 3522
+    assert capture_import._parse_blue_archive_rank_candidate("Rank16109") == 16109
+
+
+def test_extract_rank_candidates_from_text_accepts_rank_prefix() -> None:
+    assert capture_import._extract_rank_candidates_from_text("Rank 3522") == [3522]
+    assert capture_import._extract_rank_candidates_from_text("Rank16109") == [16109]
 
 
 def test_normalize_tesseract_page_entry_ranks_resolves_duplicate_rank() -> None:
