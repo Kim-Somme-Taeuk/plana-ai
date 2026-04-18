@@ -2668,6 +2668,35 @@ def test_ocr_blue_archive_row_rank_uses_majority_vote(
     assert rank == 12001
 
 
+def test_ocr_blue_archive_row_rank_prefers_rank_prefixed_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["3522", "Rank 3522", "Rank 3522"],
+    )
+
+    rank = capture_import._ocr_blue_archive_row_rank(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+    )
+
+    assert rank == 3522
+
+
 def test_ocr_blue_archive_row_difficulty_uses_majority_vote(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

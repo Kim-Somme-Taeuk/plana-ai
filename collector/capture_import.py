@@ -2378,47 +2378,67 @@ def _ocr_blue_archive_row_rank(
     top_ratio: float,
     bottom_ratio: float,
 ) -> int | None:
-    candidates = _ocr_prepared_image_ratio_region_candidates(
-        prepared_image_path=prepared_image_path,
-        x_ratios=(0.0, 0.5),
-        y_ratios=(top_ratio, min(bottom_ratio, top_ratio + 0.23)),
-        attempts=[
-            OcrRegionAttempt(
-                language="eng",
-                psm=7,
-                extra_args=(
-                    "-c",
-                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
-                ),
-                threshold=None,
+    attempts = [
+        OcrRegionAttempt(
+            language="eng",
+            psm=7,
+            extra_args=(
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
             ),
-            OcrRegionAttempt(
-                language="eng",
-                psm=8,
-                extra_args=(
-                    "-c",
-                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
-                ),
-                threshold=180,
+            threshold=None,
+        ),
+        OcrRegionAttempt(
+            language="eng",
+            psm=8,
+            extra_args=(
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
             ),
-            OcrRegionAttempt(
-                language="eng",
-                psm=6,
-                extra_args=("-c", "preserve_interword_spaces=1"),
-                threshold=None,
-            ),
-        ],
-        base_ocr=ocr,
-    )
+            threshold=180,
+        ),
+        OcrRegionAttempt(
+            language="eng",
+            psm=6,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            threshold=None,
+        ),
+        OcrRegionAttempt(
+            language="eng",
+            psm=11,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            threshold=160,
+        ),
+    ]
+    candidates: list[str] = []
+    for x_ratios, y_ratios in (
+        ((0.12, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
+        ((0.18, 0.58), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
+        ((0.0, 0.5), (top_ratio, min(bottom_ratio, top_ratio + 0.23))),
+    ):
+        candidates.extend(
+            _ocr_prepared_image_ratio_region_candidates(
+                prepared_image_path=prepared_image_path,
+                x_ratios=x_ratios,
+                y_ratios=y_ratios,
+                attempts=attempts,
+                base_ocr=ocr,
+            )
+        )
     parsed_ranks: list[int] = []
+    prefixed_ranks: list[int] = []
     for candidate in candidates:
         rank_candidates = _extract_rank_candidates_from_text(candidate)
         if rank_candidates:
+            if "rank" in _normalize_unicode_ocr_text(candidate).lower():
+                prefixed_ranks.extend(rank_candidates)
             parsed_ranks.extend(rank_candidates)
             continue
         rank = _parse_blue_archive_rank_candidate(candidate)
         if rank is not None:
             parsed_ranks.append(rank)
+    if prefixed_ranks:
+        return Counter(prefixed_ranks).most_common(1)[0][0]
     if not parsed_ranks:
         return None
     return Counter(parsed_ranks).most_common(1)[0][0]
