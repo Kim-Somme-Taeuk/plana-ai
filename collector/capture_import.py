@@ -331,6 +331,10 @@ def parse_capture_payload(
         parsed_pages=parsed_pages,
         page_metadata=page_metadata,
     )
+    parsed_pages, page_metadata = _prune_blue_archive_sparse_rank_violation_pages(
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
+    )
     page_summaries = _build_capture_page_summaries(
         parsed_pages=parsed_pages,
         page_metadata=page_metadata,
@@ -607,6 +611,98 @@ def _build_capture_page_summaries(
         )
         previous_page_ranks = current_page_ranks
     return page_summaries
+
+
+def _prune_blue_archive_sparse_rank_violation_pages(
+    *,
+    parsed_pages: list[list[dict[str, Any]]],
+    page_metadata: list[dict[str, Any]],
+) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]]]:
+    if len(parsed_pages) <= 1 or len(parsed_pages) != len(page_metadata):
+        return parsed_pages, page_metadata
+
+    adjusted_pages: list[list[dict[str, Any]]] = []
+    adjusted_metadata: list[dict[str, Any]] = []
+    previous_kept_entries: list[dict[str, Any]] = []
+
+    for page_entries, metadata in zip(parsed_pages, page_metadata):
+        if not page_entries:
+            adjusted_pages.append(page_entries)
+            adjusted_metadata.append(metadata)
+            continue
+
+        if (
+            previous_kept_entries
+            and _is_blue_archive_like_page_entries(previous_kept_entries)
+            and _is_blue_archive_like_page_entries(page_entries)
+            and _should_drop_sparse_blue_archive_page(
+                previous_page_entries=previous_kept_entries,
+                current_page_entries=page_entries,
+                metadata=metadata,
+            )
+        ):
+            adjusted_pages.append([])
+            adjusted_metadata.append(metadata)
+            continue
+
+        adjusted_pages.append(page_entries)
+        adjusted_metadata.append(metadata)
+        previous_kept_entries = page_entries
+
+    return adjusted_pages, adjusted_metadata
+
+
+def _is_blue_archive_like_page_entries(
+    page_entries: list[dict[str, Any]],
+) -> bool:
+    if not page_entries:
+        return False
+    return all(
+        isinstance(entry.get("player_name"), str)
+        and entry["player_name"] in DIFFICULTY_PRIORITY
+        and isinstance(entry.get("score"), int)
+        for entry in page_entries
+    )
+
+
+def _should_drop_sparse_blue_archive_page(
+    *,
+    previous_page_entries: list[dict[str, Any]],
+    current_page_entries: list[dict[str, Any]],
+    metadata: dict[str, Any],
+) -> bool:
+    current_absolute_base = metadata.get("absolute_rank_base")
+    if isinstance(current_absolute_base, int) and current_absolute_base > 100:
+        return False
+
+    overlap_count = _count_overlap_alignment_entries(
+        previous_page_entries=previous_page_entries,
+        current_page_entries=current_page_entries,
+    )
+    previous_ranks = [
+        entry["rank"]
+        for entry in previous_page_entries
+        if isinstance(entry.get("rank"), int)
+    ]
+    current_ranks = [
+        entry["rank"]
+        for entry in current_page_entries
+        if isinstance(entry.get("rank"), int)
+    ]
+    if not previous_ranks or not current_ranks:
+        return False
+
+    previous_first = min(previous_ranks)
+    previous_last = max(previous_ranks)
+    current_first = min(current_ranks)
+
+    if len(current_ranks) <= 1 and overlap_count == 0:
+        return True
+    if overlap_count == 0 and current_first > previous_last + max(2, len(current_ranks) + 1):
+        return True
+    if overlap_count == 0 and current_first < previous_first:
+        return True
+    return False
 
 
 def _count_overlap_alignment_entries(

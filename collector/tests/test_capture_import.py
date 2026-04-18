@@ -4529,6 +4529,61 @@ def test_recover_blue_archive_original_row_ranks_does_not_promote_single_large_n
     assert recovered is None
 
 
+def test_prune_blue_archive_sparse_rank_violation_pages_drops_sparse_jump_pages() -> None:
+    parsed_pages = [
+        [
+            {"rank": 1, "score": 53404105, "player_name": "Lunatic"},
+            {"rank": 2, "score": 53393930, "player_name": "Lunatic"},
+            {"rank": 3, "score": 53393544, "player_name": "Lunatic"},
+        ],
+        [
+            {"rank": 10, "score": 53390000, "player_name": "Lunatic"},
+        ],
+        [
+            {"rank": 5, "score": 53388000, "player_name": "Lunatic"},
+        ],
+    ]
+    page_metadata = [
+        {
+            "page_index": 1,
+            "image_path": "page-001.png",
+            "ignored_lines": [],
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
+        },
+        {
+            "page_index": 2,
+            "image_path": "page-002.png",
+            "ignored_lines": [],
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
+        },
+        {
+            "page_index": 3,
+            "image_path": "page-003.png",
+            "ignored_lines": [],
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
+        },
+    ]
+
+    adjusted_pages, adjusted_metadata = capture_import._prune_blue_archive_sparse_rank_violation_pages(
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
+    )
+
+    assert adjusted_pages[0] == parsed_pages[0]
+    assert adjusted_pages[1] == []
+    assert adjusted_pages[2] == []
+    assert adjusted_metadata == page_metadata
+
+
 def test_select_visible_blue_archive_row_bands_drops_partial_bottom_row() -> None:
     row_bands = (
         (0.04, 0.34),
