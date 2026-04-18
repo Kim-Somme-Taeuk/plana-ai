@@ -4418,7 +4418,7 @@ def test_iter_tesseract_layout_ocr_attempts_limits_variants_in_blue_archive_fast
 
     attempts = capture_import._iter_tesseract_layout_ocr_attempts(ocr)
 
-    assert len(attempts) == 2
+    assert len(attempts) == 1
     assert all(attempt.blue_archive_fast_path is True for attempt in attempts)
 
 

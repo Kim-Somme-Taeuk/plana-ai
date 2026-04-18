@@ -2066,6 +2066,64 @@ def _parse_blue_archive_page_entries(
     return []
 
 
+def _parse_blue_archive_page_ranks_fast(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> list[int]:
+    best_ranks: list[int] = []
+    for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
+        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
+        try:
+            detected_row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
+                (0.02, 0.31),
+                (0.35, 0.65),
+                (0.69, 0.98),
+            )
+            row_bands = _select_visible_blue_archive_row_bands(detected_row_bands)
+            if not row_bands:
+                continue
+
+            detected_ranks: list[int | None] = []
+            for top_ratio, bottom_ratio in row_bands:
+                rank = _ocr_blue_archive_row_rank_from_original_image(
+                    image_path=image_path,
+                    ocr=attempt_ocr,
+                    top_ratio=top_ratio,
+                    bottom_ratio=bottom_ratio,
+                )
+                if rank is None:
+                    rank = _ocr_blue_archive_row_rank(
+                        prepared_image_path=prepared_image_path,
+                        ocr=attempt_ocr,
+                        top_ratio=top_ratio,
+                        bottom_ratio=bottom_ratio,
+                    )
+                detected_ranks.append(rank)
+
+            if not any(rank is not None for rank in detected_ranks):
+                continue
+
+            resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+            absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+                detected_ranks
+            )
+            if absolute_rank_base is not None:
+                resolved_ranks = list(
+                    range(
+                        absolute_rank_base,
+                        absolute_rank_base + len(resolved_ranks),
+                    )
+                )
+            if len(resolved_ranks) > len(best_ranks):
+                best_ranks = resolved_ranks
+            if len(resolved_ranks) >= 3:
+                return resolved_ranks
+        finally:
+            cleanup()
+    return best_ranks
+
+
 def _is_blue_archive_fixed_layout_image(
     *,
     image_path: Path,
@@ -2157,7 +2215,7 @@ def _iter_tesseract_layout_ocr_attempts(ocr: OcrConfig) -> list[OcrConfig]:
             )
         )
     if ocr.blue_archive_fast_path:
-        return deduped_attempts[:2]
+        return deduped_attempts[:1]
     return deduped_attempts
 
 

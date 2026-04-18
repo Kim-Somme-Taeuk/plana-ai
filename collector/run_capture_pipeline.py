@@ -29,6 +29,8 @@ from collector.adb_capture import (
 )
 from collector.capture_import import (
     _build_ocr_crop,
+    _is_blue_archive_fixed_layout_image,
+    _parse_blue_archive_page_ranks_fast,
     CAPTURE_SOURCE_TYPE_BY_PROVIDER,
     CaptureImportPayload,
     CapturePage,
@@ -630,6 +632,38 @@ def _build_after_capture_page_callback(
 
     def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
         nonlocal previous_soft_reason, previous_soft_count
+        runtime_ocr = _build_runtime_ocr_config(
+            request=request,
+            effective_ocr_provider=effective_ocr_provider,
+            ocr_command=ocr_command,
+            ocr_language=ocr_language,
+            ocr_psm=ocr_psm,
+            blue_archive_fast_path=latest_page_only,
+        )
+        if latest_page_only and _is_blue_archive_fixed_layout_image(
+            image_path=image_paths[-1],
+            ocr=runtime_ocr,
+        ):
+            page_ranks = _parse_blue_archive_page_ranks_fast(
+                image_path=image_paths[-1],
+                ocr=runtime_ocr,
+            )
+            highest_rank_collected = max(
+                (rank for rank in page_ranks if isinstance(rank, int)),
+                default=None,
+            )
+            if (
+                stop_policy.max_rank is not None
+                and highest_rank_collected is not None
+                and highest_rank_collected >= stop_policy.max_rank
+            ):
+                return AdbCaptureStopDecision(
+                    should_continue=False,
+                    reason="max_rank_reached",
+                    source="capture",
+                    level="hard",
+                )
+            return AdbCaptureStopDecision(should_continue=True)
         pages_for_parse = [image_paths[-1]] if latest_page_only else image_paths
         parsed_payload = parse_capture_payload(
             CaptureImportPayload(
@@ -649,14 +683,7 @@ def _build_after_capture_page_callback(
                     )
                     for image_path in pages_for_parse
                 ],
-                ocr=_build_runtime_ocr_config(
-                    request=request,
-                    effective_ocr_provider=effective_ocr_provider,
-                    ocr_command=ocr_command,
-                    ocr_language=ocr_language,
-                    ocr_psm=ocr_psm,
-                    blue_archive_fast_path=latest_page_only,
-                ),
+                ocr=runtime_ocr,
                 capture={
                     "requested_page_count": request.adb.page_count,
                     "captured_page_count": len(image_paths),

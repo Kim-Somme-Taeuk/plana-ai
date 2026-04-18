@@ -1574,24 +1574,28 @@ def test_after_capture_page_uses_latest_page_only_for_max_rank_stop(
         include_ocr=False,
     )
     request = capture_pipeline.load_adb_capture_request(request_path)
-    parse_calls: list[list[str]] = []
+    parse_calls: list[str] = []
 
-    def fake_parse_capture_payload(payload, *, validate_snapshot_entries=False):
-        parse_calls.append([page.image_path for page in payload.pages])
-        return capture_import.ParsedCapturePayload(
-            mock_payload=capture_import.MockImportPayload(
-                season=payload.season,
-                snapshot=payload.snapshot,
-                entries=[
-                    {"rank": 3, "player_name": "Lunatic", "score": 10},
-                    {"rank": 4, "player_name": "Lunatic", "score": 9},
-                ],
-            ),
-            ignored_lines=[],
-            page_summaries=[],
-        )
-
-    monkeypatch.setattr(capture_pipeline, "parse_capture_payload", fake_parse_capture_payload)
+    monkeypatch.setattr(
+        capture_pipeline,
+        "parse_capture_payload",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("latest max-rank callback should not use parse_capture_payload")
+        ),
+    )
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_is_blue_archive_fixed_layout_image",
+        lambda **kwargs: True,
+    )
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_parse_blue_archive_page_ranks_fast",
+        lambda **kwargs: (
+            parse_calls.append(kwargs["image_path"].name)
+            or [3, 4]
+        ),
+    )
 
     callback = capture_pipeline._build_after_capture_page_callback(
         request=request,
@@ -1611,7 +1615,7 @@ def test_after_capture_page_uses_latest_page_only_for_max_rank_stop(
 
     decision = callback([Path("page-001.png"), Path("page-002.png")])
 
-    assert parse_calls == [["page-002.png"]]
+    assert parse_calls == ["page-002.png"]
     assert decision == capture_pipeline.AdbCaptureStopDecision(
         should_continue=False,
         reason="max_rank_reached",
