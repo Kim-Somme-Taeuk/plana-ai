@@ -746,6 +746,148 @@ def test_parse_capture_payload_reports_multi_page_summaries(
     assert parsed_payload.mock_payload.snapshot["note"] == "capture import test fixture"
 
 
+def test_parse_capture_payload_retrofits_blue_archive_absolute_ranks_from_later_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(tmp_path, "page-001.png", "unused\n")
+    _write_capture_page(tmp_path, "page-002.png", "unused\n")
+    _write_capture_page(tmp_path, "page-003.png", "unused\n")
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-blue-archive-retrofit-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+            {"image_path": "page-003.png"},
+        ],
+    )
+
+    page_entries = iter(
+        [
+            (
+                [
+                    {
+                        "rank": 1,
+                        "score": 40040720,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 2,
+                        "score": 40040720,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 3,
+                        "score": 40040641,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                ],
+                [],
+            ),
+            (
+                [
+                    {
+                        "rank": 3,
+                        "score": 40040641,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": 12003,
+                        "_absolute_rank_base_source": "row_base",
+                    },
+                    {
+                        "rank": 4,
+                        "score": 40040480,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": 12003,
+                        "_absolute_rank_base_source": "row_base",
+                    },
+                    {
+                        "rank": 5,
+                        "score": 40040160,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": 12003,
+                        "_absolute_rank_base_source": "row_base",
+                    },
+                ],
+                [],
+            ),
+            (
+                [
+                    {
+                        "rank": 5,
+                        "score": 40040160,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 6,
+                        "score": 40040160,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                    {
+                        "rank": 7,
+                        "score": 40039920,
+                        "player_name": "Torment",
+                        "_absolute_rank_anchor": None,
+                        "_absolute_rank_anchor_source": None,
+                        "_absolute_rank_base": None,
+                        "_absolute_rank_base_source": None,
+                    },
+                ],
+                [],
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(capture_import, "_load_ocr_text", lambda **kwargs: "unused")
+    monkeypatch.setattr(capture_import, "_parse_page_entries", lambda **kwargs: next(page_entries))
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload, validate_snapshot_entries=False)
+
+    assert [entry["rank"] for entry in parsed_payload.mock_payload.entries] == [
+        12001,
+        12002,
+        12003,
+        12004,
+        12005,
+        12006,
+        12007,
+    ]
+    assert parsed_payload.page_summaries[0]["first_rank"] == 12001
+    assert parsed_payload.page_summaries[0]["absolute_rank_base"] == 12001
+    assert parsed_payload.page_summaries[0]["absolute_rank_base_source"] == "retrofit"
+    assert parsed_payload.page_summaries[1]["first_rank"] == 12003
+    assert parsed_payload.page_summaries[1]["absolute_rank_base_source"] == "row_base"
+    assert parsed_payload.page_summaries[2]["first_rank"] == 12005
+    assert parsed_payload.page_summaries[2]["absolute_rank_base_source"] == "retrofit"
+
+
 def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
     tmp_path: Path,
 ) -> None:
