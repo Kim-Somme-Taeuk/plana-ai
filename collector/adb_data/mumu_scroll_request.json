@@ -39,5 +39,8 @@
       "duration_ms": 500,
       "settle_delay_ms": 1600
     }
+  },
+  "pipeline": {
+    "max_rank": 12000
   }
 }

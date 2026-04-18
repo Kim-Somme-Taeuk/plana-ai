@@ -51,6 +51,7 @@ def test_build_pipeline_stop_policy_reads_defaults() -> None:
 
     assert policy.min_pages_before_ocr_stop == 2
     assert policy.soft_stop_repeat_threshold == 2
+    assert policy.max_rank is None
 
 
 def test_build_pipeline_stop_policy_validates_positive_thresholds() -> None:
@@ -60,6 +61,12 @@ def test_build_pipeline_stop_policy_validates_positive_thresholds() -> None:
     assert "pipeline.soft_stop_repeat_threshold는 2 이상이어야 합니다." in str(
         exc_info.value
     )
+
+
+def test_build_pipeline_stop_policy_reads_max_rank() -> None:
+    policy = build_pipeline_stop_policy({"max_rank": 12000})
+
+    assert policy.max_rank == 12000
 
 
 def test_load_adb_capture_request_resolves_relative_output_dir_from_request_file(

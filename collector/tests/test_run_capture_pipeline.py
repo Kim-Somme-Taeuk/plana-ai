@@ -124,7 +124,10 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert result.stop_policy == {
         "min_pages_before_ocr_stop": 2,
         "soft_stop_repeat_threshold": 2,
+        "max_rank": None,
     }
+    assert result.highest_rank_collected == 10
+    assert result.reached_max_rank is False
     assert result.manifest_path.exists()
     assert len(result.image_paths) == 1
     pipeline_result = json.loads(
@@ -134,6 +137,8 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     )
     assert pipeline_result["status"] == "completed"
     assert pipeline_result["entry_count"] == 2
+    assert pipeline_result["highest_rank_collected"] == 10
+    assert pipeline_result["reached_max_rank"] is False
     assert pipeline_result["recovery"]["capture_import_command"].endswith(
         "collector/capture_import.py "
         f"{tmp_path / 'capture-output'}"
@@ -1543,6 +1548,7 @@ def test_build_capture_stop_decision_supports_repeated_stale_last_page_soft_stop
         stop_policy=PipelineStopPolicy(
             min_pages_before_ocr_stop=2,
             soft_stop_repeat_threshold=2,
+            max_rank=None,
         ),
         captured_page_count=3,
         previous_soft_reason="stale_last_page",
@@ -1890,7 +1896,89 @@ def test_run_capture_pipeline_supports_custom_soft_stop_repeat_threshold(
     assert result.stop_policy == {
         "min_pages_before_ocr_stop": 2,
         "soft_stop_repeat_threshold": 3,
+        "max_rank": None,
     }
+
+
+def test_run_capture_pipeline_stops_capture_when_max_rank_reached(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-max-rank-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"max_rank": 3}
+    request_payload["adb"]["page_count"] = 4
+    request_payload["adb"]["swipe"] = {
+        "start_x": 500,
+        "start_y": 1600,
+        "end_x": 500,
+        "end_y": 600,
+        "duration_ms": 200,
+        "settle_delay_ms": 0,
+    }
+    request_path.write_text(
+        json.dumps(request_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+            self.swipes: list[object] = []
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return [b"PNG-1", b"PNG-2", b"PNG-3", b"PNG-4"][self.capture_index - 1]
+
+        def swipe(self, *, device_serial, swipe):
+            self.swipes.append(swipe)
+
+    class FakeApiClient(SnapshotAwareApiClientMixin):
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": payload["rank"]}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status, "total_rows_collected": 3}
+
+    def fake_run(args, capture_output, text, check, **kwargs):
+        image_name = Path(args[1]).name
+        stdout_by_image = {
+            "page-001.png": "1\tPlana\t12345678\t0.99\n2\tArona\t12000000\t0.98\n",
+            "page-002.png": "3\tSensei\t11000000\t0.98\n4\tMari\t10900000\t0.97\n",
+        }
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=stdout_by_image[image_name],
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    result = run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert result.captured_page_count == 2
+    assert result.stopped_reason == "max_rank_reached"
+    assert result.highest_rank_collected == 4
+    assert result.reached_max_rank is True
+    assert result.entry_ids == [1, 2, 3]
 
 
 def _write_request(

@@ -67,7 +67,9 @@ class CapturePipelineResult:
     ocr_stop_hints: list[dict[str, Any]]
     ocr_stop_recommendation: dict[str, Any]
     pipeline_stop_recommendation: dict[str, Any]
-    stop_policy: dict[str, int]
+    stop_policy: dict[str, int | None]
+    highest_rank_collected: int | None
+    reached_max_rank: bool
 
 
 def run_capture_pipeline(
@@ -150,6 +152,10 @@ def run_capture_pipeline(
         )
         current_stage = "parse_capture_payload"
         parsed_payload = parse_capture_payload(capture_payload)
+        parsed_payload, highest_rank_collected, reached_max_rank = _apply_max_rank_limit(
+            parsed_payload=parsed_payload,
+            max_rank=stop_policy.max_rank,
+        )
         ocr_stop_hints = build_ocr_stop_hints(parsed_payload.page_summaries)
         ocr_stop_recommendation = _apply_stop_policy_to_recommendation(
             recommendation=build_ocr_stop_recommendation(ocr_stop_hints),
@@ -171,7 +177,10 @@ def run_capture_pipeline(
                 "stop_policy": {
                     "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
                     "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
+                    "max_rank": stop_policy.max_rank,
                 },
+                "highest_rank_collected": highest_rank_collected,
+                "reached_max_rank": reached_max_rank,
             },
             ocr_stop_recommendation_override=ocr_stop_recommendation,
         )
@@ -238,7 +247,10 @@ def run_capture_pipeline(
             stop_policy={
                 "min_pages_before_ocr_stop": stop_policy.min_pages_before_ocr_stop,
                 "soft_stop_repeat_threshold": stop_policy.soft_stop_repeat_threshold,
+                "max_rank": stop_policy.max_rank,
             },
+            highest_rank_collected=highest_rank_collected,
+            reached_max_rank=reached_max_rank,
         )
         _write_pipeline_result_artifact(
             result=result,
@@ -527,6 +539,8 @@ def _write_pipeline_result_artifact(
                 "ocr_stop_recommendation": result.ocr_stop_recommendation,
                 "pipeline_stop_recommendation": result.pipeline_stop_recommendation,
                 "stop_policy": result.stop_policy,
+                "highest_rank_collected": result.highest_rank_collected,
+                "reached_max_rank": result.reached_max_rank,
                 "recovery": _build_pipeline_recovery_payload(
                     output_dir=result.output_dir,
                     request_path=request_path,
@@ -647,6 +661,17 @@ def _build_after_capture_page_callback(
             ),
             validate_snapshot_entries=False,
         )
+        _, highest_rank_collected, reached_max_rank = _apply_max_rank_limit(
+            parsed_payload=parsed_payload,
+            max_rank=stop_policy.max_rank,
+        )
+        if reached_max_rank:
+            return AdbCaptureStopDecision(
+                should_continue=False,
+                reason="max_rank_reached",
+                source="capture",
+                level="hard",
+            )
         ocr_stop_recommendation = build_ocr_stop_recommendation(
             build_ocr_stop_hints(parsed_payload.page_summaries)
         )
@@ -748,6 +773,50 @@ def _build_runtime_ocr_config(
         upscale_ratio=float(request.ocr.get("upscale_ratio", 1.0)),
         reuse_cached_sidecar=True,
         persist_sidecar=True,
+    )
+
+
+def _apply_max_rank_limit(
+    *,
+    parsed_payload,
+    max_rank: int | None,
+):
+    entries = parsed_payload.mock_payload.entries
+    highest_rank_collected = max(
+        (
+            entry["rank"]
+            for entry in entries
+            if isinstance(entry.get("rank"), int)
+        ),
+        default=None,
+    )
+    if max_rank is None or highest_rank_collected is None:
+        return parsed_payload, highest_rank_collected, False
+
+    reached_max_rank = highest_rank_collected >= max_rank
+    if not reached_max_rank:
+        return parsed_payload, highest_rank_collected, False
+
+    filtered_entries = [
+        entry
+        for entry in entries
+        if not isinstance(entry.get("rank"), int) or entry["rank"] <= max_rank
+    ]
+    if len(filtered_entries) == len(entries):
+        return parsed_payload, highest_rank_collected, True
+
+    return (
+        type(parsed_payload)(
+            mock_payload=type(parsed_payload.mock_payload)(
+                season=parsed_payload.mock_payload.season,
+                snapshot=parsed_payload.mock_payload.snapshot,
+                entries=filtered_entries,
+            ),
+            ignored_lines=parsed_payload.ignored_lines,
+            page_summaries=parsed_payload.page_summaries,
+        ),
+        highest_rank_collected,
+        True,
     )
 
 
@@ -914,6 +983,8 @@ def main(argv: list[str] | None = None) -> int:
                 "ocr_stop_recommendation": result.ocr_stop_recommendation,
                 "pipeline_stop_recommendation": result.pipeline_stop_recommendation,
                 "stop_policy": result.stop_policy,
+                "highest_rank_collected": result.highest_rank_collected,
+                "reached_max_rank": result.reached_max_rank,
             },
             ensure_ascii=False,
         )

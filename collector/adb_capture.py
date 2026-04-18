@@ -67,6 +67,7 @@ class AdbCaptureRequest:
 class PipelineStopPolicy:
     min_pages_before_ocr_stop: int
     soft_stop_repeat_threshold: int
+    max_rank: int | None
 
 
 @dataclass(frozen=True)
@@ -348,10 +349,20 @@ def build_pipeline_stop_policy(pipeline: dict[str, Any]) -> PipelineStopPolicy:
         "pipeline.soft_stop_repeat_threshold",
         minimum=2,
     )
+    max_rank = pipeline.get("max_rank")
+    if max_rank is None:
+        parsed_max_rank = None
+    else:
+        parsed_max_rank = _parse_positive_int_option(
+            max_rank,
+            "pipeline.max_rank",
+            minimum=1,
+        )
 
     return PipelineStopPolicy(
         min_pages_before_ocr_stop=min_pages_before_ocr_stop,
         soft_stop_repeat_threshold=soft_stop_repeat_threshold,
+        max_rank=parsed_max_rank,
     )
 
 
