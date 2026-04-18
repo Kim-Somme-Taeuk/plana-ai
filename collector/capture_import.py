@@ -2257,10 +2257,11 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
                 cleanup()
 
             normalized_text = _normalize_unicode_ocr_text(text)
-            for rank in _extract_rank_candidates_from_text(normalized_text):
+            rank_candidates = _extract_rank_candidates_from_text(normalized_text)
+            for rank in rank_candidates:
                 if rank > len(resolved_ranks):
                     candidates.append(rank)
-            if not candidates:
+            if not rank_candidates:
                 rank = _parse_blue_archive_rank_candidate(normalized_text)
                 if rank is not None and rank > len(resolved_ranks):
                     candidates.append(rank)
