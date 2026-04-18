@@ -354,18 +354,20 @@ def _realign_overlapping_page_entry_ranks(
     ):
         return current_page_entries
 
-    overlap_size = _find_overlap_rank_alignment_size(
+    overlap_alignment = _find_overlap_rank_alignment(
         previous_page_entries=previous_page_entries,
         current_page_entries=current_page_entries,
     )
-    if overlap_size <= 0:
+    if overlap_alignment is None:
         return current_page_entries
 
-    anchor_rank = previous_page_entries[-overlap_size]["rank"]
+    previous_anchor_index, current_anchor_index, _overlap_size = overlap_alignment
+    anchor_rank = previous_page_entries[previous_anchor_index]["rank"]
+    base_rank = anchor_rank - current_anchor_index
     return [
         {
             **entry,
-            "rank": anchor_rank + index,
+            "rank": base_rank + index,
         }
         for index, entry in enumerate(current_page_entries)
     ]
@@ -383,11 +385,11 @@ def _supports_overlap_rank_alignment(entries: list[dict[str, Any]]) -> bool:
     )
 
 
-def _find_overlap_rank_alignment_size(
+def _find_overlap_rank_alignment(
     *,
     previous_page_entries: list[dict[str, Any]],
     current_page_entries: list[dict[str, Any]],
-) -> int:
+) -> tuple[int, int, int] | None:
     previous_keys = [
         _build_overlap_rank_alignment_key(entry)
         for entry in previous_page_entries
@@ -396,11 +398,37 @@ def _find_overlap_rank_alignment_size(
         _build_overlap_rank_alignment_key(entry)
         for entry in current_page_entries
     ]
-    max_overlap = min(len(previous_keys), len(current_keys))
-    for overlap_size in range(max_overlap, 0, -1):
-        if previous_keys[-overlap_size:] == current_keys[:overlap_size]:
-            return overlap_size
-    return 0
+    best_alignment: tuple[int, int, int] | None = None
+    for previous_anchor_index, previous_key in enumerate(previous_keys):
+        for current_anchor_index, current_key in enumerate(current_keys):
+            if previous_key != current_key:
+                continue
+            overlap_size = 1
+            while (
+                previous_anchor_index + overlap_size < len(previous_keys)
+                and current_anchor_index + overlap_size < len(current_keys)
+                and previous_keys[previous_anchor_index + overlap_size]
+                == current_keys[current_anchor_index + overlap_size]
+            ):
+                overlap_size += 1
+            candidate = (previous_anchor_index, current_anchor_index, overlap_size)
+            if best_alignment is None:
+                best_alignment = candidate
+                continue
+            _, _, best_overlap_size = best_alignment
+            if overlap_size > best_overlap_size:
+                best_alignment = candidate
+                continue
+            if overlap_size == best_overlap_size and previous_anchor_index > best_alignment[0]:
+                best_alignment = candidate
+                continue
+            if (
+                overlap_size == best_overlap_size
+                and previous_anchor_index == best_alignment[0]
+                and current_anchor_index < best_alignment[1]
+            ):
+                best_alignment = candidate
+    return best_alignment
 
 
 def _build_overlap_rank_alignment_key(entry: dict[str, Any]) -> tuple[str, int]:
