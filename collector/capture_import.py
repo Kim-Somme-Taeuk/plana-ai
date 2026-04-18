@@ -388,16 +388,9 @@ def _retrofit_blue_archive_absolute_page_ranks(
     if len(parsed_pages) <= 1 or len(parsed_pages) != len(page_metadata):
         return parsed_pages, page_metadata
 
-    anchor_page_index: int | None = None
-    anchor_first_rank: int | None = None
-    for index, metadata in enumerate(page_metadata):
-        base = metadata.get("absolute_rank_base")
-        anchor = metadata.get("absolute_rank_anchor")
-        candidate = base if isinstance(base, int) and base > 100 else anchor
-        if isinstance(candidate, int) and candidate > 100:
-            anchor_page_index = index
-            anchor_first_rank = candidate
-            break
+    anchor_page_index, anchor_first_rank = _select_blue_archive_absolute_retrofit_anchor(
+        page_metadata=page_metadata
+    )
     if anchor_page_index is None or anchor_first_rank is None:
         return parsed_pages, page_metadata
 
@@ -452,6 +445,32 @@ def _retrofit_blue_archive_absolute_page_ranks(
             adjusted_metadata[index]["absolute_rank_base_source"] = "retrofit"
 
     return adjusted_pages, adjusted_metadata
+
+
+def _select_blue_archive_absolute_retrofit_anchor(
+    *,
+    page_metadata: list[dict[str, Any]],
+) -> tuple[int | None, int | None]:
+    candidates: list[tuple[int, int, int]] = []
+    source_priority = {
+        "row_base": 3,
+        "original": 2,
+        "prepared": 1,
+    }
+    for index, metadata in enumerate(page_metadata):
+        base = metadata.get("absolute_rank_base")
+        base_source = metadata.get("absolute_rank_base_source")
+        anchor = metadata.get("absolute_rank_anchor")
+        anchor_source = metadata.get("absolute_rank_anchor_source")
+        if isinstance(base, int) and base > 100:
+            candidates.append((-source_priority.get(str(base_source), 0), index, base))
+        elif isinstance(anchor, int) and anchor > 100:
+            candidates.append((-source_priority.get(str(anchor_source), 0), index, anchor))
+    if not candidates:
+        return None, None
+    candidates.sort()
+    _, index, anchor_rank = candidates[0]
+    return index, anchor_rank
 
 
 def _build_capture_page_summaries(
