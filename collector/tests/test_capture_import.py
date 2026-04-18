@@ -3964,7 +3964,7 @@ def test_ocr_blue_archive_row_score_uses_majority_vote(
     assert score == 40040720
 
 
-@pytest.mark.parametrize("image_size", [(2400, 1080), (2340, 1080)])
+@pytest.mark.parametrize("image_size", [(2400, 1080), (2340, 1080), (1600, 900)])
 def test_parse_tesseract_layout_entries_prefers_blue_archive_fixed_rows(
     image_size: tuple[int, int],
     tmp_path: Path,
@@ -4027,9 +4027,9 @@ def test_parse_tesseract_layout_entries_prefers_blue_archive_fixed_rows(
 @pytest.mark.parametrize(
     ("fixture_name", "expected_starts"),
     [
-        ("lunatic-page-001.png", (0.0, 0.26, 0.62)),
-        ("torment-page-001.png", (0.0, 0.26, 0.62)),
-        ("insane-page-001.png", (0.0, 0.26, 0.62)),
+        ("lunatic-page-001.png", (0.036, 0.258, 0.568)),
+        ("torment-page-001.png", (0.036, 0.258, 0.568)),
+        ("insane-page-001.png", (0.036, 0.258, 0.568)),
     ],
 )
 def test_detect_blue_archive_row_bands_from_fixture_images(

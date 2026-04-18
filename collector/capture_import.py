@@ -1803,7 +1803,7 @@ def _is_blue_archive_fixed_layout_image(
         return False
 
     aspect_ratio = width / height
-    if not (2.0 <= aspect_ratio <= 2.35):
+    if not (1.70 <= aspect_ratio <= 2.35):
         return False
 
     crop = ocr.crop
