@@ -3362,6 +3362,91 @@ def test_parse_blue_archive_fixed_rows_uses_original_row_rank_on_later_pages(
     assert entries[0]["_absolute_rank_base_source"] == "row_base"
 
 
+def test_parse_blue_archive_fixed_rows_skips_anchor_ocr_when_row_ranks_are_complete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, "Torment", 40_100_000),
+    )
+    original_ranks = iter([3522, 3523, 3524])
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: next(original_ranks),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("anchor OCR should be skipped")),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("original anchor OCR should be skipped")),
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        image_path=Path("page.png"),
+        prepared_image_path=Path("prepared.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=0.9,
+        page_index=1,
+    )
+
+    assert [entry["rank"] for entry in entries] == [3522, 3523, 3524]
+    assert entries[0]["_absolute_rank_base"] == 3522
+
+
+def test_select_blue_archive_row_rank_prefers_original_absolute_rank() -> None:
+    assert capture_import._select_blue_archive_row_rank(
+        prepared_rank=10001,
+        original_rank=3522,
+        visible_row_count=3,
+    ) == 3522
+
+
+def test_select_blue_archive_row_rank_prefers_small_original_top_rank_over_large_noise() -> None:
+    assert capture_import._select_blue_archive_row_rank(
+        prepared_rank=534,
+        original_rank=1,
+        visible_row_count=3,
+    ) == 1
+
+
+def test_select_blue_archive_row_rank_keeps_prepared_small_rank_when_original_is_small_noise() -> None:
+    assert capture_import._select_blue_archive_row_rank(
+        prepared_rank=3,
+        original_rank=20,
+        visible_row_count=3,
+    ) == 3
+
+
 def test_ocr_blue_archive_page_absolute_rank_anchor_accepts_large_numeric_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3590,6 +3675,49 @@ def test_parse_blue_archive_rank_candidate_accepts_common_ocr_digit_substitution
     assert capture_import._parse_blue_archive_rank_candidate("3S22") == 3522
     assert capture_import._parse_blue_archive_rank_candidate("16I09") == 16109
     assert capture_import._parse_blue_archive_rank_candidate("12OO1") == 12001
+
+
+def test_resolve_tesseract_input_path_converts_wsl_path_for_windows_exe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args, **kwargs):
+        assert args == ["wslpath", "-w", "/tmp/plana-ocr-crop-demo.png"]
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="C:\\Temp\\plana-ocr-crop-demo.png\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    resolved = capture_import._resolve_tesseract_input_path(
+        "/mnt/c/Program Files/Tesseract-OCR/tesseract.exe",
+        Path("/tmp/plana-ocr-crop-demo.png"),
+    )
+
+    assert resolved == "C:\\Temp\\plana-ocr-crop-demo.png"
+
+
+def test_resolve_tesseract_input_path_keeps_path_for_non_windows_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = False
+
+    def fake_run(args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("wslpath should not be called")
+
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    resolved = capture_import._resolve_tesseract_input_path(
+        "tesseract",
+        Path("/tmp/plana-ocr-crop-demo.png"),
+    )
+
+    assert resolved == "/tmp/plana-ocr-crop-demo.png"
+    assert called is False
 
 
 def test_extract_rank_candidates_from_text_joins_split_rank_digits() -> None:
@@ -4093,6 +4221,168 @@ def test_select_visible_blue_archive_row_bands_drops_partial_top_row() -> None:
         (0.18, 0.50),
         (0.54, 0.88),
     )
+
+
+def test_apply_blue_archive_original_row_ranks_prefers_existing_entries_when_no_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_recover_blue_archive_original_row_ranks",
+        lambda **kwargs: None,
+    )
+
+    entries = [
+        {"rank": 1, "score": 40100000, "player_name": "Torment"},
+        {"rank": 2, "score": 40097600, "player_name": "Torment"},
+        {"rank": 3, "score": 40090640, "player_name": "Torment"},
+    ]
+
+    applied = capture_import._apply_blue_archive_original_row_ranks(
+        entries=entries,
+        prepared_image_path=Path("prepared.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+    )
+
+    assert applied == entries
+
+
+def test_apply_blue_archive_original_row_ranks_uses_recovered_ranks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_recover_blue_archive_original_row_ranks",
+        lambda **kwargs: [3522, 3523, 3524],
+    )
+
+    entries = [
+        {"rank": 1, "score": 40100000, "player_name": "Torment"},
+        {"rank": 2, "score": 40097600, "player_name": "Torment"},
+        {"rank": 3, "score": 40090640, "player_name": "Torment"},
+    ]
+
+    applied = capture_import._apply_blue_archive_original_row_ranks(
+        entries=entries,
+        prepared_image_path=Path("prepared.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+    )
+
+    assert [(entry["rank"], entry["score"]) for entry in applied] == [
+        (3522, 40100000),
+        (3523, 40097600),
+        (3524, 40090640),
+    ]
+    assert applied[0]["_absolute_rank_base"] == 3522
+    assert applied[0]["_absolute_rank_base_source"] == "original_row_ranks"
+
+
+def test_parse_tesseract_layout_entries_applies_original_row_ranks_to_generic_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_path = tmp_path / "blue-archive-page.png"
+    from PIL import Image
+
+    Image.new("RGB", (1600, 900), color="white").save(image_path)
+
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (image_path, lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_blue_archive_fixed_rows",
+        lambda **kwargs: [],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: "tsv",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_tesseract_tsv_words",
+        lambda text: [{"text": "dummy"}],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_find_layout_score_words",
+        lambda words: [],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_group_tesseract_words_by_line",
+        lambda words: [["a"], ["b"], ["c"]],
+    )
+    generic_entries = iter(
+        [
+            {"rank": 1, "score": 40100000, "player_name": "Torment"},
+            {"rank": 3, "score": 40097600, "player_name": "Torment"},
+            {"rank": 4, "score": 40090640, "player_name": "Torment"},
+        ]
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_tesseract_layout_line",
+        lambda **kwargs: next(generic_entries, None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_recover_blue_archive_original_row_ranks",
+        lambda **kwargs: [3522, 3523, 3524],
+    )
+
+    entries = capture_import._parse_tesseract_layout_entries(
+        image_path=image_path,
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["score"]) for entry in entries] == [
+        (3522, 40100000),
+        (3523, 40097600),
+        (3524, 40090640),
+    ]
 
 
 def test_select_visible_blue_archive_row_bands_drops_partial_bottom_row() -> None:

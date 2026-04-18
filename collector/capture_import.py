@@ -1479,7 +1479,7 @@ def _run_tesseract_command(
             f"command={command!r}, image_path={original_image_path}"
         )
 
-    args = [command, str(prepared_image_path), "stdout"]
+    args = [command, _resolve_tesseract_input_path(command, prepared_image_path), "stdout"]
     if ocr.language:
         args.extend(["-l", ocr.language])
     if ocr.psm is not None:
@@ -1518,6 +1518,27 @@ def _run_tesseract_command(
             f"tesseract {output_kind} 결과가 비어 있습니다: image_path={original_image_path}"
         )
     return stdout
+
+
+def _resolve_tesseract_input_path(command: str, image_path: Path) -> str:
+    path_str = str(image_path)
+    if not command.lower().endswith(".exe") or not path_str.startswith("/"):
+        return path_str
+    try:
+        result = subprocess.run(
+            ["wslpath", "-w", path_str],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError:
+        return path_str
+    converted = (result.stdout or "").strip()
+    if result.returncode != 0 or not converted:
+        return path_str
+    return converted
 
 
 def _prepare_image_for_ocr(
@@ -1753,6 +1774,13 @@ def _parse_tesseract_layout_entries(
                         entries.append(entry)
 
             if entries:
+                if prefer_blue_archive_fixed_rows:
+                    entries = _apply_blue_archive_original_row_ranks(
+                        entries=entries,
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                    )
                 return _normalize_tesseract_page_entry_ranks(entries)
 
             for line_words in _group_tesseract_words_by_line(words):
@@ -1766,6 +1794,13 @@ def _parse_tesseract_layout_entries(
                     entries.append(entry)
 
             if entries:
+                if prefer_blue_archive_fixed_rows:
+                    entries = _apply_blue_archive_original_row_ranks(
+                        entries=entries,
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                    )
                 return _normalize_tesseract_page_entry_ranks(entries)
 
             entries = _parse_blue_archive_fixed_rows(
@@ -1892,6 +1927,7 @@ def _parse_blue_archive_fixed_rows(
 
     raw_rows: list[dict[str, Any]] = []
     detected_ranks: list[int | None] = []
+    complete_row_ranks = True
 
     for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
         rank, difficulty, score = _ocr_blue_archive_row_combined_fields(
@@ -1902,6 +1938,24 @@ def _parse_blue_archive_fixed_rows(
             page_index=page_index,
         )
 
+        original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
+            image_path=image_path,
+            ocr=ocr,
+            top_ratio=top_ratio,
+            bottom_ratio=bottom_ratio,
+        )
+        if rank is None and original_image_rank is None:
+            rank = _ocr_blue_archive_row_rank(
+                prepared_image_path=prepared_image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+        rank = _select_blue_archive_row_rank(
+            prepared_rank=rank,
+            original_rank=original_image_rank,
+            visible_row_count=len(row_bands),
+        )
         if rank is None:
             rank = _ocr_blue_archive_row_rank(
                 prepared_image_path=prepared_image_path,
@@ -1909,15 +1963,11 @@ def _parse_blue_archive_fixed_rows(
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
             )
-        if rank is not None and rank <= max(20, len(row_bands) + 2):
-            original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
-                image_path=image_path,
-                ocr=ocr,
-                top_ratio=top_ratio,
-                bottom_ratio=bottom_ratio,
+            rank = _select_blue_archive_row_rank(
+                prepared_rank=rank,
+                original_rank=original_image_rank,
+                visible_row_count=len(row_bands),
             )
-            if original_image_rank is not None and original_image_rank > 100:
-                rank = original_image_rank
         if difficulty is None:
             difficulty = _ocr_blue_archive_row_difficulty(
                 prepared_image_path=prepared_image_path,
@@ -1937,6 +1987,8 @@ def _parse_blue_archive_fixed_rows(
         if score is None:
             continue
 
+        if rank is None:
+            complete_row_ranks = False
         detected_ranks.append(rank)
         raw_rows.append(
             {
@@ -1994,7 +2046,7 @@ def _parse_blue_archive_fixed_rows(
         ocr=ocr,
         row_bands=row_bands,
         resolved_ranks=resolved_ranks,
-    )
+    ) if absolute_rank_base is None and not complete_row_ranks else None
     absolute_rank_anchor = prepared_absolute_rank_anchor
     if _is_valid_blue_archive_absolute_anchor(
         prepared_absolute_rank_anchor,
@@ -2008,7 +2060,7 @@ def _parse_blue_archive_fixed_rows(
             row_bands=row_bands,
             resolved_ranks=resolved_ranks,
             page_index=page_index,
-        )
+        ) if absolute_rank_base is None and not complete_row_ranks else None
         if _is_valid_blue_archive_absolute_anchor(
             absolute_rank_anchor,
             page_index=page_index,
@@ -2055,6 +2107,92 @@ def _parse_blue_archive_fixed_rows(
     if not _blue_archive_scores_are_non_increasing(normalized_entries):
         return []
     return normalized_entries
+
+
+def _apply_blue_archive_original_row_ranks(
+    *,
+    entries: list[dict[str, Any]],
+    prepared_image_path: Path,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> list[dict[str, Any]]:
+    recovered_ranks = _recover_blue_archive_original_row_ranks(
+        prepared_image_path=prepared_image_path,
+        image_path=image_path,
+        ocr=ocr,
+    )
+    if not recovered_ranks or len(recovered_ranks) < len(entries):
+        return entries
+
+    current_ranks = [
+        entry.get("rank") if isinstance(entry.get("rank"), int) else None
+        for entry in entries
+    ]
+    if current_ranks == recovered_ranks[: len(entries)]:
+        return entries
+
+    recovered_has_absolute = any(rank > 100 for rank in recovered_ranks)
+    current_has_absolute = any(
+        isinstance(rank, int) and rank > 100 for rank in current_ranks
+    )
+    if not recovered_has_absolute and current_has_absolute:
+        return entries
+
+    normalized_entries: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        normalized_entries.append(
+            {
+                **entry,
+                "rank": recovered_ranks[index],
+                "_absolute_rank_base": (
+                    recovered_ranks[0] if recovered_has_absolute else entry.get("_absolute_rank_base")
+                ),
+                "_absolute_rank_base_source": (
+                    "original_row_ranks"
+                    if recovered_has_absolute
+                    else entry.get("_absolute_rank_base_source")
+                ),
+            }
+        )
+    return normalized_entries
+
+
+def _recover_blue_archive_original_row_ranks(
+    *,
+    prepared_image_path: Path,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> list[int] | None:
+    detected_row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
+        (0.02, 0.31),
+        (0.35, 0.65),
+        (0.69, 0.98),
+    )
+    row_bands = _select_visible_blue_archive_row_bands(detected_row_bands)
+    if not row_bands:
+        return None
+
+    detected_ranks: list[int | None] = []
+    for top_ratio, bottom_ratio in row_bands:
+        detected_ranks.append(
+            _ocr_blue_archive_row_rank_from_original_image(
+                image_path=image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+        )
+
+    if not any(rank is not None for rank in detected_ranks):
+        return None
+
+    resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+        detected_ranks
+    )
+    if absolute_rank_base is not None:
+        return list(range(absolute_rank_base, absolute_rank_base + len(resolved_ranks)))
+    return resolved_ranks
 
 
 def _ocr_blue_archive_page_absolute_rank_anchor(
@@ -2451,6 +2589,26 @@ def _resolve_blue_archive_page_difficulty(
         counts.items(),
         key=lambda item: (item[1], DIFFICULTY_PRIORITY.get(item[0], 0), item[0]),
     )[0]
+
+
+def _select_blue_archive_row_rank(
+    *,
+    prepared_rank: int | None,
+    original_rank: int | None,
+    visible_row_count: int,
+) -> int | None:
+    if original_rank is None:
+        return prepared_rank
+    if prepared_rank is None:
+        return original_rank
+    if original_rank > 100:
+        return original_rank
+    if (
+        0 < original_rank <= visible_row_count + 1
+        and prepared_rank > visible_row_count + 1
+    ):
+        return original_rank
+    return prepared_rank
 
 
 def _blue_archive_scores_are_non_increasing(
@@ -3243,15 +3401,35 @@ def _ocr_blue_archive_row_rank_from_original_image(
 
             normalized_text = _normalize_unicode_ocr_text(text)
             rank_candidates = _extract_rank_candidates_from_text(normalized_text)
-            if "rank" in normalized_text.lower():
-                prefixed_ranks.extend(rank for rank in rank_candidates if rank > 0)
-            parsed_ranks.extend(rank for rank in rank_candidates if rank > 0)
+            lower_text = normalized_text.lower()
+            positive_rank_candidates = [rank for rank in rank_candidates if rank > 0]
+            if "rank" in lower_text:
+                prefixed_ranks.extend(positive_rank_candidates)
+                strong_prefixed_rank = _select_preferred_blue_archive_rank_candidate(
+                    positive_rank_candidates
+                )
+                if strong_prefixed_rank is not None and (
+                    strong_prefixed_rank > 100 or strong_prefixed_rank <= 10
+                ):
+                    return strong_prefixed_rank
+            parsed_ranks.extend(positive_rank_candidates)
+            strong_rank = _select_preferred_blue_archive_rank_candidate(
+                positive_rank_candidates
+            )
+            if strong_rank is not None and (
+                strong_rank > 100 or strong_rank <= 10
+            ):
+                return strong_rank
             if not rank_candidates:
                 rank = _parse_blue_archive_rank_candidate(normalized_text)
                 if rank is not None:
-                    if "rank" in normalized_text.lower():
+                    if "rank" in lower_text:
                         prefixed_ranks.append(rank)
+                        if rank > 100 or rank <= 10:
+                            return rank
                     parsed_ranks.append(rank)
+                    if rank > 100 or rank <= 10:
+                        return rank
 
     if prefixed_ranks:
         return _select_preferred_blue_archive_rank_candidate(prefixed_ranks)
