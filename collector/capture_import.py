@@ -1681,7 +1681,7 @@ def _parse_blue_archive_fixed_rows(
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
             )
-            if original_image_rank is not None and original_image_rank > len(row_bands):
+            if original_image_rank is not None and original_image_rank > 100:
                 rank = original_image_rank
         if difficulty is None:
             difficulty = _ocr_blue_archive_row_difficulty(
