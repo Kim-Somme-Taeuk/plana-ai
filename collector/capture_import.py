@@ -36,6 +36,7 @@ from collector.mock_import import (
     SNAPSHOT_REQUIRED_FIELDS,
     import_mock_payload,
 )
+from collector.blue_archive_rows import parse_blue_archive_capture
 
 OCR_PROVIDER_SIDECAR = "sidecar"
 OCR_PROVIDER_TESSERACT = "tesseract"
@@ -256,16 +257,75 @@ def parse_capture_payload(
     *,
     validate_snapshot_entries: bool = True,
 ) -> ParsedCapturePayload:
+    resolved_pages = [
+        (
+            page_index,
+            _resolve_existing_path(payload.base_dir, page.image_path, "image_path"),
+            page.default_ocr_confidence,
+        )
+        for page_index, page in enumerate(payload.pages, start=1)
+    ]
+    if resolved_pages and _is_blue_archive_fixed_layout_image(
+        image_path=resolved_pages[0][1],
+        ocr=payload.ocr,
+    ):
+        entries, page_summaries, ignored_lines = parse_blue_archive_capture(
+            resolved_pages=resolved_pages,
+            parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_entries(
+                image_path=image_path,
+                ocr=payload.ocr,
+                default_ocr_confidence=default_ocr_confidence,
+                page_index=page_index,
+            ),
+            realign_page_ranks=lambda previous_page_entries, current_page_entries: _realign_overlapping_page_entry_ranks(
+                previous_page_entries=previous_page_entries,
+                current_page_entries=current_page_entries,
+            ),
+            retrofit_absolute_ranks=lambda parsed_pages, page_metadata: _retrofit_blue_archive_absolute_page_ranks(
+                parsed_pages=parsed_pages,
+                page_metadata=page_metadata,
+            ),
+            prune_sparse_pages=lambda parsed_pages, page_metadata: _prune_blue_archive_sparse_rank_violation_pages(
+                parsed_pages=parsed_pages,
+                page_metadata=page_metadata,
+            ),
+            build_page_summaries=lambda parsed_pages, page_metadata: _build_capture_page_summaries(
+                parsed_pages=parsed_pages,
+                page_metadata=page_metadata,
+            ),
+            strip_internal_entry_fields=_strip_internal_entry_fields,
+            build_entry_image_path=_build_entry_image_path,
+        )
+        if validate_snapshot_entries:
+            _validate_snapshot_entries(entries, page_summaries)
+        snapshot_note = _build_snapshot_note_with_collector_summary(
+            snapshot=payload.snapshot,
+            capture=payload.capture,
+            ignored_lines=ignored_lines,
+            page_summaries=page_summaries,
+        )
+        return ParsedCapturePayload(
+            mock_payload=MockImportPayload(
+                season=payload.season,
+                snapshot={
+                    **payload.snapshot,
+                    "note": snapshot_note,
+                },
+                entries=entries,
+            ),
+            ignored_lines=ignored_lines,
+            page_summaries=page_summaries,
+        )
+
     ignored_lines: list[IgnoredOcrLine] = []
     page_metadata: list[dict[str, Any]] = []
     parsed_pages: list[list[dict[str, Any]]] = []
     previous_page_entries: list[dict[str, Any]] = []
 
-    for page_index, page in enumerate(payload.pages, start=1):
-        image_path = _resolve_existing_path(payload.base_dir, page.image_path, "image_path")
+    for page_index, image_path, default_ocr_confidence in resolved_pages:
         ocr_text = _load_ocr_text(
             base_dir=payload.base_dir,
-            page=page,
+            page=payload.pages[page_index - 1],
             image_path=image_path,
             ocr=payload.ocr,
         )
@@ -274,7 +334,7 @@ def parse_capture_payload(
             ocr_text=ocr_text,
             image_path=image_path,
             ocr=payload.ocr,
-            default_ocr_confidence=page.default_ocr_confidence,
+            default_ocr_confidence=default_ocr_confidence,
             page_index=page_index,
         )
         page_entries = _realign_overlapping_page_entry_ranks(
@@ -1815,6 +1875,13 @@ def _parse_tesseract_layout_entries(
         image_path=image_path,
         ocr=ocr,
     )
+    if prefer_blue_archive_fixed_rows:
+        return _parse_blue_archive_page_entries(
+            image_path=image_path,
+            ocr=ocr,
+            default_ocr_confidence=default_ocr_confidence,
+            page_index=page_index,
+        )
     best_blue_archive_entries: list[dict[str, Any]] = []
     for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
         prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
@@ -1856,6 +1923,7 @@ def _parse_tesseract_layout_entries(
                         recovered_ranks=get_recovered_blue_archive_ranks(),
                     ):
                         return _tag_blue_archive_layout_entries(normalized_entries)
+                continue
 
             try:
                 tsv_text = _run_tesseract_command(
@@ -1957,6 +2025,42 @@ def _parse_tesseract_layout_entries(
         finally:
             cleanup()
 
+    if best_blue_archive_entries:
+        return _tag_blue_archive_layout_entries(best_blue_archive_entries)
+    return []
+
+
+def _parse_blue_archive_page_entries(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> list[dict[str, Any]]:
+    best_blue_archive_entries: list[dict[str, Any]] = []
+    for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
+        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
+        try:
+            entries = _parse_blue_archive_fixed_rows(
+                prepared_image_path=prepared_image_path,
+                image_path=image_path,
+                ocr=attempt_ocr,
+                default_ocr_confidence=default_ocr_confidence,
+                page_index=page_index,
+            )
+            if not entries:
+                continue
+            normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
+            best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
+                current_entries=best_blue_archive_entries,
+                candidate_entries=normalized_entries,
+            )
+            if ocr.blue_archive_fast_path:
+                return _tag_blue_archive_layout_entries(normalized_entries)
+            if _is_sufficient_blue_archive_fixed_row_entries(normalized_entries):
+                return _tag_blue_archive_layout_entries(normalized_entries)
+        finally:
+            cleanup()
     if best_blue_archive_entries:
         return _tag_blue_archive_layout_entries(best_blue_archive_entries)
     return []
@@ -2132,6 +2236,8 @@ def _parse_blue_archive_fixed_rows(
             )
 
         if score is None:
+            continue
+        if rank is None and difficulty is None:
             continue
 
         if rank is None:

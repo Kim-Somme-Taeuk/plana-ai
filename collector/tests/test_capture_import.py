@@ -744,6 +744,76 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "absolute_rank_base_source": None,
         },
     ]
+
+
+def test_parse_capture_payload_uses_blue_archive_row_pipeline_without_loading_ocr_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(tmp_path, "page-001.png", "unused\n")
+    _write_capture_page(tmp_path, "page-002.png", "unused\n")
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-blue-archive-row-pipeline-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+        ],
+        ocr={"provider": "tesseract"},
+    )
+
+    monkeypatch.setattr(
+        capture_import,
+        "_is_blue_archive_fixed_layout_image",
+        lambda **kwargs: True,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_load_ocr_text",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("blue archive row pipeline should not load OCR text")
+        ),
+    )
+
+    page_entries = {
+        1: [
+            {"rank": 1, "player_name": "Lunatic", "score": 53404105},
+            {"rank": 2, "player_name": "Lunatic", "score": 53393930},
+            {"rank": 3, "player_name": "Lunatic", "score": 53393544},
+        ],
+        2: [
+            {"rank": 3, "player_name": "Lunatic", "score": 53393544},
+            {"rank": 4, "player_name": "Lunatic", "score": 53393449},
+            {"rank": 5, "player_name": "Lunatic", "score": 53389034},
+        ],
+    }
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_blue_archive_page_entries",
+        lambda **kwargs: [
+            {
+                **entry,
+                "ocr_confidence": None,
+                "raw_text": "",
+                "image_path": kwargs["image_path"].name,
+                "is_valid": True,
+                "validation_issue": None,
+            }
+            for entry in page_entries[kwargs["page_index"]]
+        ],
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert [entry["rank"] for entry in parsed_payload.mock_payload.entries] == [1, 2, 3, 4, 5]
+    assert [entry["player_name"] for entry in parsed_payload.mock_payload.entries] == [
+        "Lunatic",
+        "Lunatic",
+        "Lunatic",
+        "Lunatic",
+        "Lunatic",
+    ]
     assert parsed_payload.mock_payload.snapshot["note"] == "capture import test fixture"
 
 
@@ -4275,7 +4345,7 @@ def test_apply_blue_archive_original_row_ranks_uses_recovered_ranks(
     assert applied[0]["_absolute_rank_base_source"] == "original_row_ranks"
 
 
-def test_parse_tesseract_layout_entries_applies_original_row_ranks_to_generic_entries(
+def test_parse_tesseract_layout_entries_does_not_fallback_to_generic_ocr_for_blue_archive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4297,39 +4367,9 @@ def test_parse_tesseract_layout_entries_applies_original_row_ranks_to_generic_en
     monkeypatch.setattr(
         capture_import,
         "_run_tesseract_command",
-        lambda **kwargs: "tsv",
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_parse_tesseract_tsv_words",
-        lambda text: [{"text": "dummy"}],
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_find_layout_score_words",
-        lambda words: [],
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_group_tesseract_words_by_line",
-        lambda words: [["a"], ["b"], ["c"]],
-    )
-    generic_entries = iter(
-        [
-            {"rank": 1, "score": 40100000, "player_name": "Torment"},
-            {"rank": 3, "score": 40097600, "player_name": "Torment"},
-            {"rank": 4, "score": 40090640, "player_name": "Torment"},
-        ]
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_parse_tesseract_layout_line",
-        lambda **kwargs: next(generic_entries, None),
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_recover_blue_archive_original_row_ranks",
-        lambda **kwargs: [3522, 3523, 3524],
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("blue archive fixed layout should not use generic OCR fallback")
+        ),
     )
 
     entries = capture_import._parse_tesseract_layout_entries(
@@ -4354,11 +4394,7 @@ def test_parse_tesseract_layout_entries_applies_original_row_ranks_to_generic_en
         page_index=1,
     )
 
-    assert [(entry["rank"], entry["score"]) for entry in entries] == [
-        (3522, 40100000),
-        (3523, 40097600),
-        (3524, 40090640),
-    ]
+    assert entries == []
 
 
 def test_iter_tesseract_layout_ocr_attempts_limits_variants_in_blue_archive_fast_path() -> None:
@@ -4455,33 +4491,9 @@ def test_parse_tesseract_layout_entries_prefers_richer_later_blue_archive_attemp
     monkeypatch.setattr(
         capture_import,
         "_run_tesseract_command",
-        lambda **kwargs: "tsv",
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_parse_tesseract_tsv_words",
-        lambda text: [{"text": "dummy"}],
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_find_layout_score_words",
-        lambda words: [],
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_group_tesseract_words_by_line",
-        lambda words: [["a"]],
-    )
-    generic_entries = iter(
-        [
-            {"rank": 3523, "score": 40097600, "player_name": "Torment"},
-            None,
-        ]
-    )
-    monkeypatch.setattr(
-        capture_import,
-        "_parse_tesseract_layout_line",
-        lambda **kwargs: next(generic_entries, None),
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("blue archive fixed layout should not use generic OCR fallback")
+        ),
     )
     recoveries = iter([[3522, 3523, 3524]])
     monkeypatch.setattr(
