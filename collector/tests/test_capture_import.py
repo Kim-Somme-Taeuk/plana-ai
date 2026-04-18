@@ -4361,6 +4361,31 @@ def test_parse_tesseract_layout_entries_applies_original_row_ranks_to_generic_en
     ]
 
 
+def test_iter_tesseract_layout_ocr_attempts_limits_variants_in_blue_archive_fast_path() -> None:
+    ocr = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.37,
+            top_ratio=0.34,
+            right_ratio=0.56,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=2.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+        blue_archive_fast_path=True,
+    )
+
+    attempts = capture_import._iter_tesseract_layout_ocr_attempts(ocr)
+
+    assert len(attempts) == 2
+    assert all(attempt.blue_archive_fast_path is True for attempt in attempts)
+
+
 def test_parse_tesseract_layout_entries_prefers_richer_later_blue_archive_attempt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

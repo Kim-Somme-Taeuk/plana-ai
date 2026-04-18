@@ -1621,6 +1621,29 @@ def test_after_capture_page_uses_latest_page_only_for_max_rank_stop(
     )
 
 
+def test_build_runtime_ocr_config_uses_fast_path_for_blue_archive_callback(
+    tmp_path: Path,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-fast-runtime-ocr-season",
+    )
+    request = capture_pipeline.load_adb_capture_request(request_path)
+
+    ocr = capture_pipeline._build_runtime_ocr_config(
+        request=request,
+        effective_ocr_provider="tesseract",
+        ocr_command=None,
+        ocr_language="eng",
+        ocr_psm=11,
+        blue_archive_fast_path=True,
+    )
+
+    assert ocr.blue_archive_fast_path is True
+    assert ocr.upscale_ratio == 1.0
+    assert ocr.persist_sidecar is False
+
+
 def test_run_capture_pipeline_stops_capture_early_for_soft_recommendation_in_any_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

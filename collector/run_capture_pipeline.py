@@ -655,6 +655,7 @@ def _build_after_capture_page_callback(
                     ocr_command=ocr_command,
                     ocr_language=ocr_language,
                     ocr_psm=ocr_psm,
+                    blue_archive_fast_path=latest_page_only,
                 ),
                 capture={
                     "requested_page_count": request.adb.page_count,
@@ -766,6 +767,7 @@ def _build_runtime_ocr_config(
     ocr_command: str | None,
     ocr_language: str | None,
     ocr_psm: int | None,
+    blue_archive_fast_path: bool = False,
 ) -> OcrConfig:
     provider = effective_ocr_provider or request.ocr["provider"]
     return OcrConfig(
@@ -775,9 +777,12 @@ def _build_runtime_ocr_config(
         psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
         extra_args=tuple(request.ocr.get("extra_args", [])),
         crop=_build_ocr_crop(request.ocr.get("crop")),
-        upscale_ratio=float(request.ocr.get("upscale_ratio", 1.0)),
+        upscale_ratio=min(float(request.ocr.get("upscale_ratio", 1.0)), 1.5)
+        if blue_archive_fast_path
+        else float(request.ocr.get("upscale_ratio", 1.0)),
         reuse_cached_sidecar=True,
-        persist_sidecar=True,
+        persist_sidecar=not blue_archive_fast_path,
+        blue_archive_fast_path=blue_archive_fast_path,
     )
 
 

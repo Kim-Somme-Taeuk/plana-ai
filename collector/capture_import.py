@@ -131,6 +131,7 @@ class OcrConfig:
     upscale_ratio: float
     reuse_cached_sidecar: bool
     persist_sidecar: bool
+    blue_archive_fast_path: bool = False
 
 
 @dataclass(frozen=True)
@@ -1846,6 +1847,8 @@ def _parse_tesseract_layout_entries(
                         current_entries=best_blue_archive_entries,
                         candidate_entries=normalized_entries,
                     )
+                    if ocr.blue_archive_fast_path:
+                        return _tag_blue_archive_layout_entries(normalized_entries)
                     if _is_sufficient_blue_archive_fixed_row_entries(normalized_entries):
                         return _tag_blue_archive_layout_entries(normalized_entries)
                     if not _should_continue_blue_archive_layout_attempt(
@@ -2046,8 +2049,11 @@ def _iter_tesseract_layout_ocr_attempts(ocr: OcrConfig) -> list[OcrConfig]:
                 upscale_ratio=ocr.upscale_ratio,
                 reuse_cached_sidecar=ocr.reuse_cached_sidecar,
                 persist_sidecar=ocr.persist_sidecar,
+                blue_archive_fast_path=ocr.blue_archive_fast_path,
             )
         )
+    if ocr.blue_archive_fast_path:
+        return deduped_attempts[:2]
     return deduped_attempts
 
 
