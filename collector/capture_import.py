@@ -2503,14 +2503,7 @@ def _select_preferred_blue_archive_attempt_entries(
 def _is_sufficient_blue_archive_fixed_row_entries(
     entries: list[dict[str, Any]],
 ) -> bool:
-    if len(entries) >= 3:
-        return True
-    if len(entries) >= 2 and any(
-        isinstance(entry.get("rank"), int) and entry["rank"] > 100
-        for entry in entries
-    ):
-        return True
-    return False
+    return len(entries) >= 2
 
 
 def _recover_blue_archive_original_row_ranks(

@@ -4614,6 +4614,15 @@ def test_has_strong_blue_archive_absolute_row_rank_signal_requires_two_close_hit
     ) is False
 
 
+def test_is_sufficient_blue_archive_fixed_row_entries_accepts_two_rows() -> None:
+    entries = [
+        {"rank": 1, "score": 100, "player_name": "Lunatic"},
+        {"rank": 2, "score": 99, "player_name": "Lunatic"},
+    ]
+
+    assert capture_import._is_sufficient_blue_archive_fixed_row_entries(entries) is True
+
+
 def test_recover_blue_archive_original_row_ranks_does_not_promote_single_large_noise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
