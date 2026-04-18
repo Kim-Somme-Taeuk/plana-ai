@@ -4385,6 +4385,124 @@ def test_parse_tesseract_layout_entries_applies_original_row_ranks_to_generic_en
     ]
 
 
+def test_parse_tesseract_layout_entries_prefers_richer_later_blue_archive_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_path = tmp_path / "blue-archive-page.png"
+    from PIL import Image
+
+    Image.new("RGB", (1600, 900), color="white").save(image_path)
+
+    attempt_one = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.37,
+            top_ratio=0.34,
+            right_ratio=0.56,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=1.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+    attempt_two = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.34,
+            top_ratio=0.34,
+            right_ratio=0.58,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=1.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_iter_tesseract_layout_ocr_attempts",
+        lambda ocr: [attempt_one, attempt_two],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (image_path, lambda: None),
+    )
+    fixed_rows = iter(
+        [
+            [],
+            [
+                {"rank": 3522, "score": 40100000, "player_name": "Torment"},
+                {"rank": 3523, "score": 40097600, "player_name": "Torment"},
+                {"rank": 3524, "score": 40090640, "player_name": "Torment"},
+            ],
+        ]
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_blue_archive_fixed_rows",
+        lambda **kwargs: next(fixed_rows),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: "tsv",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_tesseract_tsv_words",
+        lambda text: [{"text": "dummy"}],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_find_layout_score_words",
+        lambda words: [],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_group_tesseract_words_by_line",
+        lambda words: [["a"]],
+    )
+    generic_entries = iter(
+        [
+            {"rank": 3523, "score": 40097600, "player_name": "Torment"},
+            None,
+        ]
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_tesseract_layout_line",
+        lambda **kwargs: next(generic_entries, None),
+    )
+    recoveries = iter([[3522, 3523, 3524]])
+    monkeypatch.setattr(
+        capture_import,
+        "_recover_blue_archive_original_row_ranks",
+        lambda **kwargs: next(recoveries, [3522, 3523, 3524]),
+    )
+
+    entries = capture_import._parse_tesseract_layout_entries(
+        image_path=image_path,
+        ocr=attempt_one,
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["score"]) for entry in entries] == [
+        (3522, 40100000),
+        (3523, 40097600),
+        (3524, 40090640),
+    ]
+
+
 def test_select_visible_blue_archive_row_bands_drops_partial_bottom_row() -> None:
     row_bands = (
         (0.04, 0.34),

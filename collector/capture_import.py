@@ -1728,6 +1728,7 @@ def _parse_tesseract_layout_entries(
         image_path=image_path,
         ocr=ocr,
     )
+    best_blue_archive_entries: list[dict[str, Any]] = []
     for attempt_ocr in _iter_tesseract_layout_ocr_attempts(ocr):
         prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
         try:
@@ -1740,7 +1741,20 @@ def _parse_tesseract_layout_entries(
                     page_index=page_index,
                 )
                 if entries:
-                    return _normalize_tesseract_page_entry_ranks(entries)
+                    normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
+                    best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
+                        current_entries=best_blue_archive_entries,
+                        candidate_entries=normalized_entries,
+                    )
+                    if _is_sufficient_blue_archive_fixed_row_entries(normalized_entries):
+                        return normalized_entries
+                    if not _should_continue_blue_archive_layout_attempt(
+                        entries=normalized_entries,
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                    ):
+                        return normalized_entries
 
             try:
                 tsv_text = _run_tesseract_command(
@@ -1781,6 +1795,19 @@ def _parse_tesseract_layout_entries(
                         image_path=image_path,
                         ocr=attempt_ocr,
                     )
+                    normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
+                    best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
+                        current_entries=best_blue_archive_entries,
+                        candidate_entries=normalized_entries,
+                    )
+                    if _should_continue_blue_archive_layout_attempt(
+                        entries=normalized_entries,
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                    ):
+                        continue
+                    return normalized_entries
                 return _normalize_tesseract_page_entry_ranks(entries)
 
             for line_words in _group_tesseract_words_by_line(words):
@@ -1801,6 +1828,19 @@ def _parse_tesseract_layout_entries(
                         image_path=image_path,
                         ocr=attempt_ocr,
                     )
+                    normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
+                    best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
+                        current_entries=best_blue_archive_entries,
+                        candidate_entries=normalized_entries,
+                    )
+                    if _should_continue_blue_archive_layout_attempt(
+                        entries=normalized_entries,
+                        prepared_image_path=prepared_image_path,
+                        image_path=image_path,
+                        ocr=attempt_ocr,
+                    ):
+                        continue
+                    return normalized_entries
                 return _normalize_tesseract_page_entry_ranks(entries)
 
             entries = _parse_blue_archive_fixed_rows(
@@ -1811,10 +1851,23 @@ def _parse_tesseract_layout_entries(
                 page_index=page_index,
             )
             if entries:
-                return _normalize_tesseract_page_entry_ranks(entries)
+                normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
+                best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
+                    current_entries=best_blue_archive_entries,
+                    candidate_entries=normalized_entries,
+                )
+                if not _should_continue_blue_archive_layout_attempt(
+                    entries=normalized_entries,
+                    prepared_image_path=prepared_image_path,
+                    image_path=image_path,
+                    ocr=attempt_ocr,
+                ):
+                    return normalized_entries
         finally:
             cleanup()
 
+    if best_blue_archive_entries:
+        return best_blue_archive_entries
     return []
 
 
@@ -2155,6 +2208,61 @@ def _apply_blue_archive_original_row_ranks(
             }
         )
     return normalized_entries
+
+
+def _should_continue_blue_archive_layout_attempt(
+    *,
+    entries: list[dict[str, Any]],
+    prepared_image_path: Path,
+    image_path: Path,
+    ocr: OcrConfig,
+) -> bool:
+    recovered_ranks = _recover_blue_archive_original_row_ranks(
+        prepared_image_path=prepared_image_path,
+        image_path=image_path,
+        ocr=ocr,
+    )
+    expected_entry_count = len(recovered_ranks or [])
+    if expected_entry_count <= 1:
+        return False
+    return len(entries) < expected_entry_count
+
+
+def _select_preferred_blue_archive_attempt_entries(
+    *,
+    current_entries: list[dict[str, Any]],
+    candidate_entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not current_entries:
+        return candidate_entries
+    if len(candidate_entries) != len(current_entries):
+        return candidate_entries if len(candidate_entries) > len(current_entries) else current_entries
+
+    def _absolute_score(entries: list[dict[str, Any]]) -> int:
+        return sum(
+            1
+            for entry in entries
+            if isinstance(entry.get("rank"), int) and entry["rank"] > 100
+        )
+
+    candidate_absolute = _absolute_score(candidate_entries)
+    current_absolute = _absolute_score(current_entries)
+    if candidate_absolute != current_absolute:
+        return candidate_entries if candidate_absolute > current_absolute else current_entries
+    return candidate_entries
+
+
+def _is_sufficient_blue_archive_fixed_row_entries(
+    entries: list[dict[str, Any]],
+) -> bool:
+    if len(entries) >= 3:
+        return True
+    if len(entries) >= 2 and any(
+        isinstance(entry.get("rank"), int) and entry["rank"] > 100
+        for entry in entries
+    ):
+        return True
+    return False
 
 
 def _recover_blue_archive_original_row_ranks(
