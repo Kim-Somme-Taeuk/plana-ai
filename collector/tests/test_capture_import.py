@@ -2822,6 +2822,40 @@ def test_is_valid_blue_archive_page_one_absolute_anchor() -> None:
     assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=2) is True
 
 
+def test_resolve_blue_archive_absolute_rank_base_from_original_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row_ranks = iter([None, 16110, None])
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: next(row_ranks),
+    )
+
+    base_rank = capture_import._resolve_blue_archive_absolute_rank_base_from_original_rows(
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        row_bands=((0.02, 0.31), (0.35, 0.65), (0.69, 0.98)),
+    )
+
+    assert base_rank == 16109
+
+
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
     difficulty = capture_import._resolve_blue_archive_page_difficulty(
         [

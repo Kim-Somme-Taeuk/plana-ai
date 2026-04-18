@@ -1693,6 +1693,13 @@ def _parse_blue_archive_fixed_rows(
         absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
             detected_ranks
         )
+        if absolute_rank_base is None:
+            absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_original_rows(
+                image_path=image_path,
+                ocr=ocr,
+                row_bands=row_bands,
+            )
+    absolute_rank_anchor_source: str | None = None
     if absolute_rank_base is not None:
         resolved_ranks = list(
             range(
@@ -1700,7 +1707,7 @@ def _parse_blue_archive_fixed_rows(
                 absolute_rank_base + len(resolved_ranks),
             )
         )
-    absolute_rank_anchor_source: str | None = None
+        absolute_rank_anchor_source = "row_base"
     absolute_rank_anchor = _ocr_blue_archive_page_absolute_rank_anchor(
         prepared_image_path=prepared_image_path,
         ocr=ocr,
@@ -2069,6 +2076,27 @@ def _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
     if not base_candidates:
         return None
     return Counter(base_candidates).most_common(1)[0][0]
+
+
+def _resolve_blue_archive_absolute_rank_base_from_original_rows(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    row_bands: tuple[tuple[float, float], ...],
+) -> int | None:
+    detected_ranks: list[int | None] = []
+    for top_ratio, bottom_ratio in row_bands:
+        rank = _ocr_blue_archive_row_rank_from_original_image(
+            image_path=image_path,
+            ocr=ocr,
+            top_ratio=top_ratio,
+            bottom_ratio=bottom_ratio,
+        )
+        if rank is not None and rank > 100:
+            detected_ranks.append(rank)
+        else:
+            detected_ranks.append(None)
+    return _resolve_blue_archive_absolute_rank_base_from_detected_ranks(detected_ranks)
 
 
 def _is_valid_blue_archive_page_one_absolute_anchor(
