@@ -1361,7 +1361,7 @@ def test_run_capture_pipeline_does_not_stop_capture_early_when_explicitly_disabl
     assert result.import_skipped is False
 
 
-def test_run_capture_pipeline_treats_duplicate_last_page_as_hard_ocr_stop(
+def test_run_capture_pipeline_does_not_stop_capture_early_for_duplicate_last_page(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1435,21 +1435,21 @@ def test_run_capture_pipeline_treats_duplicate_last_page_as_hard_ocr_stop(
         api_client=FakeApiClient(),
     )
 
-    assert result.captured_page_count == 2
-    assert result.stopped_reason == "duplicate_last_page"
+    assert result.captured_page_count == 4
+    assert result.stopped_reason is None
     assert result.ocr_stop_hints == [
         {
             "reason": "sparse_last_page",
-            "page_index": 2,
-            "entry_count": 2,
+            "page_index": 4,
+            "entry_count": 1,
         },
     ]
     assert result.pipeline_stop_recommendation == {
         "should_stop": True,
-        "level": "hard",
+        "level": "soft",
         "source": "ocr",
-        "primary_reason": "duplicate_last_page",
-        "reasons": ["duplicate_last_page"],
+        "primary_reason": "sparse_last_page",
+        "reasons": ["sparse_last_page"],
     }
 
 
