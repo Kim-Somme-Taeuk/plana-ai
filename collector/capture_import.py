@@ -1916,11 +1916,11 @@ def _ocr_blue_archive_page_absolute_rank_anchor(
                     broad_numeric_ranks.append(rank)
 
     if prefixed_ranks:
-        return Counter(prefixed_ranks).most_common(1)[0][0]
+        return _select_preferred_blue_archive_rank_candidate(prefixed_ranks)
     if focused_numeric_ranks:
-        return Counter(focused_numeric_ranks).most_common(1)[0][0]
+        return _select_preferred_blue_archive_rank_candidate(focused_numeric_ranks)
     if broad_numeric_ranks:
-        return Counter(broad_numeric_ranks).most_common(1)[0][0]
+        return _select_preferred_blue_archive_rank_candidate(broad_numeric_ranks)
 
     return None
 
@@ -2133,9 +2133,7 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
                 if rank is not None and rank > len(resolved_ranks):
                     candidates.append(rank)
 
-    if not candidates:
-        return None
-    return Counter(candidates).most_common(1)[0][0]
+    return _select_preferred_blue_archive_rank_candidate(candidates)
 
 
 def _should_attempt_blue_archive_absolute_rank_anchor(
@@ -2164,6 +2162,14 @@ def _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
     if not base_candidates:
         return None
     return Counter(base_candidates).most_common(1)[0][0]
+
+
+def _select_preferred_blue_archive_rank_candidate(ranks: list[int]) -> int | None:
+    if not ranks:
+        return None
+    max_digits = max(len(str(rank)) for rank in ranks)
+    preferred = [rank for rank in ranks if len(str(rank)) == max_digits]
+    return Counter(preferred).most_common(1)[0][0]
 
 
 def _resolve_blue_archive_absolute_rank_base_from_original_rows(
@@ -2861,10 +2867,8 @@ def _ocr_blue_archive_row_rank(
         if rank is not None:
             parsed_ranks.append(rank)
     if prefixed_ranks:
-        return Counter(prefixed_ranks).most_common(1)[0][0]
-    if not parsed_ranks:
-        return None
-    return Counter(parsed_ranks).most_common(1)[0][0]
+        return _select_preferred_blue_archive_rank_candidate(prefixed_ranks)
+    return _select_preferred_blue_archive_rank_candidate(parsed_ranks)
 
 
 def _ocr_blue_archive_row_rank_from_original_image(
