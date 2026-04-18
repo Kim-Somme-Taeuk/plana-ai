@@ -359,7 +359,19 @@ def _realign_overlapping_page_entry_ranks(
         current_page_entries=current_page_entries,
     )
     if overlap_alignment is None:
-        return current_page_entries
+        continuation_base_rank = _resolve_non_overlap_continuation_base_rank(
+            previous_page_entries=previous_page_entries,
+            current_page_entries=current_page_entries,
+        )
+        if continuation_base_rank is None:
+            return current_page_entries
+        return [
+            {
+                **entry,
+                "rank": continuation_base_rank + index,
+            }
+            for index, entry in enumerate(current_page_entries)
+        ]
 
     base_rank = _resolve_overlap_alignment_base_rank(
         previous_page_entries=previous_page_entries,
@@ -466,6 +478,26 @@ def _resolve_overlap_alignment_base_rank(
         trailing_duplicate_count += 1
     if trailing_duplicate_count <= 1:
         return base_rank
+    return previous_page_entries[-1]["rank"] + 1
+
+
+def _resolve_non_overlap_continuation_base_rank(
+    *,
+    previous_page_entries: list[dict[str, Any]],
+    current_page_entries: list[dict[str, Any]],
+) -> int | None:
+    current_ranks = [entry["rank"] for entry in current_page_entries]
+    if current_ranks != list(range(1, len(current_page_entries) + 1)):
+        return None
+
+    previous_scores = [int(entry["score"]) for entry in previous_page_entries]
+    current_scores = [int(entry["score"]) for entry in current_page_entries]
+    if not previous_scores or not current_scores:
+        return None
+
+    if current_scores[0] > previous_scores[-1]:
+        return None
+
     return previous_page_entries[-1]["rank"] + 1
 
 

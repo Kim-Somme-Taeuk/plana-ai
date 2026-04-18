@@ -2063,6 +2063,25 @@ def test_realign_overlapping_page_entry_ranks_advances_past_trailing_duplicate_s
     assert [entry["rank"] for entry in realigned] == [3527, 3528]
 
 
+def test_realign_overlapping_page_entry_ranks_continues_without_overlap_when_scores_descend() -> None:
+    previous_page_entries = [
+        {"rank": 3, "player_name": "Insane", "score": 27768256},
+        {"rank": 4, "player_name": "Insane", "score": 27768256},
+        {"rank": 5, "player_name": "Insane", "score": 27768192},
+    ]
+    current_page_entries = [
+        {"rank": 1, "player_name": "Insane", "score": 27768064},
+        {"rank": 2, "player_name": "Insane", "score": 27767936},
+    ]
+
+    realigned = capture_import._realign_overlapping_page_entry_ranks(
+        previous_page_entries=previous_page_entries,
+        current_page_entries=current_page_entries,
+    )
+
+    assert [entry["rank"] for entry in realigned] == [6, 7]
+
+
 def test_parse_capture_payload_realigns_blue_archive_page_ranks_from_overlap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2334,6 +2353,81 @@ def test_parse_capture_payload_realigns_blue_archive_insane_duplicate_score_over
     ]
     assert parsed_payload.page_summaries[1]["first_rank"] == 16111
     assert parsed_payload.page_summaries[1]["last_rank"] == 16113
+
+
+def test_parse_capture_payload_realigns_blue_archive_insane_without_overlap_from_score_descent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _entry(rank: int, score: int, image_name: str) -> dict[str, object]:
+        return {
+            "rank": rank,
+            "player_name": "Insane",
+            "score": score,
+            "ocr_confidence": None,
+            "raw_text": "",
+            "image_path": image_name,
+            "is_valid": True,
+            "validation_issue": None,
+        }
+
+    _write_capture_page(tmp_path, "page-001.png", "unused\n")
+    _write_capture_page(tmp_path, "page-002.png", "unused\n")
+    _write_capture_page(tmp_path, "page-003.png", "unused\n")
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-blue-archive-insane-non-overlap-season",
+        pages=[
+            {"image_path": "page-001.png"},
+            {"image_path": "page-002.png"},
+            {"image_path": "page-003.png"},
+        ],
+    )
+
+    page_entries_by_index = {
+        1: [
+            _entry(16109, 27771072, "page-001.png"),
+            _entry(16110, 27770049, "page-001.png"),
+            _entry(16111, 27768256, "page-001.png"),
+        ],
+        2: [
+            _entry(1, 27768256, "page-002.png"),
+            _entry(2, 27768256, "page-002.png"),
+            _entry(3, 27768192, "page-002.png"),
+        ],
+        3: [
+            _entry(1, 27768064, "page-003.png"),
+            _entry(2, 27767936, "page-003.png"),
+        ],
+    }
+
+    monkeypatch.setattr(capture_import, "_load_ocr_text", lambda **kwargs: "unused")
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_page_entries",
+        lambda **kwargs: (page_entries_by_index[kwargs["page_index"]], []),
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+    parsed_payload = parse_capture_payload(payload)
+
+    assert [entry["rank"] for entry in parsed_payload.mock_payload.entries] == [
+        16109,
+        16110,
+        16111,
+        16112,
+        16113,
+        16114,
+        16115,
+    ]
+    assert [
+        (summary["first_rank"], summary["last_rank"])
+        for summary in parsed_payload.page_summaries
+    ] == [
+        (16109, 16111),
+        (16111, 16113),
+        (16114, 16115),
+    ]
 
 
 def test_parse_blue_archive_rank_candidate_trims_common_ui_suffix_noise() -> None:
