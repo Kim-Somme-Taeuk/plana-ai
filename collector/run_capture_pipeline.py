@@ -619,13 +619,18 @@ def _build_after_capture_page_callback(
     ocr_psm: int | None,
     stop_capture_on_recommendation_mode: str,
 ):
-    if stop_capture_on_recommendation_mode == "off":
+    if stop_capture_on_recommendation_mode == "off" and stop_policy.max_rank is None:
         return None
     previous_soft_reason: str | None = None
     previous_soft_count = 0
+    latest_page_only = (
+        stop_capture_on_recommendation_mode == "off"
+        and stop_policy.max_rank is not None
+    )
 
     def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
         nonlocal previous_soft_reason, previous_soft_count
+        pages_for_parse = [image_paths[-1]] if latest_page_only else image_paths
         parsed_payload = parse_capture_payload(
             CaptureImportPayload(
                 base_dir=request.adb.output_dir,
@@ -642,7 +647,7 @@ def _build_after_capture_page_callback(
                         ocr_text_path=None,
                         default_ocr_confidence=None,
                     )
-                    for image_path in image_paths
+                    for image_path in pages_for_parse
                 ],
                 ocr=_build_runtime_ocr_config(
                     request=request,

@@ -41,6 +41,7 @@
     }
   },
   "pipeline": {
+    "stop_capture_on_recommendation": false,
     "max_rank": 12000
   }
 }

@@ -1564,6 +1564,63 @@ def test_build_capture_stop_decision_supports_repeated_stale_last_page_soft_stop
     )
 
 
+def test_after_capture_page_uses_latest_page_only_for_max_rank_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-max-rank-latest-only-season",
+        include_ocr=False,
+    )
+    request = capture_pipeline.load_adb_capture_request(request_path)
+    parse_calls: list[list[str]] = []
+
+    def fake_parse_capture_payload(payload, *, validate_snapshot_entries=False):
+        parse_calls.append([page.image_path for page in payload.pages])
+        return capture_import.ParsedCapturePayload(
+            mock_payload=capture_import.MockImportPayload(
+                season=payload.season,
+                snapshot=payload.snapshot,
+                entries=[
+                    {"rank": 3, "player_name": "Lunatic", "score": 10},
+                    {"rank": 4, "player_name": "Lunatic", "score": 9},
+                ],
+            ),
+            ignored_lines=[],
+            page_summaries=[],
+        )
+
+    monkeypatch.setattr(capture_pipeline, "parse_capture_payload", fake_parse_capture_payload)
+
+    callback = capture_pipeline._build_after_capture_page_callback(
+        request=request,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=3,
+        ),
+        effective_ocr_provider="tesseract",
+        ocr_command=None,
+        ocr_language="eng",
+        ocr_psm=6,
+        stop_capture_on_recommendation_mode="off",
+    )
+
+    assert callback is not None
+
+    decision = callback([Path("page-001.png"), Path("page-002.png")])
+
+    assert parse_calls == [["page-002.png"]]
+    assert decision == capture_pipeline.AdbCaptureStopDecision(
+        should_continue=False,
+        reason="max_rank_reached",
+        source="capture",
+        level="hard",
+        discard_last_page=False,
+    )
+
+
 def test_run_capture_pipeline_stops_capture_early_for_soft_recommendation_in_any_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
