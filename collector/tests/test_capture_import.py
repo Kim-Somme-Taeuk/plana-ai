@@ -2397,6 +2397,48 @@ def test_detect_blue_archive_row_bands_from_fixture_images(
         assert end_ratio - start_ratio > 0.12
 
 
+def test_select_visible_blue_archive_row_bands_keeps_full_top_row() -> None:
+    row_bands = (
+        (0.0008, 0.2330),
+        (0.2569, 0.5910),
+        (0.6165, 0.9506),
+    )
+
+    selected = capture_import._select_visible_blue_archive_row_bands(row_bands)
+
+    assert selected == row_bands
+
+
+def test_select_visible_blue_archive_row_bands_drops_partial_top_row() -> None:
+    row_bands = (
+        (0.0, 0.12),
+        (0.18, 0.50),
+        (0.54, 0.88),
+    )
+
+    selected = capture_import._select_visible_blue_archive_row_bands(row_bands)
+
+    assert selected == (
+        (0.18, 0.50),
+        (0.54, 0.88),
+    )
+
+
+def test_select_visible_blue_archive_row_bands_drops_partial_bottom_row() -> None:
+    row_bands = (
+        (0.04, 0.34),
+        (0.38, 0.70),
+        (0.82, 1.0),
+    )
+
+    selected = capture_import._select_visible_blue_archive_row_bands(row_bands)
+
+    assert selected == (
+        (0.04, 0.34),
+        (0.38, 0.70),
+    )
+
+
 def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:
     assert capture_import._find_score_anchor_value(": be 8 53,393,544  (noise)") == 53393544
 

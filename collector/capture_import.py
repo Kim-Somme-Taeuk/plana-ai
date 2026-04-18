@@ -1399,11 +1399,12 @@ def _parse_blue_archive_fixed_rows(
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> list[dict[str, Any]]:
-    row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
+    detected_row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
         (0.02, 0.31),
         (0.35, 0.65),
         (0.69, 0.98),
     )
+    row_bands = _select_visible_blue_archive_row_bands(detected_row_bands)
 
     raw_rows: list[dict[str, Any]] = []
     detected_ranks: list[int | None] = []
@@ -1573,6 +1574,31 @@ def _detect_blue_archive_row_bands(
         return tuple((top / height, bottom / height) for top, bottom in runs[:3])
 
     return ()
+
+
+def _select_visible_blue_archive_row_bands(
+    row_bands: tuple[tuple[float, float], ...],
+) -> tuple[tuple[float, float], ...]:
+    if len(row_bands) <= 1:
+        return row_bands
+
+    heights = [bottom_ratio - top_ratio for top_ratio, bottom_ratio in row_bands]
+    reference_height = max(heights)
+    minimum_visible_height = reference_height * 0.65
+
+    selected = list(row_bands)
+    first_top_ratio, first_bottom_ratio = selected[0]
+    if first_top_ratio <= 0.02 and (first_bottom_ratio - first_top_ratio) < minimum_visible_height:
+        selected = selected[1:]
+
+    if len(selected) <= 1:
+        return tuple(selected)
+
+    last_top_ratio, last_bottom_ratio = selected[-1]
+    if last_bottom_ratio >= 0.98 and (last_bottom_ratio - last_top_ratio) < minimum_visible_height:
+        selected = selected[:-1]
+
+    return tuple(selected)
 
 
 def _ocr_blue_archive_row_combined_fields(
