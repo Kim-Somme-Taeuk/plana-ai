@@ -29,7 +29,7 @@
   },
   "adb": {
     "output_dir": "../capture_runs/mumu_scroll_capture",
-    "page_count": 3,
+    "page_count": 50,
     "stop_on_duplicate_frame": true,
     "swipe": {
       "start_x": 800,
@@ -37,7 +37,7 @@
       "end_x": 800,
       "end_y": 380,
       "duration_ms": 500,
-      "settle_delay_ms": 1200
+      "settle_delay_ms": 800
     }
   },
   "pipeline": {
