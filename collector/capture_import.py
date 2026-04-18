@@ -59,6 +59,14 @@ OCR_NUMERIC_TRANSLATION = str.maketrans(
         "％": "%",
     }
 )
+OCR_RANK_TRANSLATION = str.maketrans(
+    {
+        "S": "5",
+        "s": "5",
+        "Z": "2",
+        "z": "2",
+    }
+)
 OCR_SEPARATOR_CHARACTERS = frozenset("-_=|:;.,·~")
 OCR_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’"
 PLAYER_NAME_EDGE_PUNCTUATION = "[](){}<>\"'“”‘’「」『』【】"
@@ -3556,6 +3564,7 @@ def _normalize_rank_ocr_token(value: str) -> str:
         normalized = normalized[1:]
     normalized = normalized.removeprefix("№")
     normalized = normalized.removesuffix("위")
+    normalized = normalized.translate(OCR_RANK_TRANSLATION)
     normalized = _normalize_integer_ocr_token(normalized)
     match = re.match(r"(\d+)", normalized)
     if match is not None:

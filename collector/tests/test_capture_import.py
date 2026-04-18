@@ -2740,6 +2740,12 @@ def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_accepts_
     assert anchor == 3522
 
 
+def test_parse_blue_archive_rank_candidate_accepts_common_ocr_digit_substitutions() -> None:
+    assert capture_import._parse_blue_archive_rank_candidate("3S22") == 3522
+    assert capture_import._parse_blue_archive_rank_candidate("16I09") == 16109
+    assert capture_import._parse_blue_archive_rank_candidate("12OO1") == 12001
+
+
 def test_should_attempt_blue_archive_absolute_rank_anchor_for_small_contiguous_ranks() -> None:
     assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([1, 2, 3]) is True
     assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([20, 21]) is True
