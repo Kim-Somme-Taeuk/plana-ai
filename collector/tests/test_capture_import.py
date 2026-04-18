@@ -3670,11 +3670,11 @@ def test_select_preferred_blue_archive_rank_candidate_prefers_longer_numbers() -
     assert capture_import._select_preferred_blue_archive_rank_candidate([]) is None
 
 
-def test_is_valid_blue_archive_page_one_absolute_anchor() -> None:
-    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(3522, page_index=1) is True
-    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=1) is False
-    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(None, page_index=1) is False
-    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=2) is False
+def test_is_valid_blue_archive_absolute_anchor() -> None:
+    assert capture_import._is_valid_blue_archive_absolute_anchor(3522, page_index=1) is True
+    assert capture_import._is_valid_blue_archive_absolute_anchor(20, page_index=1) is False
+    assert capture_import._is_valid_blue_archive_absolute_anchor(None, page_index=1) is False
+    assert capture_import._is_valid_blue_archive_absolute_anchor(20, page_index=2) is False
 
 
 def test_resolve_blue_archive_absolute_rank_base_from_original_rows(

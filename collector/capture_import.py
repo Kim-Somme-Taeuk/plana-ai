@@ -1996,7 +1996,7 @@ def _parse_blue_archive_fixed_rows(
         resolved_ranks=resolved_ranks,
     )
     absolute_rank_anchor = prepared_absolute_rank_anchor
-    if _is_valid_blue_archive_page_one_absolute_anchor(
+    if _is_valid_blue_archive_absolute_anchor(
         prepared_absolute_rank_anchor,
         page_index=page_index,
     ):
@@ -2009,7 +2009,7 @@ def _parse_blue_archive_fixed_rows(
             resolved_ranks=resolved_ranks,
             page_index=page_index,
         )
-        if _is_valid_blue_archive_page_one_absolute_anchor(
+        if _is_valid_blue_archive_absolute_anchor(
             absolute_rank_anchor,
             page_index=page_index,
         ):
@@ -2017,7 +2017,7 @@ def _parse_blue_archive_fixed_rows(
         else:
             absolute_rank_anchor = None
             absolute_rank_anchor_source = absolute_rank_base_source
-    if absolute_rank_anchor is not None and not _is_valid_blue_archive_page_one_absolute_anchor(
+    if absolute_rank_anchor is not None and not _is_valid_blue_archive_absolute_anchor(
         absolute_rank_anchor,
         page_index=page_index,
     ):
@@ -2427,7 +2427,7 @@ def _resolve_blue_archive_absolute_rank_base_from_original_rows(
     return _resolve_blue_archive_absolute_rank_base_from_detected_ranks(detected_ranks)
 
 
-def _is_valid_blue_archive_page_one_absolute_anchor(
+def _is_valid_blue_archive_absolute_anchor(
     anchor: int | None,
     *,
     page_index: int,
