@@ -1781,18 +1781,31 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
     if resolved_ranks != list(range(1, len(resolved_ranks) + 1)):
         return None
 
+    crop = ocr.crop
+    if crop is None:
+        base_crop = OcrCrop(
+            left_ratio=0.37,
+            top_ratio=0.24,
+            right_ratio=0.57,
+            bottom_ratio=0.42,
+        )
+    else:
+        crop_width = crop.right_ratio - crop.left_ratio
+        crop_height = crop.bottom_ratio - crop.top_ratio
+        base_crop = OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.04)),
+            top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.44)),
+            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
+        )
+
     original_anchor_ocr = OcrConfig(
         provider=ocr.provider,
         command=ocr.command,
         language="eng",
         psm=6,
         extra_args=("-c", "preserve_interword_spaces=1"),
-        crop=OcrCrop(
-            left_ratio=0.37,
-            top_ratio=0.24,
-            right_ratio=0.57,
-            bottom_ratio=0.42,
-        ),
+        crop=base_crop,
         upscale_ratio=max(2.0, ocr.upscale_ratio),
         reuse_cached_sidecar=False,
         persist_sidecar=False,
@@ -1807,8 +1820,27 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
             language="eng",
             psm=11,
             extra_args=("-c", "preserve_interword_spaces=1"),
-            crop=original_anchor_ocr.crop,
+            crop=base_crop,
             upscale_ratio=original_anchor_ocr.upscale_ratio,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        OcrConfig(
+            provider=ocr.provider,
+            command=ocr.command,
+            language="eng",
+            psm=7,
+            extra_args=(
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+            ),
+            crop=OcrCrop(
+                left_ratio=max(0.0, base_crop.left_ratio - 0.02),
+                top_ratio=base_crop.top_ratio,
+                right_ratio=min(1.0, base_crop.right_ratio + 0.02),
+                bottom_ratio=min(1.0, base_crop.bottom_ratio + 0.02),
+            ),
+            upscale_ratio=max(2.5, original_anchor_ocr.upscale_ratio),
             reuse_cached_sidecar=False,
             persist_sidecar=False,
         ),
