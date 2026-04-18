@@ -1913,6 +1913,8 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
         OcrCrop(left_ratio=0.375, top_ratio=0.36, right_ratio=0.525, bottom_ratio=0.485),
         OcrCrop(left_ratio=0.38, top_ratio=0.36, right_ratio=0.53, bottom_ratio=0.485),
         OcrCrop(left_ratio=0.37, top_ratio=0.35, right_ratio=0.535, bottom_ratio=0.50),
+        OcrCrop(left_ratio=0.40, top_ratio=0.35, right_ratio=0.56, bottom_ratio=0.49),
+        OcrCrop(left_ratio=0.41, top_ratio=0.35, right_ratio=0.57, bottom_ratio=0.49),
     ]
     crop = ocr.crop
     if crop is None:
@@ -1928,6 +1930,12 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
         crop_height = crop.bottom_ratio - crop.top_ratio
         if row_bands:
             top_ratio, bottom_ratio = row_bands[0]
+            row_top_absolute = crop.top_ratio + (crop_height * top_ratio)
+            row_bottom_absolute = crop.top_ratio + (crop_height * bottom_ratio)
+            row_rank_bottom = min(
+                row_bottom_absolute,
+                row_top_absolute + ((row_bottom_absolute - row_top_absolute) * 0.42),
+            )
             anchor_crops.extend(
                 [
                     OcrCrop(
@@ -1941,6 +1949,18 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
                         top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.01))),
                         right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.88)),
                         bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.26))),
+                    ),
+                    OcrCrop(
+                        left_ratio=0.40,
+                        top_ratio=max(0.0, row_top_absolute),
+                        right_ratio=0.57,
+                        bottom_ratio=min(1.0, row_rank_bottom),
+                    ),
+                    OcrCrop(
+                        left_ratio=0.41,
+                        top_ratio=max(0.0, row_top_absolute),
+                        right_ratio=0.58,
+                        bottom_ratio=min(1.0, row_rank_bottom),
                     ),
                 ]
             )
@@ -2828,6 +2848,12 @@ def _ocr_blue_archive_row_rank_from_original_image(
 
     crop_width = crop.right_ratio - crop.left_ratio
     crop_height = crop.bottom_ratio - crop.top_ratio
+    row_top_absolute = crop.top_ratio + (crop_height * top_ratio)
+    row_bottom_absolute = crop.top_ratio + (crop_height * bottom_ratio)
+    row_rank_bottom = min(
+        row_bottom_absolute,
+        row_top_absolute + ((row_bottom_absolute - row_top_absolute) * 0.42),
+    )
     region_crops = (
         OcrCrop(
             left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
@@ -2846,6 +2872,18 @@ def _ocr_blue_archive_row_rank_from_original_image(
             top_ratio=max(0.0, crop.top_ratio + (crop_height * (top_ratio + 0.01))),
             right_ratio=0.54,
             bottom_ratio=min(1.0, crop.top_ratio + (crop_height * min(bottom_ratio, top_ratio + 0.26))),
+        ),
+        OcrCrop(
+            left_ratio=0.40,
+            top_ratio=max(0.0, row_top_absolute),
+            right_ratio=0.57,
+            bottom_ratio=min(1.0, row_rank_bottom),
+        ),
+        OcrCrop(
+            left_ratio=0.41,
+            top_ratio=max(0.0, row_top_absolute),
+            right_ratio=0.58,
+            bottom_ratio=min(1.0, row_rank_bottom),
         ),
     )
 
