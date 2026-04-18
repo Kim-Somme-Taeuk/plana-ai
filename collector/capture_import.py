@@ -255,12 +255,10 @@ def parse_capture_payload(
     *,
     validate_snapshot_entries: bool = True,
 ) -> ParsedCapturePayload:
-    entries: list[dict[str, Any]] = []
     ignored_lines: list[IgnoredOcrLine] = []
-    page_summaries: list[dict[str, Any]] = []
-    previous_page_ranks: set[int] | None = None
+    page_metadata: list[dict[str, Any]] = []
+    parsed_pages: list[list[dict[str, Any]]] = []
     previous_page_entries: list[dict[str, Any]] = []
-    seen_ranks: set[int] = set()
 
     for page_index, page in enumerate(payload.pages, start=1):
         image_path = _resolve_existing_path(payload.base_dir, page.image_path, "image_path")
@@ -315,52 +313,41 @@ def parse_capture_payload(
             None,
         )
         ignored_lines.extend(page_ignored_lines)
-        current_page_ranks = {entry["rank"] for entry in page_entries}
-        overlap_count = 0
-        overlap_ratio = 0.0
-        if previous_page_ranks:
-            overlap_ranks = sorted(previous_page_ranks & current_page_ranks)
-            overlap_count = len(overlap_ranks)
-            if current_page_ranks:
-                overlap_ratio = overlap_count / len(current_page_ranks)
-        else:
-            overlap_ranks = []
-        page_summaries.append(
+        page_metadata.append(
             {
                 "page_index": page_index,
                 "image_path": _build_entry_image_path(image_path),
-                "entry_count": len(page_entries),
-                "ignored_line_count": len(page_ignored_lines),
-                "ignored_line_reasons": summarize_ignored_lines(page_ignored_lines),
-                "first_rank": min(current_page_ranks) if current_page_ranks else None,
-                "last_rank": max(current_page_ranks) if current_page_ranks else None,
-                "overlap_with_previous_count": overlap_count,
-                "overlap_with_previous_ratio": round(overlap_ratio, 4),
-                "overlap_with_previous_ranks": overlap_ranks,
-                "new_rank_count": len(current_page_ranks - (previous_page_ranks or set())),
-                "new_rank_ratio": round(
-                    (
-                        len(current_page_ranks - (previous_page_ranks or set()))
-                        / len(current_page_ranks)
-                    ),
-                    4,
-                )
-                if current_page_ranks
-                else 0.0,
+                "ignored_lines": page_ignored_lines,
                 "absolute_rank_anchor": page_absolute_rank_anchor,
                 "absolute_rank_anchor_source": page_absolute_rank_anchor_source,
                 "absolute_rank_base": page_absolute_rank_base,
                 "absolute_rank_base_source": page_absolute_rank_base_source,
             }
         )
+        parsed_pages.append(page_entries)
+        previous_page_entries = [_strip_internal_entry_fields(entry) for entry in page_entries]
+
+    parsed_pages = _retrofit_blue_archive_absolute_page_ranks(
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
+    )
+    page_summaries = _build_capture_page_summaries(
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
+    )
+    entries: list[dict[str, Any]] = []
+    seen_ranks: set[int] = set()
+    for page_entries in parsed_pages:
         entries.extend(
             _strip_internal_entry_fields(entry)
             for entry in page_entries
             if entry["rank"] not in seen_ranks
         )
-        seen_ranks.update(current_page_ranks)
-        previous_page_entries = [_strip_internal_entry_fields(entry) for entry in page_entries]
-        previous_page_ranks = current_page_ranks
+        seen_ranks.update(
+            entry["rank"]
+            for entry in page_entries
+            if isinstance(entry.get("rank"), int)
+        )
 
     if validate_snapshot_entries:
         _validate_snapshot_entries(entries, page_summaries)
@@ -391,6 +378,149 @@ def _strip_internal_entry_fields(entry: dict[str, Any]) -> dict[str, Any]:
         for key, value in entry.items()
         if not key.startswith("_")
     }
+
+
+def _retrofit_blue_archive_absolute_page_ranks(
+    *,
+    parsed_pages: list[list[dict[str, Any]]],
+    page_metadata: list[dict[str, Any]],
+) -> list[list[dict[str, Any]]]:
+    if len(parsed_pages) <= 1 or len(parsed_pages) != len(page_metadata):
+        return parsed_pages
+
+    anchor_page_index: int | None = None
+    anchor_first_rank: int | None = None
+    for index, metadata in enumerate(page_metadata):
+        base = metadata.get("absolute_rank_base")
+        anchor = metadata.get("absolute_rank_anchor")
+        candidate = base if isinstance(base, int) and base > 100 else anchor
+        if isinstance(candidate, int) and candidate > 100:
+            anchor_page_index = index
+            anchor_first_rank = candidate
+            break
+    if anchor_page_index is None or anchor_first_rank is None:
+        return parsed_pages
+
+    adjusted_pages: list[list[dict[str, Any]]] = [
+        [dict(entry) for entry in page_entries]
+        for page_entries in parsed_pages
+    ]
+    first_ranks: list[int | None] = [None] * len(adjusted_pages)
+    first_ranks[anchor_page_index] = anchor_first_rank
+
+    for index in range(anchor_page_index, 0, -1):
+        current_first_rank = first_ranks[index]
+        previous_page_entries = adjusted_pages[index - 1]
+        current_page_entries = adjusted_pages[index]
+        if current_first_rank is None or not previous_page_entries or not current_page_entries:
+            continue
+        overlap_count = _count_overlap_alignment_entries(
+            previous_page_entries=previous_page_entries,
+            current_page_entries=current_page_entries,
+        )
+        if overlap_count > 0:
+            previous_last_rank = current_first_rank + overlap_count - 1
+        else:
+            previous_last_rank = current_first_rank - 1
+        first_ranks[index - 1] = previous_last_rank - len(previous_page_entries) + 1
+
+    for index in range(anchor_page_index + 1, len(adjusted_pages)):
+        previous_first_rank = first_ranks[index - 1]
+        previous_page_entries = adjusted_pages[index - 1]
+        current_page_entries = adjusted_pages[index]
+        if previous_first_rank is None or not previous_page_entries or not current_page_entries:
+            continue
+        previous_last_rank = previous_first_rank + len(previous_page_entries) - 1
+        overlap_count = _count_overlap_alignment_entries(
+            previous_page_entries=previous_page_entries,
+            current_page_entries=current_page_entries,
+        )
+        if overlap_count > 0:
+            first_ranks[index] = previous_last_rank - overlap_count + 1
+        else:
+            first_ranks[index] = previous_last_rank + 1
+
+    for index, first_rank in enumerate(first_ranks):
+        page_entries = adjusted_pages[index]
+        if first_rank is None or first_rank <= 100 or not page_entries:
+            continue
+        for offset, entry in enumerate(page_entries):
+            entry["rank"] = first_rank + offset
+
+    return adjusted_pages
+
+
+def _build_capture_page_summaries(
+    *,
+    parsed_pages: list[list[dict[str, Any]]],
+    page_metadata: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    page_summaries: list[dict[str, Any]] = []
+    previous_page_ranks: set[int] | None = None
+    for page_entries, metadata in zip(parsed_pages, page_metadata):
+        current_page_ranks = {
+            entry["rank"]
+            for entry in page_entries
+            if isinstance(entry.get("rank"), int)
+        }
+        overlap_count = 0
+        overlap_ratio = 0.0
+        if previous_page_ranks:
+            overlap_ranks = sorted(previous_page_ranks & current_page_ranks)
+            overlap_count = len(overlap_ranks)
+            if current_page_ranks:
+                overlap_ratio = overlap_count / len(current_page_ranks)
+        else:
+            overlap_ranks = []
+        page_summaries.append(
+            {
+                "page_index": metadata["page_index"],
+                "image_path": metadata["image_path"],
+                "entry_count": len(page_entries),
+                "ignored_line_count": len(metadata["ignored_lines"]),
+                "ignored_line_reasons": summarize_ignored_lines(metadata["ignored_lines"]),
+                "first_rank": min(current_page_ranks) if current_page_ranks else None,
+                "last_rank": max(current_page_ranks) if current_page_ranks else None,
+                "overlap_with_previous_count": overlap_count,
+                "overlap_with_previous_ratio": round(overlap_ratio, 4),
+                "overlap_with_previous_ranks": overlap_ranks,
+                "new_rank_count": len(current_page_ranks - (previous_page_ranks or set())),
+                "new_rank_ratio": round(
+                    (
+                        len(current_page_ranks - (previous_page_ranks or set()))
+                        / len(current_page_ranks)
+                    ),
+                    4,
+                )
+                if current_page_ranks
+                else 0.0,
+                "absolute_rank_anchor": metadata["absolute_rank_anchor"],
+                "absolute_rank_anchor_source": metadata["absolute_rank_anchor_source"],
+                "absolute_rank_base": metadata["absolute_rank_base"],
+                "absolute_rank_base_source": metadata["absolute_rank_base_source"],
+            }
+        )
+        previous_page_ranks = current_page_ranks
+    return page_summaries
+
+
+def _count_overlap_alignment_entries(
+    *,
+    previous_page_entries: list[dict[str, Any]],
+    current_page_entries: list[dict[str, Any]],
+) -> int:
+    if not (
+        _supports_overlap_rank_alignment(previous_page_entries)
+        and _supports_overlap_rank_alignment(current_page_entries)
+    ):
+        return 0
+    overlap_alignment = _find_overlap_rank_alignment(
+        previous_page_entries=previous_page_entries,
+        current_page_entries=current_page_entries,
+    )
+    if overlap_alignment is None:
+        return 0
+    return overlap_alignment[2]
 
 
 def _realign_overlapping_page_entry_ranks(

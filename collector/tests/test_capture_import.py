@@ -3142,6 +3142,64 @@ def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie()
     assert difficulty == "Lunatic"
 
 
+def test_retrofit_blue_archive_absolute_page_ranks_uses_later_page_base() -> None:
+    parsed_pages = [
+        [
+            {"rank": 1, "score": 100, "player_name": "Torment"},
+            {"rank": 2, "score": 90, "player_name": "Torment"},
+            {"rank": 3, "score": 80, "player_name": "Torment"},
+        ],
+        [
+            {"rank": 3, "score": 80, "player_name": "Torment"},
+            {"rank": 4, "score": 70, "player_name": "Torment"},
+            {"rank": 5, "score": 60, "player_name": "Torment"},
+        ],
+        [
+            {"rank": 5, "score": 60, "player_name": "Torment"},
+            {"rank": 6, "score": 50, "player_name": "Torment"},
+            {"rank": 7, "score": 40, "player_name": "Torment"},
+        ],
+    ]
+    page_metadata = [
+        {
+            "page_index": 1,
+            "image_path": "page-001.png",
+            "ignored_lines": [],
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
+        },
+        {
+            "page_index": 2,
+            "image_path": "page-002.png",
+            "ignored_lines": [],
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+            "absolute_rank_base": 3524,
+            "absolute_rank_base_source": "row_base",
+        },
+        {
+            "page_index": 3,
+            "image_path": "page-003.png",
+            "ignored_lines": [],
+            "absolute_rank_anchor": None,
+            "absolute_rank_anchor_source": None,
+            "absolute_rank_base": None,
+            "absolute_rank_base_source": None,
+        },
+    ]
+
+    adjusted_pages = capture_import._retrofit_blue_archive_absolute_page_ranks(
+        parsed_pages=parsed_pages,
+        page_metadata=page_metadata,
+    )
+
+    assert [entry["rank"] for entry in adjusted_pages[0]] == [3522, 3523, 3524]
+    assert [entry["rank"] for entry in adjusted_pages[1]] == [3524, 3525, 3526]
+    assert [entry["rank"] for entry in adjusted_pages[2]] == [3526, 3527, 3528]
+
+
 def test_parse_blue_archive_fixed_rows_rejects_increasing_scores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
