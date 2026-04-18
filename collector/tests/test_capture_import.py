@@ -4503,6 +4503,56 @@ def test_parse_tesseract_layout_entries_prefers_richer_later_blue_archive_attemp
     ]
 
 
+def test_has_strong_blue_archive_absolute_row_rank_signal_requires_two_close_hits() -> None:
+    assert capture_import._has_strong_blue_archive_absolute_row_rank_signal(
+        [3522, 3523, None]
+    ) is True
+    assert capture_import._has_strong_blue_archive_absolute_row_rank_signal(
+        [None, 55566, None]
+    ) is False
+    assert capture_import._has_strong_blue_archive_absolute_row_rank_signal(
+        [3522, 40090640, None]
+    ) is False
+
+
+def test_recover_blue_archive_original_row_ranks_does_not_promote_single_large_noise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    original_ranks = iter([None, 55566, None])
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: next(original_ranks),
+    )
+
+    recovered = capture_import._recover_blue_archive_original_row_ranks(
+        prepared_image_path=Path("prepared.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+    )
+
+    assert recovered is None
+
+
 def test_select_visible_blue_archive_row_bands_drops_partial_bottom_row() -> None:
     row_bands = (
         (0.04, 0.34),

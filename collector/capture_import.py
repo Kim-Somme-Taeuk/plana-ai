@@ -2295,12 +2295,34 @@ def _recover_blue_archive_original_row_ranks(
         return None
 
     resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+    absolute_rank_signal = _has_strong_blue_archive_absolute_row_rank_signal(detected_ranks)
     absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
         detected_ranks
     )
+    if not absolute_rank_signal:
+        absolute_rank_base = None
+        if any(isinstance(rank, int) and rank > 100 for rank in detected_ranks):
+            return None
     if absolute_rank_base is not None:
         return list(range(absolute_rank_base, absolute_rank_base + len(resolved_ranks)))
     return resolved_ranks
+
+
+def _has_strong_blue_archive_absolute_row_rank_signal(
+    detected_ranks: list[int | None],
+) -> bool:
+    absolute_ranks = [
+        rank
+        for rank in detected_ranks
+        if isinstance(rank, int) and rank > 100
+    ]
+    if len(absolute_ranks) < 2:
+        return False
+    sorted_ranks = sorted(absolute_ranks)
+    return all(
+        current - previous <= 2
+        for previous, current in zip(sorted_ranks, sorted_ranks[1:])
+    )
 
 
 def _ocr_blue_archive_page_absolute_rank_anchor(
