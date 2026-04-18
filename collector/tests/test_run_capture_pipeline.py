@@ -1188,14 +1188,19 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation(
         api_client=FakeApiClient(),
     )
 
-    assert result.captured_page_count == 2
-    assert result.stopped_reason == "noisy_last_page"
+    assert result.captured_page_count == 3
+    assert result.stopped_reason is None
     assert result.pipeline_stop_recommendation == {
         "should_stop": True,
         "level": "hard",
         "source": "ocr",
-        "primary_reason": "noisy_last_page",
-        "reasons": ["noisy_last_page"],
+        "primary_reason": "duplicate_last_page",
+        "reasons": [
+            "sparse_last_page",
+            "overlapping_last_page",
+            "duplicate_last_page",
+            "noisy_last_page",
+        ],
     }
     assert result.import_skipped is False
 
@@ -1272,8 +1277,8 @@ def test_run_capture_pipeline_stops_capture_early_for_hard_recommendation_by_def
         api_client=FakeApiClient(),
     )
 
-    assert result.captured_page_count == 2
-    assert result.stopped_reason == "noisy_last_page"
+    assert result.captured_page_count == 3
+    assert result.stopped_reason is None
     assert result.import_skipped is False
 
 
