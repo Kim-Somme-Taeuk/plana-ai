@@ -327,7 +327,7 @@ def parse_capture_payload(
         parsed_pages.append(page_entries)
         previous_page_entries = [_strip_internal_entry_fields(entry) for entry in page_entries]
 
-    parsed_pages = _retrofit_blue_archive_absolute_page_ranks(
+    parsed_pages, page_metadata = _retrofit_blue_archive_absolute_page_ranks(
         parsed_pages=parsed_pages,
         page_metadata=page_metadata,
     )
@@ -384,9 +384,9 @@ def _retrofit_blue_archive_absolute_page_ranks(
     *,
     parsed_pages: list[list[dict[str, Any]]],
     page_metadata: list[dict[str, Any]],
-) -> list[list[dict[str, Any]]]:
+) -> tuple[list[list[dict[str, Any]]], list[dict[str, Any]]]:
     if len(parsed_pages) <= 1 or len(parsed_pages) != len(page_metadata):
-        return parsed_pages
+        return parsed_pages, page_metadata
 
     anchor_page_index: int | None = None
     anchor_first_rank: int | None = None
@@ -399,12 +399,13 @@ def _retrofit_blue_archive_absolute_page_ranks(
             anchor_first_rank = candidate
             break
     if anchor_page_index is None or anchor_first_rank is None:
-        return parsed_pages
+        return parsed_pages, page_metadata
 
     adjusted_pages: list[list[dict[str, Any]]] = [
         [dict(entry) for entry in page_entries]
         for page_entries in parsed_pages
     ]
+    adjusted_metadata = [dict(metadata) for metadata in page_metadata]
     first_ranks: list[int | None] = [None] * len(adjusted_pages)
     first_ranks[anchor_page_index] = anchor_first_rank
 
@@ -446,8 +447,11 @@ def _retrofit_blue_archive_absolute_page_ranks(
             continue
         for offset, entry in enumerate(page_entries):
             entry["rank"] = first_rank + offset
+        if adjusted_metadata[index].get("absolute_rank_base") is None:
+            adjusted_metadata[index]["absolute_rank_base"] = first_rank
+            adjusted_metadata[index]["absolute_rank_base_source"] = "retrofit"
 
-    return adjusted_pages
+    return adjusted_pages, adjusted_metadata
 
 
 def _build_capture_page_summaries(

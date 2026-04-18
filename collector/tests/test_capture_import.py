@@ -3190,7 +3190,7 @@ def test_retrofit_blue_archive_absolute_page_ranks_uses_later_page_base() -> Non
         },
     ]
 
-    adjusted_pages = capture_import._retrofit_blue_archive_absolute_page_ranks(
+    adjusted_pages, adjusted_metadata = capture_import._retrofit_blue_archive_absolute_page_ranks(
         parsed_pages=parsed_pages,
         page_metadata=page_metadata,
     )
@@ -3198,6 +3198,12 @@ def test_retrofit_blue_archive_absolute_page_ranks_uses_later_page_base() -> Non
     assert [entry["rank"] for entry in adjusted_pages[0]] == [3522, 3523, 3524]
     assert [entry["rank"] for entry in adjusted_pages[1]] == [3524, 3525, 3526]
     assert [entry["rank"] for entry in adjusted_pages[2]] == [3526, 3527, 3528]
+    assert adjusted_metadata[0]["absolute_rank_base"] == 3522
+    assert adjusted_metadata[0]["absolute_rank_base_source"] == "retrofit"
+    assert adjusted_metadata[1]["absolute_rank_base"] == 3524
+    assert adjusted_metadata[1]["absolute_rank_base_source"] == "row_base"
+    assert adjusted_metadata[2]["absolute_rank_base"] == 3526
+    assert adjusted_metadata[2]["absolute_rank_base_source"] == "retrofit"
 
 
 def test_parse_blue_archive_fixed_rows_rejects_increasing_scores(
