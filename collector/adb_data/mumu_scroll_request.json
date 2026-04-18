@@ -16,7 +16,7 @@
     "language": "eng",
     "psm": 11,
     "crop": {
-      "left_ratio": 0.39,
+      "left_ratio": 0.37,
       "top_ratio": 0.34,
       "right_ratio": 0.56,
       "bottom_ratio": 0.94

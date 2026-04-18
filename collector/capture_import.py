@@ -1713,6 +1713,11 @@ def _ocr_blue_archive_page_absolute_rank_anchor(
     ]
     candidates: list[tuple[tuple[float, float], str]] = []
     focused_regions = (
+        ((0.04, 0.82), (top_ratio + 0.02, min(bottom_ratio, top_ratio + 0.24))),
+        ((0.02, 0.84), (top_ratio + 0.01, min(bottom_ratio, top_ratio + 0.26))),
+        ((0.00, 0.56), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
+        ((0.02, 0.56), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
+        ((0.04, 0.56), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
         ((0.06, 0.42), (top_ratio, min(bottom_ratio, top_ratio + 0.18))),
         ((0.08, 0.44), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
         ((0.06, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
@@ -1798,21 +1803,33 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
         crop_height = crop.bottom_ratio - crop.top_ratio
         anchor_crops = [
             OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
-                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.40)),
+                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.04)),
+                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.03)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.80)),
                 bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
             ),
             OcrCrop(
                 left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.02)),
+                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.02)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.84)),
+                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.26)),
+            ),
+            OcrCrop(
+                left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
                 top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.44)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.82)),
                 bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
             ),
             OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
+                left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.06)),
+                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.86)),
+                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
+            ),
+            OcrCrop(
+                left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
                 top_ratio=max(0.0, crop.top_ratio - (crop_height * 0.01)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.48)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.90)),
                 bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.28)),
             ),
         ]
@@ -2523,6 +2540,9 @@ def _ocr_blue_archive_row_rank(
     ]
     candidates: list[str] = []
     for x_ratios, y_ratios in (
+        ((0.04, 0.82), (top_ratio + 0.02, min(bottom_ratio, top_ratio + 0.24))),
+        ((0.02, 0.84), (top_ratio + 0.01, min(bottom_ratio, top_ratio + 0.26))),
+        ((0.00, 0.72), (top_ratio + 0.00, min(bottom_ratio, top_ratio + 0.24))),
         ((0.06, 0.42), (top_ratio, min(bottom_ratio, top_ratio + 0.18))),
         ((0.08, 0.44), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
         ((0.06, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.22))),
