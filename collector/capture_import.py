@@ -1785,91 +1785,103 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
     if not image_path.exists():
         return None
 
+    candidates: list[int] = []
     crop = ocr.crop
     if crop is None:
-        base_crop = OcrCrop(
-            left_ratio=0.37,
-            top_ratio=0.24,
-            right_ratio=0.57,
-            bottom_ratio=0.42,
-        )
+        anchor_crops = [
+            OcrCrop(left_ratio=0.35, top_ratio=0.24, right_ratio=0.57, bottom_ratio=0.42),
+            OcrCrop(left_ratio=0.37, top_ratio=0.24, right_ratio=0.57, bottom_ratio=0.42),
+            OcrCrop(left_ratio=0.35, top_ratio=0.23, right_ratio=0.59, bottom_ratio=0.43),
+        ]
     else:
         crop_width = crop.right_ratio - crop.left_ratio
         crop_height = crop.bottom_ratio - crop.top_ratio
-        base_crop = OcrCrop(
-            left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.04)),
-            top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
-            right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.44)),
-            bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
-        )
-
-    original_anchor_ocr = OcrConfig(
-        provider=ocr.provider,
-        command=ocr.command,
-        language="eng",
-        psm=6,
-        extra_args=("-c", "preserve_interword_spaces=1"),
-        crop=base_crop,
-        upscale_ratio=max(2.0, ocr.upscale_ratio),
-        reuse_cached_sidecar=False,
-        persist_sidecar=False,
-    )
-
-    candidates: list[int] = []
-    for attempt in (
-        original_anchor_ocr,
-        OcrConfig(
-            provider=ocr.provider,
-            command=ocr.command,
-            language="eng",
-            psm=11,
-            extra_args=("-c", "preserve_interword_spaces=1"),
-            crop=base_crop,
-            upscale_ratio=original_anchor_ocr.upscale_ratio,
-            reuse_cached_sidecar=False,
-            persist_sidecar=False,
-        ),
-        OcrConfig(
-            provider=ocr.provider,
-            command=ocr.command,
-            language="eng",
-            psm=7,
-            extra_args=(
-                "-c",
-                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+        anchor_crops = [
+            OcrCrop(
+                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
+                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.40)),
+                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
             ),
-            crop=OcrCrop(
-                left_ratio=max(0.0, base_crop.left_ratio - 0.02),
-                top_ratio=base_crop.top_ratio,
-                right_ratio=min(1.0, base_crop.right_ratio + 0.02),
-                bottom_ratio=min(1.0, base_crop.bottom_ratio + 0.02),
+            OcrCrop(
+                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.02)),
+                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.44)),
+                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
             ),
-            upscale_ratio=max(2.5, original_anchor_ocr.upscale_ratio),
-            reuse_cached_sidecar=False,
-            persist_sidecar=False,
-        ),
-    ):
-        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
-        try:
-            text = _run_tesseract_command(
-                prepared_image_path=prepared_image_path,
-                original_image_path=image_path,
-                ocr=attempt,
-                output_kind="text",
-            )
-        except MockImportError:
-            continue
-        finally:
-            cleanup()
+            OcrCrop(
+                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.00)),
+                top_ratio=max(0.0, crop.top_ratio - (crop_height * 0.01)),
+                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.48)),
+                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.28)),
+            ),
+        ]
 
-        normalized_text = _normalize_unicode_ocr_text(text)
-        for rank in _extract_rank_candidates_from_text(normalized_text):
-            if rank > len(resolved_ranks):
-                candidates.append(rank)
-        if not candidates:
-            rank = _parse_blue_archive_rank_candidate(normalized_text)
-            if rank is not None and rank > len(resolved_ranks):
-                candidates.append(rank)
+    for anchor_crop in anchor_crops:
+        for attempt in (
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=6,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                crop=anchor_crop,
+                upscale_ratio=max(2.0, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=11,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                crop=anchor_crop,
+                upscale_ratio=max(2.0, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=7,
+                extra_args=(
+                    "-c",
+                    "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ",
+                ),
+                crop=OcrCrop(
+                    left_ratio=max(0.0, anchor_crop.left_ratio - 0.02),
+                    top_ratio=anchor_crop.top_ratio,
+                    right_ratio=min(1.0, anchor_crop.right_ratio + 0.02),
+                    bottom_ratio=min(1.0, anchor_crop.bottom_ratio + 0.02),
+                ),
+                upscale_ratio=max(2.5, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+        ):
+            prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+            try:
+                text = _run_tesseract_command(
+                    prepared_image_path=prepared_image_path,
+                    original_image_path=image_path,
+                    ocr=attempt,
+                    output_kind="text",
+                )
+            except MockImportError:
+                continue
+            finally:
+                cleanup()
+
+            normalized_text = _normalize_unicode_ocr_text(text)
+            for rank in _extract_rank_candidates_from_text(normalized_text):
+                if rank > len(resolved_ranks):
+                    candidates.append(rank)
+            if not candidates:
+                rank = _parse_blue_archive_rank_candidate(normalized_text)
+                if rank is not None and rank > len(resolved_ranks):
+                    candidates.append(rank)
 
     if not candidates:
         return None
@@ -2629,6 +2641,19 @@ def _ocr_blue_archive_row_score(
         except MockImportError:
             continue
     return None
+
+
+def _build_blue_archive_row_y_ratios(
+    top_ratio: float,
+    bottom_ratio: float,
+    start_ratio: float,
+    end_ratio: float,
+) -> tuple[float, float]:
+    row_height = bottom_ratio - top_ratio
+    return (
+        top_ratio + (row_height * start_ratio),
+        top_ratio + (row_height * end_ratio),
+    )
 
 
 @dataclass(frozen=True)
