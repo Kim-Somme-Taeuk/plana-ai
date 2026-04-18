@@ -2674,7 +2674,7 @@ def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_uses_ran
     )
 
     anchor = capture_import._ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
-        image_path=Path("page.png"),
+        image_path=Path(__file__),
         ocr=capture_import.OcrConfig(
             provider="tesseract",
             command="tesseract",
@@ -2687,9 +2687,56 @@ def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_uses_ran
             persist_sidecar=False,
         ),
         resolved_ranks=[1, 2, 3],
+        page_index=1,
     )
 
     assert anchor == 3522
+
+
+def test_ocr_blue_archive_page_absolute_rank_anchor_from_original_image_accepts_small_relative_ranks_on_page_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (Path("prepared.png"), lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_run_tesseract_command",
+        lambda **kwargs: "3522",
+    )
+
+    anchor = capture_import._ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
+        image_path=Path(__file__),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.39,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        resolved_ranks=[20, 21],
+        page_index=1,
+    )
+
+    assert anchor == 3522
+
+
+def test_should_attempt_blue_archive_absolute_rank_anchor_for_small_contiguous_ranks() -> None:
+    assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([1, 2, 3]) is True
+    assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([20, 21]) is True
+    assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([3522, 3523]) is False
+    assert capture_import._should_attempt_blue_archive_absolute_rank_anchor([20, 22]) is False
 
 
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
