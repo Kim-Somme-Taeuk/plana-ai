@@ -2239,7 +2239,7 @@ def _parse_blue_archive_fixed_rows(
     complete_row_ranks = True
 
     for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
-        rank, difficulty, score = _ocr_blue_archive_row_combined_fields(
+        combined_rank, difficulty, score = _ocr_blue_archive_row_combined_fields(
             prepared_image_path=prepared_image_path,
             ocr=ocr,
             top_ratio=top_ratio,
@@ -2253,30 +2253,19 @@ def _parse_blue_archive_fixed_rows(
             top_ratio=top_ratio,
             bottom_ratio=bottom_ratio,
         )
-        if rank is None and original_image_rank is None:
-            rank = _ocr_blue_archive_row_rank(
+        prepared_rank = combined_rank
+        if original_image_rank is None and prepared_rank is None:
+            prepared_rank = _ocr_blue_archive_row_rank(
                 prepared_image_path=prepared_image_path,
                 ocr=ocr,
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
             )
         rank = _select_blue_archive_row_rank(
-            prepared_rank=rank,
+            prepared_rank=prepared_rank,
             original_rank=original_image_rank,
             visible_row_count=len(row_bands),
         )
-        if rank is None:
-            rank = _ocr_blue_archive_row_rank(
-                prepared_image_path=prepared_image_path,
-                ocr=ocr,
-                top_ratio=top_ratio,
-                bottom_ratio=bottom_ratio,
-            )
-            rank = _select_blue_archive_row_rank(
-                prepared_rank=rank,
-                original_rank=original_image_rank,
-                visible_row_count=len(row_bands),
-            )
         if difficulty is None:
             difficulty = _ocr_blue_archive_row_difficulty(
                 prepared_image_path=prepared_image_path,
