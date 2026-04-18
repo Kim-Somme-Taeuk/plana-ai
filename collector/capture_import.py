@@ -1768,6 +1768,14 @@ def _parse_blue_archive_fixed_rows(
     ):
         absolute_rank_anchor = None
         absolute_rank_anchor_source = absolute_rank_base_source
+    if (
+        absolute_rank_base is not None
+        and absolute_rank_anchor is not None
+        and page_index == 1
+        and abs(absolute_rank_anchor - absolute_rank_base) > max(3, len(resolved_ranks))
+    ):
+        absolute_rank_anchor = None
+        absolute_rank_anchor_source = absolute_rank_base_source
     if absolute_rank_anchor is not None:
         resolved_ranks = list(
             range(
