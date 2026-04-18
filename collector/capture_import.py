@@ -1719,6 +1719,12 @@ def _parse_blue_archive_fixed_rows(
         )
         if absolute_rank_anchor is not None:
             absolute_rank_anchor_source = "original"
+    if not _is_valid_blue_archive_page_one_absolute_anchor(
+        absolute_rank_anchor,
+        page_index=page_index,
+    ):
+        absolute_rank_anchor = None
+        absolute_rank_anchor_source = None
     if absolute_rank_anchor is not None:
         resolved_ranks = list(
             range(
@@ -2063,6 +2069,18 @@ def _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
     if not base_candidates:
         return None
     return Counter(base_candidates).most_common(1)[0][0]
+
+
+def _is_valid_blue_archive_page_one_absolute_anchor(
+    anchor: int | None,
+    *,
+    page_index: int,
+) -> bool:
+    if anchor is None:
+        return False
+    if page_index != 1:
+        return True
+    return anchor > 100
 
 
 def _resolve_blue_archive_page_difficulty(

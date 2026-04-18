@@ -2815,6 +2815,13 @@ def test_resolve_blue_archive_absolute_rank_base_from_detected_ranks() -> None:
     )
 
 
+def test_is_valid_blue_archive_page_one_absolute_anchor() -> None:
+    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(3522, page_index=1) is True
+    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=1) is False
+    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(None, page_index=1) is False
+    assert capture_import._is_valid_blue_archive_page_one_absolute_anchor(20, page_index=2) is True
+
+
 def test_resolve_blue_archive_page_difficulty_prefers_higher_difficulty_on_tie() -> None:
     difficulty = capture_import._resolve_blue_archive_page_difficulty(
         [
