@@ -2412,9 +2412,10 @@ def _ocr_blue_archive_row_rank(
     ]
     candidates: list[str] = []
     for x_ratios, y_ratios in (
+        ((0.18, 0.48), (top_ratio, min(bottom_ratio, top_ratio + 0.20))),
+        ((0.18, 0.56), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
+        ((0.22, 0.60), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
         ((0.12, 0.52), (top_ratio, min(bottom_ratio, top_ratio + 0.24))),
-        ((0.18, 0.58), (top_ratio, min(bottom_ratio, top_ratio + 0.28))),
-        ((0.0, 0.5), (top_ratio, min(bottom_ratio, top_ratio + 0.23))),
     ):
         candidates.extend(
             _ocr_prepared_image_ratio_region_candidates(
@@ -2434,6 +2435,13 @@ def _ocr_blue_archive_row_rank(
                 prefixed_ranks.extend(rank_candidates)
             parsed_ranks.extend(rank_candidates)
             continue
+        normalized_candidate = _normalize_unicode_ocr_text(candidate)
+        if "rank" in normalized_candidate.lower():
+            rank = _parse_blue_archive_rank_candidate(normalized_candidate)
+            if rank is not None:
+                prefixed_ranks.append(rank)
+                parsed_ranks.append(rank)
+                continue
         rank = _parse_blue_archive_rank_candidate(candidate)
         if rank is not None:
             parsed_ranks.append(rank)
