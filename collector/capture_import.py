@@ -1837,48 +1837,57 @@ def _ocr_blue_archive_page_absolute_rank_anchor_from_original_image(
         return None
 
     candidates: list[int] = []
+    anchor_crops = [
+        OcrCrop(left_ratio=0.375, top_ratio=0.36, right_ratio=0.525, bottom_ratio=0.485),
+        OcrCrop(left_ratio=0.38, top_ratio=0.36, right_ratio=0.53, bottom_ratio=0.485),
+        OcrCrop(left_ratio=0.37, top_ratio=0.35, right_ratio=0.535, bottom_ratio=0.50),
+    ]
     crop = ocr.crop
     if crop is None:
-        anchor_crops = [
-            OcrCrop(left_ratio=0.35, top_ratio=0.24, right_ratio=0.57, bottom_ratio=0.42),
-            OcrCrop(left_ratio=0.37, top_ratio=0.24, right_ratio=0.57, bottom_ratio=0.42),
-            OcrCrop(left_ratio=0.35, top_ratio=0.23, right_ratio=0.59, bottom_ratio=0.43),
-        ]
+        anchor_crops.extend(
+            [
+                OcrCrop(left_ratio=0.35, top_ratio=0.24, right_ratio=0.57, bottom_ratio=0.42),
+                OcrCrop(left_ratio=0.37, top_ratio=0.24, right_ratio=0.57, bottom_ratio=0.42),
+                OcrCrop(left_ratio=0.35, top_ratio=0.23, right_ratio=0.59, bottom_ratio=0.43),
+            ]
+        )
     else:
         crop_width = crop.right_ratio - crop.left_ratio
         crop_height = crop.bottom_ratio - crop.top_ratio
-        anchor_crops = [
-            OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.04)),
-                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.03)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.80)),
-                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
-            ),
-            OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.02)),
-                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.02)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.84)),
-                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.26)),
-            ),
-            OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
-                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.82)),
-                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
-            ),
-            OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.06)),
-                top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.86)),
-                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
-            ),
-            OcrCrop(
-                left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
-                top_ratio=max(0.0, crop.top_ratio - (crop_height * 0.01)),
-                right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.90)),
-                bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.28)),
-            ),
-        ]
+        anchor_crops.extend(
+            [
+                OcrCrop(
+                    left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.04)),
+                    top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.03)),
+                    right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.80)),
+                    bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
+                ),
+                OcrCrop(
+                    left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.02)),
+                    top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.02)),
+                    right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.84)),
+                    bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.26)),
+                ),
+                OcrCrop(
+                    left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
+                    top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
+                    right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.82)),
+                    bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
+                ),
+                OcrCrop(
+                    left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.06)),
+                    top_ratio=max(0.0, crop.top_ratio + (crop_height * 0.00)),
+                    right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.86)),
+                    bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.24)),
+                ),
+                OcrCrop(
+                    left_ratio=max(0.0, crop.left_ratio - (crop_width * 0.10)),
+                    top_ratio=max(0.0, crop.top_ratio - (crop_height * 0.01)),
+                    right_ratio=min(1.0, crop.left_ratio + (crop_width * 0.90)),
+                    bottom_ratio=min(1.0, crop.top_ratio + (crop_height * 0.28)),
+                ),
+            ]
+        )
 
     for anchor_crop in anchor_crops:
         for attempt in (
