@@ -553,10 +553,11 @@ def test_adb_client_uses_serial_and_screencap_command(
 ) -> None:
     captured_args: list[str] = []
 
-    def fake_run(args, capture_output, check):
+    def fake_run(args, capture_output, check, timeout):
         captured_args.extend(args)
         assert capture_output is True
         assert check is False
+        assert timeout == adb_capture.ADB_SCREENSHOT_TIMEOUT_SECONDS
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"PNG", stderr=b"")
 
     monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
@@ -579,10 +580,11 @@ def test_adb_client_uses_serial_and_screencap_command(
 def test_adb_client_uses_swipe_command(monkeypatch: pytest.MonkeyPatch) -> None:
     captured_args: list[str] = []
 
-    def fake_run(args, capture_output, check):
+    def fake_run(args, capture_output, check, timeout):
         captured_args.extend(args)
         assert capture_output is True
         assert check is False
+        assert timeout == adb_capture.ADB_SWIPE_TIMEOUT_SECONDS
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
 
     monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
@@ -619,10 +621,11 @@ def test_adb_client_uses_swipe_command(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_adb_client_preflight_accepts_single_connected_device(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_run(args, capture_output, check):
+    def fake_run(args, capture_output, check, timeout):
         assert args == ["adb", "devices"]
         assert capture_output is True
         assert check is False
+        assert timeout == adb_capture.ADB_DEVICES_TIMEOUT_SECONDS
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -640,7 +643,7 @@ def test_adb_client_preflight_accepts_single_connected_device(
 def test_adb_client_preflight_requires_serial_for_multiple_devices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_run(args, capture_output, check):
+    def fake_run(args, capture_output, check, timeout):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -669,7 +672,7 @@ def test_adb_client_preflight_requires_serial_for_multiple_devices(
 def test_adb_client_preflight_rejects_missing_requested_serial(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_run(args, capture_output, check):
+    def fake_run(args, capture_output, check, timeout):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -692,7 +695,7 @@ def test_adb_client_preflight_rejects_missing_requested_serial(
 def test_adb_client_preflight_rejects_unavailable_device_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_run(args, capture_output, check):
+    def fake_run(args, capture_output, check, timeout):
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -721,6 +724,64 @@ def test_adb_client_fails_when_command_missing(monkeypatch: pytest.MonkeyPatch) 
         client.capture_screenshot(device_serial=None)
 
     assert "adb 명령을 찾을 수 없습니다" in str(exc_info.value)
+
+
+def test_adb_client_capture_screenshot_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(args, capture_output, check, timeout):
+        raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+
+    with pytest.raises(MockImportError) as exc_info:
+        client.capture_screenshot(device_serial="emulator-5554")
+
+    assert "시간 초과로 중단됐습니다" in str(exc_info.value)
+    assert "timeout=20s" in str(exc_info.value)
+
+
+def test_adb_client_swipe_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(args, capture_output, check, timeout):
+        raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+
+    with pytest.raises(MockImportError) as exc_info:
+        client.swipe(
+            device_serial="device-01",
+            swipe=adb_capture.AdbSwipeConfig(
+                start_x=500,
+                start_y=1600,
+                end_x=500,
+                end_y=600,
+                duration_ms=200,
+                settle_delay_ms=800,
+            ),
+        )
+
+    assert "시간 초과로 중단됐습니다" in str(exc_info.value)
+    assert "timeout=10s" in str(exc_info.value)
+
+
+def test_adb_client_preflight_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(args, capture_output, check, timeout):
+        raise subprocess.TimeoutExpired(cmd=args, timeout=timeout)
+
+    monkeypatch.setattr(adb_capture.shutil, "which", lambda command: "/usr/bin/adb")
+    monkeypatch.setattr(adb_capture.subprocess, "run", fake_run)
+
+    client = AdbClient("adb")
+
+    with pytest.raises(MockImportError) as exc_info:
+        client.preflight(device_serial=None)
+
+    assert "시간 초과로 중단됐습니다" in str(exc_info.value)
+    assert "timeout=10s" in str(exc_info.value)
 
 
 def test_load_adb_capture_request_requires_swipe_for_multiple_pages(

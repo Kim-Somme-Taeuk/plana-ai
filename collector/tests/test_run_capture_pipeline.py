@@ -367,6 +367,40 @@ def test_run_capture_pipeline_resume_only_requires_existing_manifest(tmp_path: P
     assert "resume-only가 지정됐지만 기존 output_dir가 없습니다" in str(exc_info.value)
 
 
+def test_run_capture_pipeline_writes_error_artifact_on_capture_timeout(
+    tmp_path: Path,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-capture-timeout-season",
+        include_ocr=False,
+    )
+    output_dir = tmp_path / "capture-output"
+
+    class TimeoutAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            raise capture_import.MockImportError(
+                "adb exec-out screencap 명령이 시간 초과로 중단됐습니다. timeout=20s"
+            )
+
+    with pytest.raises(capture_import.MockImportError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(output_dir),
+            adb_client=TimeoutAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+        )
+
+    assert "시간 초과로 중단됐습니다" in str(exc_info.value)
+    pipeline_error = json.loads(
+        (output_dir / "pipeline-error.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_error["stage"] == "capture"
+    assert pipeline_error["error_type"] == "MockImportError"
+    assert "timeout=20s" in pipeline_error["message"]
+
+
 def test_run_capture_pipeline_force_recapture_clears_existing_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

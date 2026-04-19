@@ -31,6 +31,9 @@ from collector.mock_import import (
 DEFAULT_ADB_COMMAND = "adb"
 DEFAULT_CAPTURE_NOTE = "adb screenshot capture"
 LATEST_CAPTURE_PREVIEW_NAME = ".latest-page.png"
+ADB_DEVICES_TIMEOUT_SECONDS = 10
+ADB_SCREENSHOT_TIMEOUT_SECONDS = 20
+ADB_SWIPE_TIMEOUT_SECONDS = 10
 
 
 @dataclass(frozen=True)
@@ -106,6 +109,7 @@ class AdbClient:
         result = self._run_command(
             args,
             failure_message=f"adb devices 실행에 실패했습니다: command={self.command!r}",
+            timeout_seconds=ADB_DEVICES_TIMEOUT_SECONDS,
         )
 
         if result.returncode != 0:
@@ -183,6 +187,7 @@ class AdbClient:
         result = self._run_command(
             args,
             failure_message=f"adb screenshot 실행에 실패했습니다: command={self.command!r}",
+            timeout_seconds=ADB_SCREENSHOT_TIMEOUT_SECONDS,
         )
 
         if result.returncode != 0:
@@ -220,6 +225,7 @@ class AdbClient:
         result = self._run_command(
             args,
             failure_message=f"adb swipe 실행에 실패했습니다: command={self.command!r}",
+            timeout_seconds=ADB_SWIPE_TIMEOUT_SECONDS,
         )
 
         if result.returncode != 0:
@@ -245,6 +251,7 @@ class AdbClient:
         args: list[str],
         *,
         failure_message: str,
+        timeout_seconds: int,
     ) -> subprocess.CompletedProcess[bytes]:
         if shutil.which(self.command) is None:
             raise MockImportError(
@@ -256,7 +263,14 @@ class AdbClient:
                 args,
                 capture_output=True,
                 check=False,
+                timeout=timeout_seconds,
             )
+        except subprocess.TimeoutExpired as exc:
+            command_label = " ".join(args[:3]) if args else self.command
+            raise MockImportError(
+                f"{command_label} 명령이 시간 초과로 중단됐습니다. "
+                f"timeout={timeout_seconds}s"
+            ) from exc
         except OSError as exc:
             raise MockImportError(failure_message) from exc
 
