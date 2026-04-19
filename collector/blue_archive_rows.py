@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from collector.mock_import import MockImportError
+
 
 def parse_blue_archive_capture(
     *,
@@ -21,11 +23,25 @@ def parse_blue_archive_capture(
     previous_page_entries: list[dict[str, Any]] = []
 
     for page_index, image_path, default_ocr_confidence in resolved_pages:
-        page_entries, page_debug = parse_page_rows(
-            image_path,
-            default_ocr_confidence,
-            page_index,
-        )
+        try:
+            page_entries, page_debug = parse_page_rows(
+                image_path,
+                default_ocr_confidence,
+                page_index,
+            )
+        except MockImportError as exc:
+            if "capture parse 단계가 시간 초과로 중단됐습니다" in str(exc):
+                setattr(
+                    exc,
+                    "capture_parse_progress",
+                    _build_blue_archive_parse_progress(
+                        parsed_pages=parsed_pages,
+                        page_metadata=page_metadata,
+                        build_page_summaries=build_page_summaries,
+                        timed_out_page_index=page_index,
+                    ),
+                )
+            raise
         page_entries = _apply_page_majority_difficulty(page_entries)
         page_entries = realign_page_ranks(previous_page_entries, page_entries)
 
@@ -64,6 +80,24 @@ def parse_blue_archive_capture(
                 seen_ranks.add(rank)
 
     return entries, page_summaries, ignored_lines
+
+
+def _build_blue_archive_parse_progress(
+    *,
+    parsed_pages: list[list[dict[str, Any]]],
+    page_metadata: list[dict[str, Any]],
+    build_page_summaries: Callable[[list[list[dict[str, Any]]], list[dict[str, Any]]], list[dict[str, Any]]],
+    timed_out_page_index: int,
+) -> dict[str, Any]:
+    page_summaries = build_page_summaries(parsed_pages, page_metadata)
+    return {
+        "last_completed_page_index": (
+            page_metadata[-1]["page_index"] if page_metadata else 0
+        ),
+        "timed_out_page_index": timed_out_page_index,
+        "processed_page_count": len(page_metadata),
+        "page_summaries": page_summaries,
+    }
 
 
 def _apply_page_majority_difficulty(

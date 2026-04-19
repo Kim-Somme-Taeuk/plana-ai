@@ -491,6 +491,67 @@ def test_run_capture_pipeline_passes_parse_timeout_seconds_to_parser(
     assert "timeout=7s" in pipeline_error["message"]
 
 
+def test_run_capture_pipeline_writes_partial_result_on_parse_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-parse-partial-timeout-season",
+        include_ocr=False,
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    def fake_parse_capture_payload(
+        payload,
+        *,
+        validate_snapshot_entries=True,
+        parse_timeout_seconds=None,
+    ):
+        error = capture_import.MockImportError(
+            f"capture parse 단계가 시간 초과로 중단됐습니다. timeout={parse_timeout_seconds}s, page_index=3"
+        )
+        error.capture_parse_progress = {
+            "last_completed_page_index": 2,
+            "timed_out_page_index": 3,
+            "processed_page_count": 2,
+            "page_summaries": [
+                {"page_index": 1, "entry_count": 2},
+                {"page_index": 2, "entry_count": 1},
+            ],
+        }
+        raise error
+
+    monkeypatch.setattr(capture_pipeline, "parse_capture_payload", fake_parse_capture_payload)
+
+    output_dir = tmp_path / "capture-output"
+    with pytest.raises(capture_import.MockImportError):
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(output_dir),
+            adb_client=FakeAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+        )
+
+    pipeline_error = json.loads(
+        (output_dir / "pipeline-error.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_error["stage"] == "parse_capture_payload"
+    assert pipeline_error["partial_result"] == {
+        "last_completed_page_index": 2,
+        "timed_out_page_index": 3,
+        "processed_page_count": 2,
+        "page_summaries": [
+            {"page_index": 1, "entry_count": 2},
+            {"page_index": 2, "entry_count": 1},
+        ],
+    }
+
+
 def test_run_capture_pipeline_force_recapture_clears_existing_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

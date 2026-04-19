@@ -608,6 +608,7 @@ def _write_pipeline_error_artifact(
         return
 
     artifact_path = output_dir / "pipeline-error.json"
+    partial_progress = getattr(error, "capture_parse_progress", None)
     artifact_path.write_text(
         json.dumps(
             {
@@ -616,6 +617,7 @@ def _write_pipeline_error_artifact(
                 "stage": stage,
                 "error_type": type(error).__name__,
                 "message": str(error),
+                "partial_result": partial_progress,
                 "recovery": _build_pipeline_recovery_payload(
                     output_dir=output_dir,
                     request_path=request_path,

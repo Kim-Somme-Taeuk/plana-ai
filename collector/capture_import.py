@@ -275,35 +275,38 @@ def parse_capture_payload(
         image_path=resolved_pages[0][1],
         ocr=payload.ocr,
     ):
-        entries, page_summaries, ignored_lines = parse_blue_archive_capture(
-            resolved_pages=resolved_pages,
-            parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_rows_with_timeout(
-                image_path=image_path,
-                ocr=payload.ocr,
-                default_ocr_confidence=default_ocr_confidence,
-                page_index=page_index,
-                deadline_monotonic=deadline_monotonic,
-                parse_timeout_seconds=parse_timeout_seconds,
-            ),
-            realign_page_ranks=lambda previous_page_entries, current_page_entries: _realign_overlapping_page_entry_ranks(
-                previous_page_entries=previous_page_entries,
-                current_page_entries=current_page_entries,
-            ),
-            retrofit_absolute_ranks=lambda parsed_pages, page_metadata: _retrofit_blue_archive_absolute_page_ranks(
-                parsed_pages=parsed_pages,
-                page_metadata=page_metadata,
-            ),
-            prune_sparse_pages=lambda parsed_pages, page_metadata: _prune_blue_archive_sparse_rank_violation_pages(
-                parsed_pages=parsed_pages,
-                page_metadata=page_metadata,
-            ),
-            build_page_summaries=lambda parsed_pages, page_metadata: _build_capture_page_summaries(
-                parsed_pages=parsed_pages,
-                page_metadata=page_metadata,
-            ),
-            strip_internal_entry_fields=_strip_internal_entry_fields,
-            build_entry_image_path=_build_entry_image_path,
-        )
+        try:
+            entries, page_summaries, ignored_lines = parse_blue_archive_capture(
+                resolved_pages=resolved_pages,
+                parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_rows_with_timeout(
+                    image_path=image_path,
+                    ocr=payload.ocr,
+                    default_ocr_confidence=default_ocr_confidence,
+                    page_index=page_index,
+                    deadline_monotonic=deadline_monotonic,
+                    parse_timeout_seconds=parse_timeout_seconds,
+                ),
+                realign_page_ranks=lambda previous_page_entries, current_page_entries: _realign_overlapping_page_entry_ranks(
+                    previous_page_entries=previous_page_entries,
+                    current_page_entries=current_page_entries,
+                ),
+                retrofit_absolute_ranks=lambda parsed_pages, page_metadata: _retrofit_blue_archive_absolute_page_ranks(
+                    parsed_pages=parsed_pages,
+                    page_metadata=page_metadata,
+                ),
+                prune_sparse_pages=lambda parsed_pages, page_metadata: _prune_blue_archive_sparse_rank_violation_pages(
+                    parsed_pages=parsed_pages,
+                    page_metadata=page_metadata,
+                ),
+                build_page_summaries=lambda parsed_pages, page_metadata: _build_capture_page_summaries(
+                    parsed_pages=parsed_pages,
+                    page_metadata=page_metadata,
+                ),
+                strip_internal_entry_fields=_strip_internal_entry_fields,
+                build_entry_image_path=_build_entry_image_path,
+            )
+        except MockImportError:
+            raise
         if validate_snapshot_entries:
             _validate_snapshot_entries(entries, page_summaries)
         snapshot_note = _build_snapshot_note_with_collector_summary(
@@ -331,25 +334,44 @@ def parse_capture_payload(
     previous_page_entries: list[dict[str, Any]] = []
 
     for page_index, image_path, default_ocr_confidence in resolved_pages:
-        _raise_if_capture_parse_timed_out(
-            deadline_monotonic=deadline_monotonic,
-            parse_timeout_seconds=parse_timeout_seconds,
-            page_index=page_index,
-        )
-        ocr_text = _load_ocr_text(
-            base_dir=payload.base_dir,
-            page=payload.pages[page_index - 1],
-            image_path=image_path,
-            ocr=payload.ocr,
-        )
+        try:
+            _raise_if_capture_parse_timed_out(
+                deadline_monotonic=deadline_monotonic,
+                parse_timeout_seconds=parse_timeout_seconds,
+                page_index=page_index,
+            )
+            ocr_text = _load_ocr_text(
+                base_dir=payload.base_dir,
+                page=payload.pages[page_index - 1],
+                image_path=image_path,
+                ocr=payload.ocr,
+            )
 
-        page_entries, page_ignored_lines = _parse_page_entries(
-            ocr_text=ocr_text,
-            image_path=image_path,
-            ocr=payload.ocr,
-            default_ocr_confidence=default_ocr_confidence,
-            page_index=page_index,
-        )
+            page_entries, page_ignored_lines = _parse_page_entries(
+                ocr_text=ocr_text,
+                image_path=image_path,
+                ocr=payload.ocr,
+                default_ocr_confidence=default_ocr_confidence,
+                page_index=page_index,
+            )
+        except MockImportError as exc:
+            if "capture parse 단계가 시간 초과로 중단됐습니다" in str(exc):
+                setattr(
+                    exc,
+                    "capture_parse_progress",
+                    {
+                        "last_completed_page_index": (
+                            page_metadata[-1]["page_index"] if page_metadata else 0
+                        ),
+                        "timed_out_page_index": page_index,
+                        "processed_page_count": len(page_metadata),
+                        "page_summaries": _build_capture_page_summaries(
+                            parsed_pages=parsed_pages,
+                            page_metadata=page_metadata,
+                        ),
+                    },
+                )
+            raise
         page_entries = _realign_overlapping_page_entry_ranks(
             previous_page_entries=previous_page_entries,
             current_page_entries=page_entries,
