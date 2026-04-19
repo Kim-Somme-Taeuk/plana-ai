@@ -47,6 +47,7 @@ CAPTURE_SOURCE_TYPE_BY_PROVIDER = {
 }
 DEFAULT_TESSERACT_COMMAND = "tesseract"
 TESSERACT_TIMEOUT_SECONDS = 30
+BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS = 3
 DEFAULT_CAPTURE_PARSE_TIMEOUT_SECONDS = 180
 OCR_NUMERIC_TRANSLATION = str.maketrans(
     {
@@ -4128,44 +4129,34 @@ def _ocr_blue_archive_row_score(
     page_index: int,
 ) -> int | None:
     valid_scores: dict[int, int] = {}
-    for x_ratios, y_start, y_end in (
-        ((0.52, 0.98), 0.12, 0.245),
-        ((0.45, 0.98), 0.10, 0.26),
-    ):
-        candidates = _ocr_prepared_image_ratio_region_candidates(
-            prepared_image_path=prepared_image_path,
-            x_ratios=x_ratios,
-            y_ratios=(top_ratio + y_start, min(bottom_ratio, top_ratio + y_end)),
-            attempts=[
-                OcrRegionAttempt(
-                    language="eng",
-                    psm=7,
-                    extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                    threshold=None,
-                ),
-                OcrRegionAttempt(
-                    language="eng",
-                    psm=6,
-                    extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                    threshold=200,
-                ),
-            ],
-            base_ocr=replace(ocr, timeout_seconds=4),
-        )
-        for candidate in candidates:
-            if not _is_valid_blue_archive_score_candidate(candidate):
-                continue
-            try:
-                parsed_score = _parse_score_text(
-                    candidate,
-                    page_index=page_index,
-                    line_index=1,
-                )
-            except MockImportError:
-                continue
-            if not _is_valid_blue_archive_score_value(parsed_score):
-                continue
-            valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
+    candidates = _ocr_prepared_image_ratio_region_candidates(
+        prepared_image_path=prepared_image_path,
+        x_ratios=(0.42, 0.99),
+        y_ratios=(top_ratio + 0.10, min(bottom_ratio, top_ratio + 0.27)),
+        attempts=[
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                threshold=None,
+            ),
+        ],
+        base_ocr=replace(ocr, timeout_seconds=BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS),
+    )
+    for candidate in candidates:
+        if not _is_valid_blue_archive_score_candidate(candidate):
+            continue
+        try:
+            parsed_score = _parse_score_text(
+                candidate,
+                page_index=page_index,
+                line_index=1,
+            )
+        except MockImportError:
+            continue
+        if not _is_valid_blue_archive_score_value(parsed_score):
+            continue
+        valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
     if not valid_scores:
         return None
     return max(valid_scores.items(), key=lambda item: (item[1], item[0]))[0]
@@ -4189,82 +4180,67 @@ def _ocr_blue_archive_row_score_from_original_image(
     row_bottom_absolute = crop.top_ratio + (crop_height * bottom_ratio)
     row_height = row_bottom_absolute - row_top_absolute
 
-    region_crops = (
-        OcrCrop(
-            left_ratio=max(0.0, crop.left_ratio + (crop_width * 1.00)),
-            top_ratio=max(0.0, row_top_absolute + (row_height * 0.10)),
-            right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.20)),
-            bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.38)),
-        ),
-        OcrCrop(
-            left_ratio=max(0.0, crop.left_ratio + (crop_width * 1.10)),
-            top_ratio=max(0.0, row_top_absolute + (row_height * 0.08)),
-            right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.40)),
-            bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.40)),
-        ),
-        OcrCrop(
-            left_ratio=max(0.0, crop.left_ratio + (crop_width * 1.20)),
-            top_ratio=max(0.0, row_top_absolute + (row_height * 0.06)),
-            right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.60)),
-            bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.42)),
-        ),
+    region_crop = OcrCrop(
+        left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.92)),
+        top_ratio=max(0.0, row_top_absolute + (row_height * 0.08)),
+        right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.35)),
+        bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.40)),
     )
     valid_scores: dict[int, int] = {}
-    for region_crop in region_crops:
-        for attempt in (
-            OcrConfig(
-                provider=ocr.provider,
-                command=ocr.command,
-                language="eng",
-                psm=6,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                crop=region_crop,
-                upscale_ratio=max(3.0, ocr.upscale_ratio),
-                reuse_cached_sidecar=False,
-                persist_sidecar=False,
-                timeout_seconds=4,
-            ),
-            OcrConfig(
-                provider=ocr.provider,
-                command=ocr.command,
-                language="eng",
-                psm=7,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                crop=region_crop,
-                upscale_ratio=max(3.0, ocr.upscale_ratio),
-                reuse_cached_sidecar=False,
-                persist_sidecar=False,
-                timeout_seconds=4,
-            ),
-        ):
-            prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+    for attempt in (
+        OcrConfig(
+            provider=ocr.provider,
+            command=ocr.command,
+            language="eng",
+            psm=6,
+            extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+            crop=region_crop,
+            upscale_ratio=max(3.0, ocr.upscale_ratio),
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+            timeout_seconds=BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS,
+        ),
+        OcrConfig(
+            provider=ocr.provider,
+            command=ocr.command,
+            language="eng",
+            psm=7,
+            extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+            crop=region_crop,
+            upscale_ratio=max(3.0, ocr.upscale_ratio),
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+            timeout_seconds=BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS,
+        ),
+    ):
+        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+        try:
+            text = _run_tesseract_command(
+                prepared_image_path=prepared_image_path,
+                original_image_path=image_path,
+                ocr=attempt,
+                output_kind="text",
+            )
+        except MockImportError:
+            continue
+        finally:
+            cleanup()
+
+        for token in text.splitlines():
+            normalized = token.strip()
+            if not _is_valid_blue_archive_score_candidate(normalized):
+                continue
             try:
-                text = _run_tesseract_command(
-                    prepared_image_path=prepared_image_path,
-                    original_image_path=image_path,
-                    ocr=attempt,
-                    output_kind="text",
+                parsed_score = _parse_score_text(
+                    normalized,
+                    page_index=page_index,
+                    line_index=1,
                 )
             except MockImportError:
                 continue
-            finally:
-                cleanup()
-
-            for token in text.splitlines():
-                normalized = token.strip()
-                if not _is_valid_blue_archive_score_candidate(normalized):
-                    continue
-                try:
-                    parsed_score = _parse_score_text(
-                        normalized,
-                        page_index=page_index,
-                        line_index=1,
-                    )
-                except MockImportError:
-                    continue
-                if not _is_valid_blue_archive_score_value(parsed_score):
-                    continue
-                valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
+            if not _is_valid_blue_archive_score_value(parsed_score):
+                continue
+            valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
 
     if not valid_scores:
         return None
