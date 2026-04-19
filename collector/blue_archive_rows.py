@@ -41,6 +41,7 @@ def parse_blue_archive_capture(
                 "is_blue_archive_layout": True,
                 "row_bands": page_debug.get("row_bands", []),
                 "detected_row_bands": page_debug.get("detected_row_bands", []),
+                "visible_row_count": page_debug.get("visible_row_count", 0),
                 "row_debugs": page_debug.get("row_debugs", []),
             }
         )

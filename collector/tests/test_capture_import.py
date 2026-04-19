@@ -440,6 +440,7 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "absolute_rank_base_source": None,
             "detected_row_bands": [],
             "row_bands": [],
+            "visible_row_count": 0,
             "row_debugs": [],
         }
     ]
@@ -727,6 +728,7 @@ def test_parse_capture_payload_reports_multi_page_summaries(
                 "absolute_rank_base_source": None,
                 "detected_row_bands": [],
                 "row_bands": [],
+                "visible_row_count": 0,
                 "row_debugs": [],
             },
             {
@@ -750,6 +752,7 @@ def test_parse_capture_payload_reports_multi_page_summaries(
                 "absolute_rank_base_source": None,
                 "detected_row_bands": [],
                 "row_bands": [],
+                "visible_row_count": 0,
                 "row_debugs": [],
             },
         ]
@@ -814,6 +817,7 @@ def test_parse_capture_payload_uses_blue_archive_row_pipeline_without_loading_oc
             {
                 "detected_row_bands": [],
                 "row_bands": [],
+                "visible_row_count": 0,
                 "row_debugs": [],
             },
         ),
@@ -1157,6 +1161,7 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "absolute_rank_base_source": None,
         "detected_row_bands": [],
         "row_bands": [],
+        "visible_row_count": 0,
         "row_debugs": [],
     }
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
@@ -4836,6 +4841,7 @@ def test_parse_blue_archive_page_entries_with_debug_returns_row_debugs(
             {
                 "detected_row_bands": [[0.02, 0.31], [0.35, 0.65]],
                 "row_bands": [[0.35, 0.65]],
+                "visible_row_count": 1,
                 "row_debugs": [
                     {
                         "row_index": 1,
@@ -4863,6 +4869,7 @@ def test_parse_blue_archive_page_entries_with_debug_returns_row_debugs(
     assert entries[0]["rank"] == 3
     assert page_debug["detected_row_bands"] == [[0.02, 0.31], [0.35, 0.65]]
     assert page_debug["row_bands"] == [[0.35, 0.65]]
+    assert page_debug["visible_row_count"] == 1
     assert page_debug["row_debugs"][0]["selected_rank"] == 3
 
 

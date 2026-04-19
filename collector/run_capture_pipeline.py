@@ -781,6 +781,9 @@ def _build_after_capture_page_callback(
                 and len(valid_page_ranks) >= 2
                 and highest_rank_collected > stop_policy.max_rank
             ):
+                if stop_policy.max_rank >= 1000:
+                    pending_max_rank_stop_count = 0
+                    return AdbCaptureStopDecision(should_continue=True)
                 pending_max_rank_stop_count += 1
                 if pending_max_rank_stop_count >= 2:
                     return AdbCaptureStopDecision(

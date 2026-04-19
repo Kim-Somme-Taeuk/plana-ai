@@ -972,6 +972,7 @@ def test_run_capture_pipeline_tracks_ignored_lines(
             "absolute_rank_base_source": None,
             "detected_row_bands": [],
             "row_bands": [],
+            "visible_row_count": 0,
             "row_debugs": [],
         }
     ]
@@ -1806,6 +1807,53 @@ def test_after_capture_page_requires_two_fast_max_rank_confirmations(
         level="hard",
         discard_last_page=False,
     )
+
+
+def test_after_capture_page_does_not_hard_stop_large_max_rank_from_fast_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-max-rank-large-fast-no-stop-season",
+        include_ocr=False,
+    )
+    request = capture_pipeline.load_adb_capture_request(request_path)
+
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_is_blue_archive_fixed_layout_image",
+        lambda **kwargs: True,
+    )
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_parse_blue_archive_page_ranks_fast",
+        lambda **kwargs: [12001, 12002],
+    )
+
+    callback = capture_pipeline._build_after_capture_page_callback(
+        request=request,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=12000,
+        ),
+        effective_ocr_provider="tesseract",
+        ocr_command=None,
+        ocr_language="eng",
+        ocr_psm=6,
+        stop_capture_on_recommendation_mode="off",
+    )
+
+    assert callback is not None
+    first_decision = callback([Path("page-001.png"), Path("page-002.png")], None)
+    second_decision = callback(
+        [Path("page-001.png"), Path("page-002.png"), Path("page-003.png")],
+        None,
+    )
+
+    assert first_decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
+    assert second_decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
 
 
 def test_after_capture_page_does_not_stop_when_rank_equals_max_rank(

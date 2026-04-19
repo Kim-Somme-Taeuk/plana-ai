@@ -748,6 +748,7 @@ def _build_capture_page_summaries(
                 "absolute_rank_base_source": metadata["absolute_rank_base_source"],
                 "detected_row_bands": metadata.get("detected_row_bands", []),
                 "row_bands": metadata.get("row_bands", []),
+                "visible_row_count": metadata.get("visible_row_count", 0),
                 "row_debugs": metadata.get("row_debugs", []),
             }
         )
@@ -2403,6 +2404,7 @@ def _parse_blue_archive_fixed_rows_with_debug(
             [round(top_ratio, 4), round(bottom_ratio, 4)]
             for top_ratio, bottom_ratio in row_bands
         ],
+        "visible_row_count": len(row_bands),
         "row_debugs": [],
     }
 
