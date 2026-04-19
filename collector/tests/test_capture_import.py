@@ -4946,6 +4946,21 @@ def test_select_visible_blue_archive_row_bands_drops_partial_bottom_row() -> Non
     )
 
 
+def test_select_visible_blue_archive_row_bands_keeps_two_rows_when_both_edges_are_partial() -> None:
+    row_bands = (
+        (0.0, 0.16),
+        (0.34, 0.66),
+        (0.84, 1.0),
+    )
+
+    selected = capture_import._select_visible_blue_archive_row_bands(row_bands)
+
+    assert selected == (
+        (0.34, 0.66),
+        (0.84, 1.0),
+    )
+
+
 def test_find_score_anchor_value_prefers_eight_digit_blue_archive_score() -> None:
     assert capture_import._find_score_anchor_value(": be 8 53,393,544  (noise)") == 53393544
 

@@ -3166,14 +3166,22 @@ def _select_visible_blue_archive_row_bands(
 
     selected = list(row_bands)
     first_top_ratio, first_bottom_ratio = selected[0]
-    if first_top_ratio <= 0.02 and (first_bottom_ratio - first_top_ratio) < minimum_visible_height:
+    if (
+        len(selected) > 2
+        and first_top_ratio <= 0.02
+        and (first_bottom_ratio - first_top_ratio) < minimum_visible_height
+    ):
         selected = selected[1:]
 
     if len(selected) <= 1:
         return tuple(selected)
 
     last_top_ratio, last_bottom_ratio = selected[-1]
-    if last_bottom_ratio >= 0.98 and (last_bottom_ratio - last_top_ratio) < minimum_visible_height:
+    if (
+        len(selected) > 2
+        and last_bottom_ratio >= 0.98
+        and (last_bottom_ratio - last_top_ratio) < minimum_visible_height
+    ):
         selected = selected[:-1]
 
     return tuple(selected)
