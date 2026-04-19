@@ -2474,6 +2474,22 @@ def _parse_blue_archive_fixed_rows_with_debug(
             bottom_ratio=bottom_ratio,
             page_index=page_index,
         )
+        if score is None or difficulty is None:
+            original_combined_rank, original_difficulty, original_score = (
+                _ocr_blue_archive_row_combined_fields_from_original_image(
+                    image_path=image_path,
+                    ocr=ocr,
+                    top_ratio=top_ratio,
+                    bottom_ratio=bottom_ratio,
+                    page_index=page_index,
+                )
+            )
+            if difficulty is None:
+                difficulty = original_difficulty
+            if score is None:
+                score = original_score
+            if combined_rank is None:
+                combined_rank = original_combined_rank
 
         original_image_rank = None
         if not isinstance(combined_rank, int) or combined_rank <= 100:
@@ -3408,6 +3424,82 @@ def _ocr_blue_archive_row_combined_fields(
                 rank = combined_ranks[0]
 
         if difficulty is not None and score is not None:
+            return rank, difficulty, score
+
+    return None, None, None
+
+
+def _ocr_blue_archive_row_combined_fields_from_original_image(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+    page_index: int,
+) -> tuple[int | None, str | None, int | None]:
+    crop = ocr.crop
+    if crop is None or not image_path.exists():
+        return None, None, None
+
+    crop_width = crop.right_ratio - crop.left_ratio
+    crop_height = crop.bottom_ratio - crop.top_ratio
+    row_top_absolute = crop.top_ratio + (crop_height * top_ratio)
+    row_bottom_absolute = crop.top_ratio + (crop_height * bottom_ratio)
+    row_height = row_bottom_absolute - row_top_absolute
+    row_crop = OcrCrop(
+        left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.05)),
+        top_ratio=max(0.0, row_top_absolute),
+        right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.35)),
+        bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.82)),
+    )
+
+    for attempt in (
+        OcrConfig(
+            provider=ocr.provider,
+            command=ocr.command,
+            language="eng",
+            psm=6,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            crop=row_crop,
+            upscale_ratio=max(3.0, ocr.upscale_ratio),
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+            timeout_seconds=BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS,
+        ),
+        OcrConfig(
+            provider=ocr.provider,
+            command=ocr.command,
+            language="eng",
+            psm=11,
+            extra_args=("-c", "preserve_interword_spaces=1"),
+            crop=row_crop,
+            upscale_ratio=max(3.0, ocr.upscale_ratio),
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+            timeout_seconds=BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS,
+        ),
+    ):
+        prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+        try:
+            text = _run_tesseract_command(
+                prepared_image_path=prepared_image_path,
+                original_image_path=image_path,
+                ocr=attempt,
+                output_kind="text",
+            )
+        except MockImportError:
+            continue
+        finally:
+            cleanup()
+
+        raw_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not raw_lines:
+            continue
+        score = _find_score_anchor_value(" ".join(raw_lines))
+        difficulty = _find_anchor_difficulty(raw_lines, max(0, len(raw_lines) - 1))
+        rank_candidates = _extract_rank_candidates_from_text(" ".join(raw_lines))
+        rank = rank_candidates[0] if rank_candidates else None
+        if score is not None or difficulty is not None:
             return rank, difficulty, score
 
     return None, None, None

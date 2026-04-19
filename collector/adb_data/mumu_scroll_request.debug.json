@@ -35,7 +35,7 @@
       "start_x": 800,
       "start_y": 720,
       "end_x": 800,
-      "end_y": 460,
+      "end_y": 430,
       "duration_ms": 500,
       "settle_delay_ms": 800
     }
