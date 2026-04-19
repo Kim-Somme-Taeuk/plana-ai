@@ -1625,6 +1625,82 @@ def test_after_capture_page_uses_latest_page_only_for_max_rank_stop(
     )
 
 
+def test_after_capture_page_skips_large_max_rank_callback_on_non_interval_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-max-rank-interval-season",
+        include_ocr=False,
+    )
+    request = capture_pipeline.load_adb_capture_request(request_path)
+
+    monkeypatch.setattr(
+        capture_pipeline,
+        "parse_capture_payload",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("large max-rank cadence skip should not parse")
+        ),
+    )
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_is_blue_archive_fixed_layout_image",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("large max-rank cadence skip should not inspect OCR")
+        ),
+    )
+
+    callback = capture_pipeline._build_after_capture_page_callback(
+        request=request,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=12000,
+        ),
+        effective_ocr_provider="tesseract",
+        ocr_command=None,
+        ocr_language="eng",
+        ocr_psm=6,
+        stop_capture_on_recommendation_mode="off",
+    )
+
+    assert callback is not None
+    decision = callback([Path("page-001.png"), Path("page-002.png")])
+
+    assert decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
+
+
+def test_should_run_max_rank_callback_checks_small_threshold_every_page() -> None:
+    assert capture_pipeline._should_run_max_rank_callback(
+        captured_page_count=2,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=7,
+        ),
+    ) is True
+
+
+def test_should_run_max_rank_callback_skips_large_threshold_until_interval() -> None:
+    assert capture_pipeline._should_run_max_rank_callback(
+        captured_page_count=2,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=12000,
+        ),
+    ) is False
+    assert capture_pipeline._should_run_max_rank_callback(
+        captured_page_count=3,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=12000,
+        ),
+    ) is True
+
+
 def test_build_runtime_ocr_config_uses_fast_path_for_blue_archive_callback(
     tmp_path: Path,
 ) -> None:

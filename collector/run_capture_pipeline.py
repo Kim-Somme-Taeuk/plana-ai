@@ -632,6 +632,11 @@ def _build_after_capture_page_callback(
 
     def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
         nonlocal previous_soft_reason, previous_soft_count
+        if latest_page_only and not _should_run_max_rank_callback(
+            captured_page_count=len(image_paths),
+            stop_policy=stop_policy,
+        ):
+            return AdbCaptureStopDecision(should_continue=True)
         runtime_ocr = _build_runtime_ocr_config(
             request=request,
             effective_ocr_provider=effective_ocr_provider,
@@ -733,6 +738,20 @@ def _build_after_capture_page_callback(
         return stop_decision
 
     return after_capture_page
+
+
+def _should_run_max_rank_callback(
+    *,
+    captured_page_count: int,
+    stop_policy: PipelineStopPolicy,
+) -> bool:
+    if stop_policy.max_rank is None:
+        return True
+    if stop_policy.max_rank < 1000:
+        return True
+    if captured_page_count <= 1:
+        return True
+    return captured_page_count % 3 == 0
 
 
 def _build_capture_stop_decision(
