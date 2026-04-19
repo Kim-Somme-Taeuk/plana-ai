@@ -429,8 +429,13 @@ def capture_adb_screenshot(
                 device_serial=request.adb.device_serial,
                 swipe=request.adb.swipe,
             )
-            if request.adb.swipe.settle_delay_ms > 0:
-                time.sleep(request.adb.swipe.settle_delay_ms / 1000)
+            effective_settle_delay_ms = _resolve_effective_settle_delay_ms(
+                request=request,
+                after_capture_page=after_capture_page,
+                page_number=page_number,
+            )
+            if effective_settle_delay_ms > 0:
+                time.sleep(effective_settle_delay_ms / 1000)
 
     runtime_snapshot = {
         **request.snapshot,
@@ -472,6 +477,26 @@ def capture_adb_screenshot(
         stopped_source=stopped_source,
         stopped_level=stopped_level,
     )
+
+
+def _resolve_effective_settle_delay_ms(
+    *,
+    request: AdbCaptureRequest,
+    after_capture_page: Callable[[list[Path]], AdbCaptureStopDecision] | None,
+    page_number: int,
+) -> int:
+    assert request.adb.swipe is not None
+    base_delay_ms = request.adb.swipe.settle_delay_ms
+    if base_delay_ms <= 0:
+        return 0
+    if after_capture_page is None:
+        return base_delay_ms
+    max_rank = request.pipeline.get("max_rank")
+    if not isinstance(max_rank, int) or max_rank < 1000:
+        return base_delay_ms
+    if page_number <= 1:
+        return base_delay_ms
+    return min(base_delay_ms, 500)
 
 
 def _ensure_capture_output_dir_is_empty(output_dir: Path) -> None:

@@ -175,6 +175,60 @@ def test_capture_adb_screenshot_supports_multi_page_scroll(
     assert result.stopped_level is None
 
 
+def test_capture_adb_screenshot_caps_later_settle_delay_for_large_max_rank(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        adb={
+            "page_count": 3,
+            "swipe": {
+                "start_x": 500,
+                "start_y": 1600,
+                "end_x": 500,
+                "end_y": 600,
+                "duration_ms": 200,
+                "settle_delay_ms": 800,
+            },
+        },
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"max_rank": 12000}
+    request_path.write_text(json.dumps(request_payload, ensure_ascii=False), encoding="utf-8")
+    request = load_adb_capture_request(request_path)
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+            self.swipes: list[tuple[str | None, object]] = []
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return f"PNG-{self.capture_index}".encode("utf-8")
+
+        def swipe(self, *, device_serial, swipe):
+            self.swipes.append((device_serial, swipe))
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(adb_capture.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+
+    client = FakeAdbClient()
+    result = capture_adb_screenshot(
+        request,
+        client,
+        after_capture_page=lambda image_paths: AdbCaptureStopDecision(should_continue=True),
+    )
+
+    assert [path.read_bytes() for path in result.image_paths] == [
+        b"PNG-1",
+        b"PNG-2",
+        b"PNG-3",
+    ]
+    assert len(client.swipes) == 2
+    assert sleep_calls == [0.8, 0.5]
+
+
 def test_capture_adb_screenshot_stops_on_duplicate_frame(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
