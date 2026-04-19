@@ -552,6 +552,67 @@ def test_run_capture_pipeline_writes_partial_result_on_parse_timeout(
     }
 
 
+def test_run_capture_pipeline_writes_partial_result_on_empty_parse_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-empty-parse-progress-season",
+        include_ocr=False,
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    def fake_parse_capture_payload(
+        payload,
+        *,
+        validate_snapshot_entries=True,
+        parse_timeout_seconds=None,
+    ):
+        error = capture_import.MockImportError(
+            "capture 전체에서 파싱 가능한 OCR entry가 없습니다."
+        )
+        error.capture_parse_progress = {
+            "last_completed_page_index": 5,
+            "timed_out_page_index": None,
+            "processed_page_count": 5,
+            "page_summaries": [
+                {"page_index": 1, "entry_count": 0},
+                {"page_index": 2, "entry_count": 0},
+            ],
+        }
+        raise error
+
+    monkeypatch.setattr(capture_pipeline, "parse_capture_payload", fake_parse_capture_payload)
+
+    output_dir = tmp_path / "capture-output"
+    with pytest.raises(capture_import.MockImportError):
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(output_dir),
+            adb_client=FakeAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+        )
+
+    pipeline_error = json.loads(
+        (output_dir / "pipeline-error.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_error["stage"] == "parse_capture_payload"
+    assert pipeline_error["partial_result"] == {
+        "last_completed_page_index": 5,
+        "timed_out_page_index": None,
+        "processed_page_count": 5,
+        "page_summaries": [
+            {"page_index": 1, "entry_count": 0},
+            {"page_index": 2, "entry_count": 0},
+        ],
+    }
+
+
 def test_run_capture_pipeline_force_recapture_clears_existing_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

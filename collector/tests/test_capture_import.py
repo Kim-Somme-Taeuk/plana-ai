@@ -1259,6 +1259,19 @@ def test_parse_capture_payload_raises_when_all_pages_are_empty(
         parse_capture_payload(payload)
 
     assert str(exc_info.value) == "capture 전체에서 파싱 가능한 OCR entry가 없습니다."
+    progress = exc_info.value.capture_parse_progress
+    assert progress["last_completed_page_index"] == 1
+    assert progress["timed_out_page_index"] is None
+    assert progress["processed_page_count"] == 1
+    assert len(progress["page_summaries"]) == 1
+    page_summary = progress["page_summaries"][0]
+    assert page_summary["page_index"] == 1
+    assert page_summary["entry_count"] == 0
+    assert page_summary["ignored_line_count"] == 3
+    assert page_summary["visible_row_count"] == 0
+    assert page_summary["row_bands"] == []
+    assert page_summary["row_debugs"] == []
+    assert page_summary["detected_row_bands"] == []
 
 
 def test_build_ocr_stop_hints_detects_sparse_and_noisy_last_page() -> None:

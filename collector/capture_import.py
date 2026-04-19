@@ -308,7 +308,15 @@ def parse_capture_payload(
         except MockImportError:
             raise
         if validate_snapshot_entries:
-            _validate_snapshot_entries(entries, page_summaries)
+            try:
+                _validate_snapshot_entries(entries, page_summaries)
+            except MockImportError as exc:
+                setattr(
+                    exc,
+                    "capture_parse_progress",
+                    _build_capture_parse_progress(page_summaries),
+                )
+                raise
         snapshot_note = _build_snapshot_note_with_collector_summary(
             snapshot=payload.snapshot,
             capture=payload.capture,
@@ -455,7 +463,15 @@ def parse_capture_payload(
         )
 
     if validate_snapshot_entries:
-        _validate_snapshot_entries(entries, page_summaries)
+        try:
+            _validate_snapshot_entries(entries, page_summaries)
+        except MockImportError as exc:
+            setattr(
+                exc,
+                "capture_parse_progress",
+                _build_capture_parse_progress(page_summaries),
+            )
+            raise
     snapshot_note = _build_snapshot_note_with_collector_summary(
         snapshot=payload.snapshot,
         capture=payload.capture,
@@ -493,6 +509,19 @@ def _build_capture_parse_deadline(
     if parse_timeout_seconds <= 0:
         return time.monotonic()
     return time.monotonic() + parse_timeout_seconds
+
+
+def _build_capture_parse_progress(
+    page_summaries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "last_completed_page_index": (
+            page_summaries[-1]["page_index"] if page_summaries else 0
+        ),
+        "timed_out_page_index": None,
+        "processed_page_count": len(page_summaries),
+        "page_summaries": page_summaries,
+    }
 
 
 def _raise_if_capture_parse_timed_out(
