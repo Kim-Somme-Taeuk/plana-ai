@@ -4085,7 +4085,7 @@ def _ocr_blue_archive_row_score(
 ) -> int | None:
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
-        x_ratios=(0.3, 1.0),
+        x_ratios=(0.52, 0.98),
         y_ratios=(top_ratio + 0.12, min(bottom_ratio, top_ratio + 0.245)),
         attempts=[
             OcrRegionAttempt(
@@ -4099,6 +4099,12 @@ def _ocr_blue_archive_row_score(
                 psm=8,
                 extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
                 threshold=170,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=6,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                threshold=200,
             ),
         ],
         base_ocr=ocr,
