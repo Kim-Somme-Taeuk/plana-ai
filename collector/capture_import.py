@@ -3354,14 +3354,20 @@ def _ocr_blue_archive_row_combined_fields(
 ) -> tuple[int | None, str | None, int | None]:
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
-        x_ratios=(0.22, 0.86),
-        y_ratios=_build_blue_archive_row_y_ratios(top_ratio, bottom_ratio, 0.0, 0.72),
+        x_ratios=(0.18, 0.98),
+        y_ratios=_build_blue_archive_row_y_ratios(top_ratio, bottom_ratio, 0.0, 0.82),
         attempts=[
             OcrRegionAttempt(
                 language="eng",
                 psm=6,
                 extra_args=("-c", "preserve_interword_spaces=1"),
                 threshold=None,
+            ),
+            OcrRegionAttempt(
+                language="eng",
+                psm=7,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                threshold=170,
             ),
             OcrRegionAttempt(
                 language="eng",
@@ -4120,47 +4126,52 @@ def _ocr_blue_archive_row_score(
     bottom_ratio: float,
     page_index: int,
 ) -> int | None:
-    candidates = _ocr_prepared_image_ratio_region_candidates(
-        prepared_image_path=prepared_image_path,
-        x_ratios=(0.52, 0.98),
-        y_ratios=(top_ratio + 0.12, min(bottom_ratio, top_ratio + 0.245)),
-        attempts=[
-            OcrRegionAttempt(
-                language="eng",
-                psm=7,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                threshold=None,
-            ),
-            OcrRegionAttempt(
-                language="eng",
-                psm=8,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                threshold=170,
-            ),
-            OcrRegionAttempt(
-                language="eng",
-                psm=6,
-                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                threshold=200,
-            ),
-        ],
-        base_ocr=ocr,
-    )
     valid_scores: dict[int, int] = {}
-    for candidate in candidates:
-        if not _is_valid_blue_archive_score_candidate(candidate):
-            continue
-        try:
-            parsed_score = _parse_score_text(
-                candidate,
-                page_index=page_index,
-                line_index=1,
-            )
-        except MockImportError:
-            continue
-        if not _is_valid_blue_archive_score_value(parsed_score):
-            continue
-        valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
+    for x_ratios, y_start, y_end in (
+        ((0.52, 0.98), 0.12, 0.245),
+        ((0.45, 0.98), 0.10, 0.26),
+        ((0.60, 1.00), 0.08, 0.28),
+    ):
+        candidates = _ocr_prepared_image_ratio_region_candidates(
+            prepared_image_path=prepared_image_path,
+            x_ratios=x_ratios,
+            y_ratios=(top_ratio + y_start, min(bottom_ratio, top_ratio + y_end)),
+            attempts=[
+                OcrRegionAttempt(
+                    language="eng",
+                    psm=7,
+                    extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                    threshold=None,
+                ),
+                OcrRegionAttempt(
+                    language="eng",
+                    psm=8,
+                    extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                    threshold=170,
+                ),
+                OcrRegionAttempt(
+                    language="eng",
+                    psm=6,
+                    extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                    threshold=200,
+                ),
+            ],
+            base_ocr=ocr,
+        )
+        for candidate in candidates:
+            if not _is_valid_blue_archive_score_candidate(candidate):
+                continue
+            try:
+                parsed_score = _parse_score_text(
+                    candidate,
+                    page_index=page_index,
+                    line_index=1,
+                )
+            except MockImportError:
+                continue
+            if not _is_valid_blue_archive_score_value(parsed_score):
+                continue
+            valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
     if not valid_scores:
         return None
     return max(valid_scores.items(), key=lambda item: (item[1], item[0]))[0]
