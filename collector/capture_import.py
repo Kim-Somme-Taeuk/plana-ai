@@ -47,7 +47,7 @@ CAPTURE_SOURCE_TYPE_BY_PROVIDER = {
 }
 DEFAULT_TESSERACT_COMMAND = "tesseract"
 TESSERACT_TIMEOUT_SECONDS = 30
-BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS = 3
+BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS = 2
 DEFAULT_CAPTURE_PARSE_TIMEOUT_SECONDS = 180
 OCR_NUMERIC_TRANSLATION = str.maketrans(
     {
@@ -2201,14 +2201,20 @@ def _parse_blue_archive_page_entries_with_debug(
     for attempt_ocr in attempt_ocrs:
         prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt_ocr)
         try:
-            entries = _parse_blue_archive_fixed_rows(
-                prepared_image_path=prepared_image_path,
-                image_path=image_path,
-                ocr=attempt_ocr,
-                default_ocr_confidence=default_ocr_confidence,
-                page_index=page_index,
-            )
-            page_debug = _consume_blue_archive_fixed_rows_debug()
+            try:
+                entries = _parse_blue_archive_fixed_rows(
+                    prepared_image_path=prepared_image_path,
+                    image_path=image_path,
+                    ocr=attempt_ocr,
+                    default_ocr_confidence=default_ocr_confidence,
+                    page_index=page_index,
+                )
+                page_debug = _consume_blue_archive_fixed_rows_debug()
+            except MockImportError as exc:
+                page_debug = getattr(exc, "blue_archive_page_debug", None)
+                if page_debug:
+                    best_page_debug = page_debug
+                raise
             if not entries:
                 if page_debug.get("row_bands") or page_debug.get("row_debugs"):
                     best_page_debug = page_debug
@@ -2466,36 +2472,32 @@ def _parse_blue_archive_fixed_rows_with_debug(
     original_detected_ranks: list[int | None] = []
     complete_row_ranks = True
 
-    for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
-        combined_rank = None
-        difficulty = None
-        score = None
-        original_image_rank = None
-        original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
-            image_path=image_path,
-            ocr=ocr,
-            top_ratio=top_ratio,
-            bottom_ratio=bottom_ratio,
-        )
-        prepared_rank = _ocr_blue_archive_row_rank(
-            prepared_image_path=prepared_image_path,
-            ocr=ocr,
-            top_ratio=top_ratio,
-            bottom_ratio=bottom_ratio,
-        )
-        rank = _select_blue_archive_row_rank(
-            prepared_rank=prepared_rank,
-            original_rank=original_image_rank,
-            visible_row_count=len(row_bands),
-        )
-        if difficulty is None:
+    try:
+        for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
+            combined_rank = None
+            original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
+                image_path=image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+            prepared_rank = _ocr_blue_archive_row_rank(
+                prepared_image_path=prepared_image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
+            rank = _select_blue_archive_row_rank(
+                prepared_rank=prepared_rank,
+                original_rank=original_image_rank,
+                visible_row_count=len(row_bands),
+            )
             difficulty = _ocr_blue_archive_row_difficulty(
                 prepared_image_path=prepared_image_path,
                 ocr=ocr,
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
             )
-        if score is None:
             score = _ocr_blue_archive_row_score_from_original_image(
                 image_path=image_path,
                 ocr=ocr,
@@ -2503,58 +2505,61 @@ def _parse_blue_archive_fixed_rows_with_debug(
                 bottom_ratio=bottom_ratio,
                 page_index=page_index,
             )
-        if score is None:
-            score = _ocr_blue_archive_row_score(
-                prepared_image_path=prepared_image_path,
-                ocr=ocr,
-                top_ratio=top_ratio,
-                bottom_ratio=bottom_ratio,
-                page_index=page_index,
+            if score is None:
+                score = _ocr_blue_archive_row_score(
+                    prepared_image_path=prepared_image_path,
+                    ocr=ocr,
+                    top_ratio=top_ratio,
+                    bottom_ratio=bottom_ratio,
+                    page_index=page_index,
+                )
+
+            discard_reason: str | None = None
+            if score is None:
+                discard_reason = "missing_score"
+            elif rank is None and difficulty is None:
+                discard_reason = "missing_rank_and_difficulty"
+
+            page_debug["row_debugs"].append(
+                {
+                    "row_index": row_index,
+                    "top_ratio": round(top_ratio, 4),
+                    "bottom_ratio": round(bottom_ratio, 4),
+                    "combined_rank": combined_rank,
+                    "original_rank": original_image_rank,
+                    "selected_rank": rank,
+                    "difficulty": difficulty,
+                    "score": score,
+                    "discard_reason": discard_reason,
+                }
             )
 
-        discard_reason: str | None = None
-        if score is None:
-            discard_reason = "missing_score"
-        elif rank is None and difficulty is None:
-            discard_reason = "missing_rank_and_difficulty"
+            if discard_reason == "missing_score":
+                continue
+            if discard_reason == "missing_rank_and_difficulty":
+                continue
 
-        page_debug["row_debugs"].append(
-            {
-                "row_index": row_index,
-                "top_ratio": round(top_ratio, 4),
-                "bottom_ratio": round(bottom_ratio, 4),
-                "combined_rank": combined_rank,
-                "original_rank": original_image_rank,
-                "selected_rank": rank,
-                "difficulty": difficulty,
-                "score": score,
-                "discard_reason": discard_reason,
-            }
-        )
-
-        if discard_reason == "missing_score":
-            continue
-        if discard_reason == "missing_rank_and_difficulty":
-            continue
-
-        if rank is None:
-            complete_row_ranks = False
-        detected_ranks.append(rank)
-        original_detected_ranks.append(
-            original_image_rank if isinstance(original_image_rank, int) and original_image_rank > 100 else None
-        )
-        raw_rows.append(
-            {
-                "rank": rank if rank is not None else row_index,
-                "score": score,
-                "player_name": difficulty,
-                "ocr_confidence": default_ocr_confidence,
-                "raw_text": f"row={row_index} difficulty={difficulty} score={score}",
-                "image_path": _build_entry_image_path(image_path),
-                "is_valid": True,
-                "validation_issue": None,
-            }
-        )
+            if rank is None:
+                complete_row_ranks = False
+            detected_ranks.append(rank)
+            original_detected_ranks.append(
+                original_image_rank if isinstance(original_image_rank, int) and original_image_rank > 100 else None
+            )
+            raw_rows.append(
+                {
+                    "rank": rank if rank is not None else row_index,
+                    "score": score,
+                    "player_name": difficulty,
+                    "ocr_confidence": default_ocr_confidence,
+                    "raw_text": f"row={row_index} difficulty={difficulty} score={score}",
+                    "image_path": _build_entry_image_path(image_path),
+                    "is_valid": True,
+                    "validation_issue": None,
+                }
+            )
+    except MockImportError as exc:
+        setattr(exc, "blue_archive_page_debug", page_debug)
+        raise
 
     if not raw_rows:
         return [], page_debug
@@ -4256,18 +4261,6 @@ def _ocr_blue_archive_row_score_from_original_image(
     )
     valid_scores: dict[int, int] = {}
     for attempt in (
-        OcrConfig(
-            provider=ocr.provider,
-            command=ocr.command,
-            language="eng",
-            psm=6,
-            extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-            crop=region_crop,
-            upscale_ratio=max(3.0, ocr.upscale_ratio),
-            reuse_cached_sidecar=False,
-            persist_sidecar=False,
-            timeout_seconds=BLUE_ARCHIVE_ROW_OCR_TIMEOUT_SECONDS,
-        ),
         OcrConfig(
             provider=ocr.provider,
             command=ocr.command,
