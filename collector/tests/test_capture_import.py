@@ -4431,6 +4431,74 @@ def test_ocr_blue_archive_row_score_returns_none_for_only_short_noise(
     assert score is None
 
 
+def test_parse_blue_archive_fixed_rows_uses_original_score_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: (None, "Torment", None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 12001, 0.35: 12002, 0.69: 12003}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score_from_original_image",
+        lambda **kwargs: {0.02: 40100000, 0.35: 40097600, 0.69: 40090640}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score",
+        lambda **kwargs: None,
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        prepared_image_path=Path("page.png"),
+        image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(0.37, 0.34, 0.56, 0.94),
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert [(entry["rank"], entry["score"]) for entry in entries] == [
+        (12001, 40100000),
+        (12002, 40097600),
+        (12003, 40090640),
+    ]
+
+
 @pytest.mark.parametrize("image_size", [(2400, 1080), (2340, 1080), (1600, 900)])
 def test_parse_tesseract_layout_entries_prefers_blue_archive_fixed_rows(
     image_size: tuple[int, int],

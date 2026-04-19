@@ -2502,6 +2502,14 @@ def _parse_blue_archive_fixed_rows_with_debug(
                 bottom_ratio=bottom_ratio,
             )
         if score is None:
+            score = _ocr_blue_archive_row_score_from_original_image(
+                image_path=image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+                page_index=page_index,
+            )
+        if score is None:
             score = _ocr_blue_archive_row_score(
                 prepared_image_path=prepared_image_path,
                 ocr=ocr,
@@ -3317,7 +3325,7 @@ def _select_visible_blue_archive_row_bands(
     first_top_ratio, first_bottom_ratio = selected[0]
     if (
         len(selected) > 2
-        and first_top_ratio <= 0.02
+        and first_top_ratio <= 0.05
         and (first_bottom_ratio - first_top_ratio) < minimum_visible_height
     ):
         selected = selected[1:]
@@ -3328,7 +3336,7 @@ def _select_visible_blue_archive_row_bands(
     last_top_ratio, last_bottom_ratio = selected[-1]
     if (
         len(selected) > 2
-        and last_bottom_ratio >= 0.98
+        and last_bottom_ratio >= 0.95
         and (last_bottom_ratio - last_top_ratio) < minimum_visible_height
     ):
         selected = selected[:-1]
@@ -4153,6 +4161,115 @@ def _ocr_blue_archive_row_score(
         if not _is_valid_blue_archive_score_value(parsed_score):
             continue
         valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
+    if not valid_scores:
+        return None
+    return max(valid_scores.items(), key=lambda item: (item[1], item[0]))[0]
+
+
+def _ocr_blue_archive_row_score_from_original_image(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    top_ratio: float,
+    bottom_ratio: float,
+    page_index: int,
+) -> int | None:
+    crop = ocr.crop
+    if crop is None or not image_path.exists():
+        return None
+
+    crop_width = crop.right_ratio - crop.left_ratio
+    crop_height = crop.bottom_ratio - crop.top_ratio
+    row_top_absolute = crop.top_ratio + (crop_height * top_ratio)
+    row_bottom_absolute = crop.top_ratio + (crop_height * bottom_ratio)
+    row_height = row_bottom_absolute - row_top_absolute
+
+    region_crops = (
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio + (crop_width * 1.00)),
+            top_ratio=max(0.0, row_top_absolute + (row_height * 0.10)),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.20)),
+            bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.38)),
+        ),
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio + (crop_width * 1.10)),
+            top_ratio=max(0.0, row_top_absolute + (row_height * 0.08)),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.40)),
+            bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.40)),
+        ),
+        OcrCrop(
+            left_ratio=max(0.0, crop.left_ratio + (crop_width * 1.20)),
+            top_ratio=max(0.0, row_top_absolute + (row_height * 0.06)),
+            right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.60)),
+            bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.42)),
+        ),
+    )
+    valid_scores: dict[int, int] = {}
+    for region_crop in region_crops:
+        for attempt in (
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=6,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                crop=region_crop,
+                upscale_ratio=max(3.0, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=7,
+                extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
+                crop=region_crop,
+                upscale_ratio=max(3.0, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            OcrConfig(
+                provider=ocr.provider,
+                command=ocr.command,
+                language="eng",
+                psm=11,
+                extra_args=("-c", "preserve_interword_spaces=1"),
+                crop=region_crop,
+                upscale_ratio=max(3.0, ocr.upscale_ratio),
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+        ):
+            prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
+            try:
+                text = _run_tesseract_command(
+                    prepared_image_path=prepared_image_path,
+                    original_image_path=image_path,
+                    ocr=attempt,
+                    output_kind="text",
+                )
+            except MockImportError:
+                continue
+            finally:
+                cleanup()
+
+            for token in text.splitlines():
+                normalized = token.strip()
+                if not _is_valid_blue_archive_score_candidate(normalized):
+                    continue
+                try:
+                    parsed_score = _parse_score_text(
+                        normalized,
+                        page_index=page_index,
+                        line_index=1,
+                    )
+                except MockImportError:
+                    continue
+                if not _is_valid_blue_archive_score_value(parsed_score):
+                    continue
+                valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
+
     if not valid_scores:
         return None
     return max(valid_scores.items(), key=lambda item: (item[1], item[0]))[0]
