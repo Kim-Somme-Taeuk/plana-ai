@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,7 @@ CAPTURE_SOURCE_TYPE_BY_PROVIDER = {
 }
 DEFAULT_TESSERACT_COMMAND = "tesseract"
 TESSERACT_TIMEOUT_SECONDS = 30
+DEFAULT_CAPTURE_PARSE_TIMEOUT_SECONDS = 180
 OCR_NUMERIC_TRANSLATION = str.maketrans(
     {
         "O": "0",
@@ -258,7 +260,9 @@ def parse_capture_payload(
     payload: CaptureImportPayload,
     *,
     validate_snapshot_entries: bool = True,
+    parse_timeout_seconds: int | None = None,
 ) -> ParsedCapturePayload:
+    deadline_monotonic = _build_capture_parse_deadline(parse_timeout_seconds)
     resolved_pages = [
         (
             page_index,
@@ -273,11 +277,13 @@ def parse_capture_payload(
     ):
         entries, page_summaries, ignored_lines = parse_blue_archive_capture(
             resolved_pages=resolved_pages,
-            parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_entries_with_debug(
+            parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_rows_with_timeout(
                 image_path=image_path,
                 ocr=payload.ocr,
                 default_ocr_confidence=default_ocr_confidence,
                 page_index=page_index,
+                deadline_monotonic=deadline_monotonic,
+                parse_timeout_seconds=parse_timeout_seconds,
             ),
             realign_page_ranks=lambda previous_page_entries, current_page_entries: _realign_overlapping_page_entry_ranks(
                 previous_page_entries=previous_page_entries,
@@ -325,6 +331,11 @@ def parse_capture_payload(
     previous_page_entries: list[dict[str, Any]] = []
 
     for page_index, image_path, default_ocr_confidence in resolved_pages:
+        _raise_if_capture_parse_timed_out(
+            deadline_monotonic=deadline_monotonic,
+            parse_timeout_seconds=parse_timeout_seconds,
+            page_index=page_index,
+        )
         ocr_text = _load_ocr_text(
             base_dir=payload.base_dir,
             page=payload.pages[page_index - 1],
@@ -450,6 +461,66 @@ def _strip_internal_entry_fields(entry: dict[str, Any]) -> dict[str, Any]:
         for key, value in entry.items()
         if not key.startswith("_")
     }
+
+
+def _build_capture_parse_deadline(
+    parse_timeout_seconds: int | None,
+) -> float | None:
+    if parse_timeout_seconds is None:
+        return None
+    if parse_timeout_seconds <= 0:
+        return time.monotonic()
+    return time.monotonic() + parse_timeout_seconds
+
+
+def _raise_if_capture_parse_timed_out(
+    *,
+    deadline_monotonic: float | None,
+    parse_timeout_seconds: int | None = None,
+    page_index: int | None = None,
+) -> None:
+    if deadline_monotonic is None:
+        return
+    if time.monotonic() <= deadline_monotonic:
+        return
+    timeout_seconds = (
+        DEFAULT_CAPTURE_PARSE_TIMEOUT_SECONDS
+        if parse_timeout_seconds is None
+        else parse_timeout_seconds
+    )
+    suffix = f", page_index={page_index}" if page_index is not None else ""
+    raise MockImportError(
+        "capture parse 단계가 시간 초과로 중단됐습니다. "
+        f"timeout={timeout_seconds}s{suffix}"
+    )
+
+
+def _parse_blue_archive_page_rows_with_timeout(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    default_ocr_confidence: float | None,
+    page_index: int,
+    deadline_monotonic: float | None,
+    parse_timeout_seconds: int | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    _raise_if_capture_parse_timed_out(
+        deadline_monotonic=deadline_monotonic,
+        parse_timeout_seconds=parse_timeout_seconds,
+        page_index=page_index,
+    )
+    entries, page_debug = _parse_blue_archive_page_entries_with_debug(
+        image_path=image_path,
+        ocr=ocr,
+        default_ocr_confidence=default_ocr_confidence,
+        page_index=page_index,
+    )
+    _raise_if_capture_parse_timed_out(
+        deadline_monotonic=deadline_monotonic,
+        parse_timeout_seconds=parse_timeout_seconds,
+        page_index=page_index,
+    )
+    return entries, page_debug
 
 
 def _retrofit_blue_archive_absolute_page_ranks(

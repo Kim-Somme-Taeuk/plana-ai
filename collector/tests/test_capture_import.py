@@ -1169,6 +1169,39 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
     assert note_lines[2].startswith("collector_json: ")
 
 
+def test_parse_capture_payload_times_out_before_loading_first_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_capture_page(tmp_path, "page-001.png", "unused\n")
+    _write_capture_manifest(
+        tmp_path,
+        season_label="capture-parse-timeout-season",
+        pages=[{"image_path": "page-001.png"}],
+        ocr={"provider": "sidecar"},
+    )
+
+    monkeypatch.setattr(
+        capture_import,
+        "_is_blue_archive_fixed_layout_image",
+        lambda **kwargs: False,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_load_ocr_text",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("timeout 전에 OCR load가 호출되면 안 됩니다")
+        ),
+    )
+
+    payload = load_capture_import_payload(tmp_path)
+
+    with pytest.raises(MockImportError) as exc_info:
+        parse_capture_payload(payload, parse_timeout_seconds=0)
+
+    assert "capture parse 단계가 시간 초과로 중단됐습니다" in str(exc_info.value)
+
+
 def test_parse_capture_payload_appends_capture_summary_to_snapshot_note(
     tmp_path: Path,
 ) -> None:

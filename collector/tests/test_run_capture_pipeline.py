@@ -445,6 +445,52 @@ def test_run_capture_pipeline_writes_error_artifact_on_tesseract_timeout(
     assert "timeout=30s" in pipeline_error["message"]
 
 
+def test_run_capture_pipeline_passes_parse_timeout_seconds_to_parser(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-parse-timeout-wiring-season",
+        include_ocr=False,
+    )
+    request_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    request_payload["pipeline"] = {"parse_timeout_seconds": 7}
+    request_path.write_text(json.dumps(request_payload, ensure_ascii=False), encoding="utf-8")
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    observed_timeouts: list[int | None] = []
+
+    def fake_parse_capture_payload(payload, *, validate_snapshot_entries=True, parse_timeout_seconds=None):
+        observed_timeouts.append(parse_timeout_seconds)
+        raise capture_import.MockImportError(
+            f"capture parse 단계가 시간 초과로 중단됐습니다. timeout={parse_timeout_seconds}s"
+        )
+
+    monkeypatch.setattr(capture_pipeline, "parse_capture_payload", fake_parse_capture_payload)
+
+    output_dir = tmp_path / "capture-output"
+    with pytest.raises(capture_import.MockImportError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(output_dir),
+            adb_client=FakeAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+        )
+
+    assert observed_timeouts == [7]
+    assert "timeout=7s" in str(exc_info.value)
+    pipeline_error = json.loads(
+        (output_dir / "pipeline-error.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_error["stage"] == "parse_capture_payload"
+    assert "timeout=7s" in pipeline_error["message"]
+
+
 def test_run_capture_pipeline_force_recapture_clears_existing_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

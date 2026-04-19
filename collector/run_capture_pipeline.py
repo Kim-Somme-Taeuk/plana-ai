@@ -45,6 +45,8 @@ from collector.capture_import import (
 )
 from collector.mock_import import ApiClient, DEFAULT_API_BASE_URL, MockImportError
 
+DEFAULT_CAPTURE_PARSE_TIMEOUT_SECONDS = 180
+
 
 @dataclass(frozen=True)
 class CapturePipelineResult:
@@ -169,7 +171,12 @@ def run_capture_pipeline(
                 persist_tesseract_sidecar=persist_tesseract_sidecar,
             )
         current_stage = "parse_capture_payload"
-        parsed_payload = parse_capture_payload(capture_payload)
+        parsed_payload = parse_capture_payload(
+            capture_payload,
+            parse_timeout_seconds=_resolve_capture_parse_timeout_seconds(
+                request.pipeline
+            ),
+        )
         parsed_payload, highest_rank_collected, reached_max_rank = _apply_max_rank_limit(
             parsed_payload=parsed_payload,
             max_rank=stop_policy.max_rank,
@@ -303,6 +310,24 @@ def _resolve_pipeline_ocr_provider(
         return None
 
     return "tesseract"
+
+
+def _resolve_capture_parse_timeout_seconds(pipeline: dict[str, Any]) -> int:
+    raw_timeout = pipeline.get(
+        "parse_timeout_seconds",
+        DEFAULT_CAPTURE_PARSE_TIMEOUT_SECONDS,
+    )
+    try:
+        timeout_seconds = int(raw_timeout)
+    except (TypeError, ValueError) as exc:
+        raise MockImportError(
+            "pipeline.parse_timeout_seconds는 정수여야 합니다."
+        ) from exc
+    if timeout_seconds <= 0:
+        raise MockImportError(
+            "pipeline.parse_timeout_seconds는 1 이상이어야 합니다."
+        )
+    return timeout_seconds
 
 
 def _load_existing_capture_result(
