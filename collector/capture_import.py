@@ -287,6 +287,7 @@ def parse_capture_payload(
                     page_index=page_index,
                     deadline_monotonic=deadline_monotonic,
                     parse_timeout_seconds=parse_timeout_seconds,
+                    capture_options=payload.capture,
                 ),
                 realign_page_ranks=lambda previous_page_entries, current_page_entries: _realign_overlapping_page_entry_ranks(
                     previous_page_entries=previous_page_entries,
@@ -556,6 +557,7 @@ def _parse_blue_archive_page_rows_with_timeout(
     page_index: int,
     deadline_monotonic: float | None,
     parse_timeout_seconds: int | None = None,
+    capture_options: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     _raise_if_capture_parse_timed_out(
         deadline_monotonic=deadline_monotonic,
@@ -567,6 +569,7 @@ def _parse_blue_archive_page_rows_with_timeout(
         ocr=ocr,
         default_ocr_confidence=default_ocr_confidence,
         page_index=page_index,
+        capture_options=capture_options,
     )
     _raise_if_capture_parse_timed_out(
         deadline_monotonic=deadline_monotonic,
@@ -2188,6 +2191,7 @@ def _parse_blue_archive_page_entries_with_debug(
     ocr: OcrConfig,
     default_ocr_confidence: float | None,
     page_index: int,
+    capture_options: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     best_blue_archive_entries: list[dict[str, Any]] = []
     best_page_debug: dict[str, Any] = {
@@ -2208,6 +2212,7 @@ def _parse_blue_archive_page_entries_with_debug(
                     ocr=attempt_ocr,
                     default_ocr_confidence=default_ocr_confidence,
                     page_index=page_index,
+                    capture_options=capture_options,
                 )
                 page_debug = _consume_blue_archive_fixed_rows_debug()
             except MockImportError as exc:
@@ -2414,6 +2419,7 @@ def _parse_blue_archive_fixed_rows(
     ocr: OcrConfig,
     default_ocr_confidence: float | None,
     page_index: int,
+    capture_options: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     global _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG
     entries, page_debug = _parse_blue_archive_fixed_rows_with_debug(
@@ -2422,6 +2428,7 @@ def _parse_blue_archive_fixed_rows(
         ocr=ocr,
         default_ocr_confidence=default_ocr_confidence,
         page_index=page_index,
+        capture_options=capture_options,
     )
     _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG = page_debug
     return entries
@@ -2447,6 +2454,7 @@ def _parse_blue_archive_fixed_rows_with_debug(
     ocr: OcrConfig,
     default_ocr_confidence: float | None,
     page_index: int,
+    capture_options: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     detected_row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
         (0.02, 0.31),
@@ -2504,6 +2512,8 @@ def _parse_blue_archive_fixed_rows_with_debug(
                 top_ratio=top_ratio,
                 bottom_ratio=bottom_ratio,
                 page_index=page_index,
+                row_index=row_index,
+                capture_options=capture_options,
             )
             if score is None:
                 score = _ocr_blue_archive_row_score(
@@ -2512,6 +2522,9 @@ def _parse_blue_archive_fixed_rows_with_debug(
                     top_ratio=top_ratio,
                     bottom_ratio=bottom_ratio,
                     page_index=page_index,
+                    row_index=row_index,
+                    image_path=image_path,
+                    capture_options=capture_options,
                 )
 
             discard_reason: str | None = None
@@ -4200,7 +4213,20 @@ def _ocr_blue_archive_row_score(
     top_ratio: float,
     bottom_ratio: float,
     page_index: int,
+    row_index: int = 0,
+    image_path: Path | None = None,
+    capture_options: dict[str, Any] | None = None,
 ) -> int | None:
+    if image_path is not None and row_index > 0:
+        _maybe_save_blue_archive_score_crop(
+            source_image_path=prepared_image_path,
+            output_image_path=image_path,
+            capture_options=capture_options,
+            row_index=row_index,
+            variant="prepared",
+            x_ratios=(0.42, 0.99),
+            y_ratios=(top_ratio + 0.10, min(bottom_ratio, top_ratio + 0.27)),
+        )
     valid_scores: dict[int, int] = {}
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
@@ -4242,6 +4268,8 @@ def _ocr_blue_archive_row_score_from_original_image(
     top_ratio: float,
     bottom_ratio: float,
     page_index: int,
+    row_index: int = 0,
+    capture_options: dict[str, Any] | None = None,
 ) -> int | None:
     crop = ocr.crop
     if crop is None or not image_path.exists():
@@ -4254,11 +4282,18 @@ def _ocr_blue_archive_row_score_from_original_image(
     row_height = row_bottom_absolute - row_top_absolute
 
     region_crop = OcrCrop(
-        left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.92)),
+        left_ratio=max(0.0, crop.left_ratio + (crop_width * 0.84)),
         top_ratio=max(0.0, row_top_absolute + (row_height * 0.08)),
         right_ratio=min(1.0, crop.left_ratio + (crop_width * 2.35)),
         bottom_ratio=min(1.0, row_top_absolute + (row_height * 0.40)),
     )
+    if row_index > 0:
+        _maybe_save_blue_archive_score_crop_from_original(
+            image_path=image_path,
+            capture_options=capture_options,
+            row_index=row_index,
+            crop=region_crop,
+        )
     valid_scores: dict[int, int] = {}
     for attempt in (
         OcrConfig(
@@ -4318,6 +4353,77 @@ def _is_valid_blue_archive_score_candidate(value: str) -> bool:
 def _is_valid_blue_archive_score_value(value: int) -> bool:
     normalized_length = len(str(abs(value)))
     return 7 <= normalized_length <= 8
+
+
+def _should_save_blue_archive_score_crops(
+    capture_options: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(capture_options, dict):
+        return False
+    return bool(capture_options.get("debug_score_crops"))
+
+
+def _maybe_save_blue_archive_score_crop(
+    *,
+    source_image_path: Path,
+    output_image_path: Path,
+    capture_options: dict[str, Any] | None,
+    row_index: int,
+    variant: str,
+    x_ratios: tuple[float, float],
+    y_ratios: tuple[float, float],
+) -> None:
+    if not _should_save_blue_archive_score_crops(capture_options):
+        return
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+    try:
+        with Image.open(source_image_path) as image:
+            left = max(0, int(image.width * x_ratios[0]))
+            right = min(image.width, int(image.width * x_ratios[1]))
+            top = max(0, int(image.height * y_ratios[0]))
+            bottom = min(image.height, int(image.height * y_ratios[1]))
+            if left >= right or top >= bottom:
+                return
+            region = image.crop((left, top, right, bottom))
+            crop_path = output_image_path.with_name(
+                f"{output_image_path.stem}.score-row-{row_index:02d}.{variant}.png"
+            )
+            region.save(crop_path)
+    except OSError:
+        return
+
+
+def _maybe_save_blue_archive_score_crop_from_original(
+    *,
+    image_path: Path,
+    capture_options: dict[str, Any] | None,
+    row_index: int,
+    crop: OcrCrop,
+) -> None:
+    if not _should_save_blue_archive_score_crops(capture_options):
+        return
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+    try:
+        with Image.open(image_path) as image:
+            left = max(0, int(image.width * crop.left_ratio))
+            right = min(image.width, int(image.width * crop.right_ratio))
+            top = max(0, int(image.height * crop.top_ratio))
+            bottom = min(image.height, int(image.height * crop.bottom_ratio))
+            if left >= right or top >= bottom:
+                return
+            region = image.crop((left, top, right, bottom))
+            crop_path = image_path.with_name(
+                f"{image_path.stem}.score-row-{row_index:02d}.original.png"
+            )
+            region.save(crop_path)
+    except OSError:
+        return
 
 
 def _build_blue_archive_row_y_ratios(
