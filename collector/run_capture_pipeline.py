@@ -625,16 +625,18 @@ def _build_after_capture_page_callback(
         return None
     previous_soft_reason: str | None = None
     previous_soft_count = 0
+    last_highest_rank_collected: int | None = None
     latest_page_only = (
         stop_capture_on_recommendation_mode == "off"
         and stop_policy.max_rank is not None
     )
 
     def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
-        nonlocal previous_soft_reason, previous_soft_count
+        nonlocal previous_soft_reason, previous_soft_count, last_highest_rank_collected
         if latest_page_only and not _should_run_max_rank_callback(
             captured_page_count=len(image_paths),
             stop_policy=stop_policy,
+            last_highest_rank_collected=last_highest_rank_collected,
         ):
             return AdbCaptureStopDecision(should_continue=True)
         runtime_ocr = _build_runtime_ocr_config(
@@ -657,6 +659,8 @@ def _build_after_capture_page_callback(
                 (rank for rank in page_ranks if isinstance(rank, int)),
                 default=None,
             )
+            if highest_rank_collected is not None:
+                last_highest_rank_collected = highest_rank_collected
             if (
                 stop_policy.max_rank is not None
                 and highest_rank_collected is not None
@@ -703,6 +707,8 @@ def _build_after_capture_page_callback(
             parsed_payload=parsed_payload,
             max_rank=stop_policy.max_rank,
         )
+        if highest_rank_collected is not None:
+            last_highest_rank_collected = highest_rank_collected
         if reached_max_rank:
             return AdbCaptureStopDecision(
                 should_continue=False,
@@ -744,12 +750,19 @@ def _should_run_max_rank_callback(
     *,
     captured_page_count: int,
     stop_policy: PipelineStopPolicy,
+    last_highest_rank_collected: int | None = None,
 ) -> bool:
     if stop_policy.max_rank is None:
         return True
     if stop_policy.max_rank < 1000:
         return True
     if captured_page_count <= 1:
+        return True
+    near_threshold_rank = stop_policy.max_rank - max(1000, stop_policy.max_rank // 6)
+    if (
+        last_highest_rank_collected is not None
+        and last_highest_rank_collected >= near_threshold_rank
+    ):
         return True
     return captured_page_count % 3 == 0
 

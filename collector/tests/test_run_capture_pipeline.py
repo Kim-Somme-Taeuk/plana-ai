@@ -1671,6 +1671,64 @@ def test_after_capture_page_skips_large_max_rank_callback_on_non_interval_page(
     assert decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
 
 
+def test_after_capture_page_checks_every_page_when_near_large_max_rank(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-max-rank-near-threshold-season",
+        include_ocr=False,
+    )
+    request = capture_pipeline.load_adb_capture_request(request_path)
+    parse_calls: list[str] = []
+
+    monkeypatch.setattr(
+        capture_pipeline,
+        "parse_capture_payload",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("near-threshold large max-rank callback should stay on fast path")
+        ),
+    )
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_is_blue_archive_fixed_layout_image",
+        lambda **kwargs: True,
+    )
+
+    page_ranks = iter([[9999, 10000], [10001, 10002]])
+    monkeypatch.setattr(
+        capture_pipeline,
+        "_parse_blue_archive_page_ranks_fast",
+        lambda **kwargs: (
+            parse_calls.append(kwargs["image_path"].name)
+            or next(page_ranks)
+        ),
+    )
+
+    callback = capture_pipeline._build_after_capture_page_callback(
+        request=request,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=12000,
+        ),
+        effective_ocr_provider="tesseract",
+        ocr_command=None,
+        ocr_language="eng",
+        ocr_psm=6,
+        stop_capture_on_recommendation_mode="off",
+    )
+
+    assert callback is not None
+    first_decision = callback([Path("page-001.png")])
+    second_decision = callback([Path("page-001.png"), Path("page-002.png")])
+
+    assert first_decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
+    assert second_decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
+    assert parse_calls == ["page-001.png", "page-002.png"]
+
+
 def test_should_run_max_rank_callback_checks_small_threshold_every_page() -> None:
     assert capture_pipeline._should_run_max_rank_callback(
         captured_page_count=2,
@@ -1690,6 +1748,7 @@ def test_should_run_max_rank_callback_skips_large_threshold_until_interval() -> 
             soft_stop_repeat_threshold=2,
             max_rank=12000,
         ),
+        last_highest_rank_collected=None,
     ) is False
     assert capture_pipeline._should_run_max_rank_callback(
         captured_page_count=3,
@@ -1698,6 +1757,19 @@ def test_should_run_max_rank_callback_skips_large_threshold_until_interval() -> 
             soft_stop_repeat_threshold=2,
             max_rank=12000,
         ),
+        last_highest_rank_collected=None,
+    ) is True
+
+
+def test_should_run_max_rank_callback_checks_every_page_near_threshold() -> None:
+    assert capture_pipeline._should_run_max_rank_callback(
+        captured_page_count=2,
+        stop_policy=PipelineStopPolicy(
+            min_pages_before_ocr_stop=2,
+            soft_stop_repeat_threshold=2,
+            max_rank=12000,
+        ),
+        last_highest_rank_collected=10000,
     ) is True
 
 
