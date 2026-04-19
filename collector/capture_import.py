@@ -2467,46 +2467,22 @@ def _parse_blue_archive_fixed_rows_with_debug(
     complete_row_ranks = True
 
     for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
-        combined_rank, difficulty, score = _ocr_blue_archive_row_combined_fields(
+        combined_rank = None
+        difficulty = None
+        score = None
+        original_image_rank = None
+        original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
+            image_path=image_path,
+            ocr=ocr,
+            top_ratio=top_ratio,
+            bottom_ratio=bottom_ratio,
+        )
+        prepared_rank = _ocr_blue_archive_row_rank(
             prepared_image_path=prepared_image_path,
             ocr=ocr,
             top_ratio=top_ratio,
             bottom_ratio=bottom_ratio,
-            page_index=page_index,
         )
-        if score is None or difficulty is None:
-            original_combined_rank, original_difficulty, original_score = (
-                _ocr_blue_archive_row_combined_fields_from_original_image(
-                    image_path=image_path,
-                    ocr=ocr,
-                    top_ratio=top_ratio,
-                    bottom_ratio=bottom_ratio,
-                    page_index=page_index,
-                )
-            )
-            if difficulty is None:
-                difficulty = original_difficulty
-            if score is None:
-                score = original_score
-            if combined_rank is None:
-                combined_rank = original_combined_rank
-
-        original_image_rank = None
-        if not isinstance(combined_rank, int) or combined_rank <= 100:
-            original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
-                image_path=image_path,
-                ocr=ocr,
-                top_ratio=top_ratio,
-                bottom_ratio=bottom_ratio,
-            )
-        prepared_rank = combined_rank
-        if original_image_rank is None and prepared_rank is None:
-            prepared_rank = _ocr_blue_archive_row_rank(
-                prepared_image_path=prepared_image_path,
-                ocr=ocr,
-                top_ratio=top_ratio,
-                bottom_ratio=bottom_ratio,
-            )
         rank = _select_blue_archive_row_rank(
             prepared_rank=prepared_rank,
             original_rank=original_image_rank,

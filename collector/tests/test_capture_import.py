@@ -3405,6 +3405,11 @@ def test_parse_blue_archive_fixed_rows_ignores_small_original_row_rank_noise(
     )
     monkeypatch.setattr(
         capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 1, 0.35: 2, 0.69: 3}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
         "_ocr_blue_archive_page_absolute_rank_anchor",
         lambda **kwargs: None,
     )
@@ -3412,6 +3417,20 @@ def test_parse_blue_archive_fixed_rows_ignores_small_original_row_rank_noise(
         capture_import,
         "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
         lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score_from_original_image",
+        lambda **kwargs: {
+            0.02: 40_100_000,
+            0.35: 40_097_600,
+            0.69: 40_090_640,
+        }[kwargs["top_ratio"]],
     )
 
     entries = capture_import._parse_blue_archive_fixed_rows(
@@ -3472,6 +3491,11 @@ def test_parse_blue_archive_fixed_rows_uses_original_row_rank_on_later_pages(
     )
     monkeypatch.setattr(
         capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 1, 0.35: 2, 0.69: 3}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
         "_ocr_blue_archive_page_absolute_rank_anchor",
         lambda **kwargs: None,
     )
@@ -3479,6 +3503,20 @@ def test_parse_blue_archive_fixed_rows_uses_original_row_rank_on_later_pages(
         capture_import,
         "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
         lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Insane",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score_from_original_image",
+        lambda **kwargs: {
+            0.02: 27_771_072,
+            0.35: 27_770_049,
+            0.69: 27_768_256,
+        }[kwargs["top_ratio"]],
     )
 
     entries = capture_import._parse_blue_archive_fixed_rows(
@@ -3534,6 +3572,11 @@ def test_parse_blue_archive_fixed_rows_skips_anchor_ocr_when_row_ranks_are_compl
     )
     monkeypatch.setattr(
         capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 1, 0.35: 2, 0.69: 3}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
         "_ocr_blue_archive_page_absolute_rank_anchor",
         lambda **kwargs: (_ for _ in ()).throw(AssertionError("anchor OCR should be skipped")),
     )
@@ -3541,6 +3584,20 @@ def test_parse_blue_archive_fixed_rows_skips_anchor_ocr_when_row_ranks_are_compl
         capture_import,
         "_ocr_blue_archive_page_absolute_rank_anchor_from_original_image",
         lambda **kwargs: (_ for _ in ()).throw(AssertionError("original anchor OCR should be skipped")),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score_from_original_image",
+        lambda **kwargs: {
+            0.02: 40_100_000,
+            0.35: 40_097_600,
+            0.69: 40_090_640,
+        }[kwargs["top_ratio"]],
     )
 
     entries = capture_import._parse_blue_archive_fixed_rows(
@@ -3602,10 +3659,29 @@ def test_parse_blue_archive_fixed_rows_reuses_original_row_ranks_for_base(
     )
     monkeypatch.setattr(
         capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 1, 0.35: 2, 0.69: 3}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
         "_resolve_blue_archive_absolute_rank_base_from_original_rows",
         lambda **kwargs: (_ for _ in ()).throw(
             AssertionError("original rows should not be rescanned")
         ),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Insane",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score_from_original_image",
+        lambda **kwargs: {
+            0.02: 27_771_072,
+            0.35: 27_770_049,
+            0.69: 27_768_256,
+        }[kwargs["top_ratio"]],
     )
 
     entries = capture_import._parse_blue_archive_fixed_rows(
@@ -3634,7 +3710,7 @@ def test_parse_blue_archive_fixed_rows_reuses_original_row_ranks_for_base(
     assert [entry["rank"] for entry in entries] == [16109, 16110, 16111]
 
 
-def test_parse_blue_archive_fixed_rows_skips_original_rank_ocr_when_combined_rank_is_absolute(
+def test_parse_blue_archive_fixed_rows_ignores_combined_absolute_rank_noise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -3645,23 +3721,32 @@ def test_parse_blue_archive_fixed_rows_skips_original_rank_ocr_when_combined_ran
             (0.35, 0.65),
         ),
     )
-    combined = iter(
-        [
-            (3522, "Torment", 40_100_000),
-            (3523, "Torment", 40_097_600),
-        ]
-    )
+    combined = iter([(3522, "Torment", 40_100_000), (3523, "Torment", 40_097_600)])
     monkeypatch.setattr(
         capture_import,
         "_ocr_blue_archive_row_combined_fields",
         lambda **kwargs: next(combined),
     )
+    original_ranks = iter([1, 2])
     monkeypatch.setattr(
         capture_import,
         "_ocr_blue_archive_row_rank_from_original_image",
-        lambda **kwargs: (_ for _ in ()).throw(
-            AssertionError("absolute combined rank should skip original rank OCR")
-        ),
+        lambda **kwargs: next(original_ranks),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank",
+        lambda **kwargs: {0.02: 1, 0.35: 2}[kwargs["top_ratio"]],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_difficulty",
+        lambda **kwargs: "Torment",
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_score_from_original_image",
+        lambda **kwargs: {0.02: 40_100_000, 0.35: 40_097_600}[kwargs["top_ratio"]],
     )
 
     entries = capture_import._parse_blue_archive_fixed_rows(
@@ -3687,7 +3772,7 @@ def test_parse_blue_archive_fixed_rows_skips_original_rank_ocr_when_combined_ran
         page_index=1,
     )
 
-    assert [entry["rank"] for entry in entries] == [3522, 3523]
+    assert [entry["rank"] for entry in entries] == [1, 2]
 
 
 def test_select_blue_archive_row_rank_prefers_original_absolute_rank() -> None:
