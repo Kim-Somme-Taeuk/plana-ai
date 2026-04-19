@@ -30,6 +30,7 @@ from collector.mock_import import (
 
 DEFAULT_ADB_COMMAND = "adb"
 DEFAULT_CAPTURE_NOTE = "adb screenshot capture"
+LATEST_CAPTURE_PREVIEW_NAME = ".latest-page.png"
 
 
 @dataclass(frozen=True)
@@ -338,6 +339,9 @@ def load_adb_capture_request(
     )
 
 
+AfterCapturePageCallback = Callable[[list[Path], Path | None], AdbCaptureStopDecision]
+
+
 def build_pipeline_stop_policy(pipeline: dict[str, Any]) -> PipelineStopPolicy:
     min_pages_before_ocr_stop = _parse_positive_int_option(
         pipeline.get("min_pages_before_ocr_stop", 2),
@@ -370,19 +374,22 @@ def capture_adb_screenshot(
     request: AdbCaptureRequest,
     client: AdbClient,
     *,
-    after_capture_page: Callable[[list[Path]], AdbCaptureStopDecision] | None = None,
+    after_capture_page: AfterCapturePageCallback | None = None,
     persist_manifest: bool = True,
+    persist_pages_during_capture: bool = True,
 ) -> AdbCaptureResult:
     _run_adb_preflight_if_available(client, request.adb.device_serial)
     _ensure_capture_output_dir_is_empty(request.adb.output_dir)
     request.adb.output_dir.mkdir(parents=True, exist_ok=True)
 
     image_paths: list[Path] = []
+    pending_page_images: list[tuple[Path, bytes]] = []
     previous_image_bytes: bytes | None = None
     seen_frame_hashes: set[str] = set()
     stopped_reason: str | None = None
     stopped_source: str | None = None
     stopped_level: str | None = None
+    latest_capture_preview_path = request.adb.output_dir / LATEST_CAPTURE_PREVIEW_NAME
     for page_number in range(1, request.adb.page_count + 1):
         image_path = (
             request.adb.output_dir / f"{request.adb.page_prefix}-{page_number:03d}.png"
@@ -405,24 +412,37 @@ def capture_adb_screenshot(
             stopped_level = "hard"
             break
 
-        image_path.write_bytes(image_bytes)
+        if persist_pages_during_capture:
+            image_path.write_bytes(image_bytes)
+            latest_callback_image_path = image_path
+        elif after_capture_page is not None:
+            latest_capture_preview_path.write_bytes(image_bytes)
+            latest_callback_image_path = latest_capture_preview_path
+        else:
+            latest_callback_image_path = None
         image_paths.append(image_path)
+        pending_page_images.append((image_path, image_bytes))
         previous_image_bytes = image_bytes
         seen_frame_hashes.add(image_hash)
 
         if page_number < request.adb.page_count and after_capture_page is not None:
-            stop_decision = after_capture_page(list(image_paths))
+            stop_decision = after_capture_page(
+                list(image_paths),
+                latest_callback_image_path,
+            )
             if not stop_decision.should_continue:
                 if stop_decision.discard_last_page and image_paths:
                     last_image_path = image_paths.pop()
-                    try:
-                        last_image_path.unlink()
-                    except FileNotFoundError:
-                        pass
+                    pending_page_images.pop()
+                    _unlink_if_exists(last_image_path)
+                    if not persist_pages_during_capture:
+                        _unlink_if_exists(latest_capture_preview_path)
                 stopped_reason = stop_decision.reason
                 stopped_source = stop_decision.source
                 stopped_level = stop_decision.level
                 break
+            if not persist_pages_during_capture:
+                _unlink_if_exists(latest_capture_preview_path)
 
         if page_number < request.adb.page_count:
             assert request.adb.swipe is not None  # guarded during request loading
@@ -437,6 +457,11 @@ def capture_adb_screenshot(
             )
             if effective_settle_delay_ms > 0:
                 time.sleep(effective_settle_delay_ms / 1000)
+
+    if not persist_pages_during_capture:
+        for image_path, image_bytes in pending_page_images:
+            image_path.write_bytes(image_bytes)
+        _unlink_if_exists(latest_capture_preview_path)
 
     runtime_snapshot = {
         **request.snapshot,
@@ -484,7 +509,7 @@ def capture_adb_screenshot(
 def _resolve_effective_settle_delay_ms(
     *,
     request: AdbCaptureRequest,
-    after_capture_page: Callable[[list[Path]], AdbCaptureStopDecision] | None,
+    after_capture_page: AfterCapturePageCallback | None,
     page_number: int,
 ) -> int:
     assert request.adb.swipe is not None
@@ -510,6 +535,13 @@ def _ensure_capture_output_dir_is_empty(output_dir: Path) -> None:
             "기존 capture 결과가 있는 output_dir에는 새 캡처를 쓰지 않습니다. "
             f"빈 디렉터리를 사용하거나 새 output_dir를 지정하세요: {output_dir}"
         )
+
+
+def _unlink_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
 
 
 def _run_adb_preflight_if_available(

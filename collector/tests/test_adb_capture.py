@@ -217,7 +217,9 @@ def test_capture_adb_screenshot_caps_later_settle_delay_for_large_max_rank(
     result = capture_adb_screenshot(
         request,
         client,
-        after_capture_page=lambda image_paths: AdbCaptureStopDecision(should_continue=True),
+        after_capture_page=lambda image_paths, latest_callback_image_path: (
+            AdbCaptureStopDecision(should_continue=True)
+        ),
     )
 
     assert [path.read_bytes() for path in result.image_paths] == [
@@ -418,8 +420,12 @@ def test_capture_adb_screenshot_can_stop_from_after_capture_page_callback(
 
     callback_calls: list[list[str]] = []
 
-    def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
+    def after_capture_page(
+        image_paths: list[Path],
+        latest_callback_image_path: Path | None,
+    ) -> AdbCaptureStopDecision:
         callback_calls.append([path.name for path in image_paths])
+        assert latest_callback_image_path is not None
         if len(image_paths) == 2:
             return AdbCaptureStopDecision(
                 should_continue=False,
@@ -453,6 +459,73 @@ def test_capture_adb_screenshot_can_stop_from_after_capture_page_callback(
     assert result.stopped_source == "ocr"
     assert result.stopped_level == "soft"
     assert len(client.swipes) == 1
+
+
+def test_capture_adb_screenshot_can_defer_page_png_writes_until_completion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        adb={
+            "page_count": 3,
+            "swipe": {
+                "start_x": 500,
+                "start_y": 1600,
+                "end_x": 500,
+                "end_y": 600,
+                "duration_ms": 200,
+                "settle_delay_ms": 50,
+            },
+        },
+    )
+    request = load_adb_capture_request(request_path)
+
+    class FakeAdbClient:
+        def __init__(self):
+            self.capture_index = 0
+
+        def capture_screenshot(self, *, device_serial):
+            self.capture_index += 1
+            return f"PNG-{self.capture_index}".encode("utf-8")
+
+        def swipe(self, *, device_serial, swipe):
+            return None
+
+    monkeypatch.setattr(adb_capture.time, "sleep", lambda seconds: None)
+
+    callback_snapshots: list[tuple[list[str], list[str]]] = []
+
+    def after_capture_page(
+        image_paths: list[Path],
+        latest_callback_image_path: Path | None,
+    ) -> AdbCaptureStopDecision:
+        assert latest_callback_image_path is not None
+        callback_snapshots.append(
+            (
+                [path.name for path in image_paths],
+                sorted(path.name for path in request.adb.output_dir.iterdir()),
+            )
+        )
+        return AdbCaptureStopDecision(should_continue=True)
+
+    result = capture_adb_screenshot(
+        request,
+        FakeAdbClient(),
+        after_capture_page=after_capture_page,
+        persist_pages_during_capture=False,
+    )
+
+    assert callback_snapshots == [
+        (["page-001.png"], [adb_capture.LATEST_CAPTURE_PREVIEW_NAME]),
+        (["page-001.png", "page-002.png"], [adb_capture.LATEST_CAPTURE_PREVIEW_NAME]),
+    ]
+    assert [path.read_bytes() for path in result.image_paths] == [
+        b"PNG-1",
+        b"PNG-2",
+        b"PNG-3",
+    ]
+    assert not (request.adb.output_dir / adb_capture.LATEST_CAPTURE_PREVIEW_NAME).exists()
 
 
 def test_capture_adb_screenshot_rejects_non_empty_output_dir(tmp_path: Path) -> None:

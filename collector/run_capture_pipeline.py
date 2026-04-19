@@ -136,6 +136,9 @@ def run_capture_pipeline(
                     stop_capture_on_recommendation_mode=stop_capture_on_recommendation_mode,
                 ),
                 persist_manifest=False,
+                persist_pages_during_capture=(
+                    stop_capture_on_recommendation_mode != "off"
+                ),
             )
         else:
             resumed_from_output = True
@@ -706,7 +709,10 @@ def _build_after_capture_page_callback(
         and stop_policy.max_rank is not None
     )
 
-    def after_capture_page(image_paths: list[Path]) -> AdbCaptureStopDecision:
+    def after_capture_page(
+        image_paths: list[Path],
+        latest_callback_image_path: Path | None,
+    ) -> AdbCaptureStopDecision:
         nonlocal previous_soft_reason, previous_soft_count, last_highest_rank_collected
         if latest_page_only and not _should_run_max_rank_callback(
             captured_page_count=len(image_paths),
@@ -722,12 +728,13 @@ def _build_after_capture_page_callback(
             ocr_psm=ocr_psm,
             blue_archive_fast_path=latest_page_only,
         )
+        latest_image_path = latest_callback_image_path or image_paths[-1]
         if latest_page_only and _is_blue_archive_fixed_layout_image(
-            image_path=image_paths[-1],
+            image_path=latest_image_path,
             ocr=runtime_ocr,
         ):
             page_ranks = _parse_blue_archive_page_ranks_fast(
-                image_path=image_paths[-1],
+                image_path=latest_image_path,
                 ocr=runtime_ocr,
             )
             highest_rank_collected = max(

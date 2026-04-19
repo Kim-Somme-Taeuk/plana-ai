@@ -1611,7 +1611,7 @@ def test_after_capture_page_uses_latest_page_only_for_max_rank_stop(
 
     assert callback is not None
 
-    decision = callback([Path("page-001.png"), Path("page-002.png")])
+    decision = callback([Path("page-001.png"), Path("page-002.png")], None)
 
     assert parse_calls == ["page-002.png"]
     assert decision == capture_pipeline.AdbCaptureStopDecision(
@@ -1664,7 +1664,7 @@ def test_after_capture_page_skips_large_max_rank_callback_on_non_interval_page(
     )
 
     assert callback is not None
-    decision = callback([Path("page-001.png"), Path("page-002.png")])
+    decision = callback([Path("page-001.png"), Path("page-002.png")], None)
 
     assert decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
 
@@ -1719,8 +1719,8 @@ def test_after_capture_page_checks_every_page_when_near_large_max_rank(
     )
 
     assert callback is not None
-    first_decision = callback([Path("page-001.png")])
-    second_decision = callback([Path("page-001.png"), Path("page-002.png")])
+    first_decision = callback([Path("page-001.png")], None)
+    second_decision = callback([Path("page-001.png"), Path("page-002.png")], None)
 
     assert first_decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
     assert second_decision == capture_pipeline.AdbCaptureStopDecision(should_continue=True)
