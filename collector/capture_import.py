@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -137,6 +137,7 @@ class OcrConfig:
     reuse_cached_sidecar: bool
     persist_sidecar: bool
     blue_archive_fast_path: bool = False
+    timeout_seconds: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1772,7 +1773,7 @@ def _run_tesseract_command(
             encoding="utf-8",
             errors="replace",
             check=False,
-            timeout=TESSERACT_TIMEOUT_SECONDS,
+            timeout=ocr.timeout_seconds or TESSERACT_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
         raise MockImportError(
@@ -4130,7 +4131,6 @@ def _ocr_blue_archive_row_score(
     for x_ratios, y_start, y_end in (
         ((0.52, 0.98), 0.12, 0.245),
         ((0.45, 0.98), 0.10, 0.26),
-        ((0.60, 1.00), 0.08, 0.28),
     ):
         candidates = _ocr_prepared_image_ratio_region_candidates(
             prepared_image_path=prepared_image_path,
@@ -4145,18 +4145,12 @@ def _ocr_blue_archive_row_score(
                 ),
                 OcrRegionAttempt(
                     language="eng",
-                    psm=8,
-                    extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
-                    threshold=170,
-                ),
-                OcrRegionAttempt(
-                    language="eng",
                     psm=6,
                     extra_args=("-c", "tessedit_char_whitelist=0123456789,"),
                     threshold=200,
                 ),
             ],
-            base_ocr=ocr,
+            base_ocr=replace(ocr, timeout_seconds=4),
         )
         for candidate in candidates:
             if not _is_valid_blue_archive_score_candidate(candidate):
@@ -4228,6 +4222,7 @@ def _ocr_blue_archive_row_score_from_original_image(
                 upscale_ratio=max(3.0, ocr.upscale_ratio),
                 reuse_cached_sidecar=False,
                 persist_sidecar=False,
+                timeout_seconds=4,
             ),
             OcrConfig(
                 provider=ocr.provider,
@@ -4239,17 +4234,7 @@ def _ocr_blue_archive_row_score_from_original_image(
                 upscale_ratio=max(3.0, ocr.upscale_ratio),
                 reuse_cached_sidecar=False,
                 persist_sidecar=False,
-            ),
-            OcrConfig(
-                provider=ocr.provider,
-                command=ocr.command,
-                language="eng",
-                psm=11,
-                extra_args=("-c", "preserve_interword_spaces=1"),
-                crop=region_crop,
-                upscale_ratio=max(3.0, ocr.upscale_ratio),
-                reuse_cached_sidecar=False,
-                persist_sidecar=False,
+                timeout_seconds=4,
             ),
         ):
             prepared_image_path, cleanup = _prepare_image_for_ocr(image_path, attempt)
