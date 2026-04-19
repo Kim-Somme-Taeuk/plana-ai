@@ -401,6 +401,50 @@ def test_run_capture_pipeline_writes_error_artifact_on_capture_timeout(
     assert "timeout=20s" in pipeline_error["message"]
 
 
+def test_run_capture_pipeline_writes_error_artifact_on_tesseract_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-tesseract-timeout-season",
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=kwargs.get("args", args[0] if args else []),
+            timeout=kwargs["timeout"],
+        )
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    output_dir = tmp_path / "capture-output"
+    with pytest.raises(capture_import.MockImportError) as exc_info:
+        run_capture_pipeline(
+            request_path,
+            base_url="http://localhost:8000",
+            output_dir=str(output_dir),
+            ocr_provider="tesseract",
+            ocr_language="eng",
+            ocr_psm=6,
+            adb_client=FakeAdbClient(),
+            api_client=SnapshotAwareApiClientMixin(),
+        )
+
+    assert "시간 초과로 중단됐습니다" in str(exc_info.value)
+    pipeline_error = json.loads(
+        (output_dir / "pipeline-error.json").read_text(encoding="utf-8")
+    )
+    assert pipeline_error["stage"] == "parse_capture_payload"
+    assert pipeline_error["error_type"] == "MockImportError"
+    assert "timeout=30s" in pipeline_error["message"]
+
+
 def test_run_capture_pipeline_force_recapture_clears_existing_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -1977,7 +1977,7 @@ def test_build_mock_payload_from_capture_runs_tesseract_ocr(
         ocr={"provider": "tesseract", "language": "eng", "psm": 6},
     )
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
         assert args == [
             "tesseract",
             str((tmp_path / "page-001.png").resolve()),
@@ -1992,6 +1992,7 @@ def test_build_mock_payload_from_capture_runs_tesseract_ocr(
         assert encoding == "utf-8"
         assert errors == "replace"
         assert check is False
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -2040,7 +2041,7 @@ def test_build_mock_payload_from_capture_prefers_tesseract_over_explicit_sidecar
         ocr={"provider": "tesseract", "language": "eng", "psm": 6},
     )
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
         assert args == [
             "tesseract",
             str((tmp_path / "page-001.png").resolve()),
@@ -2055,6 +2056,7 @@ def test_build_mock_payload_from_capture_prefers_tesseract_over_explicit_sidecar
         assert encoding == "utf-8"
         assert errors == "replace"
         assert check is False
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -2129,7 +2131,8 @@ def test_build_mock_payload_from_capture_can_disable_tesseract_sidecar_persist(
     )
     (tmp_path / "page-001.txt").unlink()
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         return subprocess.CompletedProcess(
             args=args,
             returncode=0,
@@ -2177,8 +2180,9 @@ def test_build_mock_payload_from_capture_falls_back_to_tesseract_tsv_card_layout
         ]
     )
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
         assert args[0] == "tesseract"
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         if args[-1] == "tsv":
             return subprocess.CompletedProcess(
                 args=args,
@@ -2239,7 +2243,8 @@ def test_build_mock_payload_from_capture_parses_tesseract_tsv_card_rank_from_nea
         ]
     )
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         if args[-1] == "tsv":
             return subprocess.CompletedProcess(
                 args=args,
@@ -2299,7 +2304,8 @@ def test_build_mock_payload_from_capture_falls_back_to_score_anchor_lines(
         "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
     )
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         if args[-1] == "tsv":
             return subprocess.CompletedProcess(
                 args=args,
@@ -2365,7 +2371,8 @@ def test_build_mock_payload_from_capture_score_anchor_lines_use_difficulty_alias
         "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
     )
 
-    def fake_run(args, capture_output, text, encoding, errors, check):
+    def fake_run(args, capture_output, text, encoding, errors, check, timeout):
+        assert timeout == capture_import.TESSERACT_TIMEOUT_SECONDS
         if args[-1] == "tsv":
             return subprocess.CompletedProcess(
                 args=args,
@@ -5204,6 +5211,35 @@ def test_build_mock_payload_from_capture_fails_when_tesseract_missing(
         build_mock_payload_from_capture(payload)
 
     assert "tesseract 명령을 찾을 수 없습니다" in str(exc_info.value)
+
+
+def test_run_tesseract_command_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=kwargs.get("args", args[0] if args else []), timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(capture_import.shutil, "which", lambda command: "/usr/bin/tesseract")
+    monkeypatch.setattr(capture_import.subprocess, "run", fake_run)
+
+    with pytest.raises(MockImportError) as exc_info:
+        capture_import._run_tesseract_command(
+            prepared_image_path=Path("prepared.png"),
+            original_image_path=Path("page.png"),
+            ocr=capture_import.OcrConfig(
+                provider="tesseract",
+                command="tesseract",
+                language="eng",
+                psm=6,
+                extra_args=(),
+                crop=None,
+                upscale_ratio=1.0,
+                reuse_cached_sidecar=False,
+                persist_sidecar=False,
+            ),
+            output_kind="text",
+        )
+
+    assert "시간 초과로 중단됐습니다" in str(exc_info.value)
+    assert "timeout=30s" in str(exc_info.value)
 
 
 def _write_capture_manifest(

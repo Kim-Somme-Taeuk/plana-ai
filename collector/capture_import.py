@@ -45,6 +45,7 @@ CAPTURE_SOURCE_TYPE_BY_PROVIDER = {
     OCR_PROVIDER_TESSERACT: "image_tesseract",
 }
 DEFAULT_TESSERACT_COMMAND = "tesseract"
+TESSERACT_TIMEOUT_SECONDS = 30
 OCR_NUMERIC_TRANSLATION = str.maketrans(
     {
         "O": "0",
@@ -1648,7 +1649,13 @@ def _run_tesseract_command(
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=TESSERACT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise MockImportError(
+            f"tesseract {output_kind} 실행이 시간 초과로 중단됐습니다. "
+            f"image_path={original_image_path}, timeout={TESSERACT_TIMEOUT_SECONDS}s"
+        ) from exc
     except OSError as exc:
         raise MockImportError(
             f"tesseract 실행에 실패했습니다: command={command!r}, image_path={original_image_path}"
