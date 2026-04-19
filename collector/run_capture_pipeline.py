@@ -135,23 +135,36 @@ def run_capture_pipeline(
                     ocr_psm=ocr_psm,
                     stop_capture_on_recommendation_mode=stop_capture_on_recommendation_mode,
                 ),
+                persist_manifest=False,
             )
         else:
             resumed_from_output = True
         current_stage = "load_capture_payload"
-        capture_payload = load_capture_import_payload(
-            capture_result.output_dir,
-            ocr_provider=effective_ocr_provider,
-            ocr_command=ocr_command,
-            ocr_language=ocr_language,
-            ocr_psm=ocr_psm,
-            reuse_tesseract_sidecar=(
-                reuse_tesseract_sidecar
-                if reuse_tesseract_sidecar is not None
-                else resumed_from_output
-            ),
-            persist_tesseract_sidecar=persist_tesseract_sidecar,
-        )
+        if resumed_from_output:
+            capture_payload = load_capture_import_payload(
+                capture_result.output_dir,
+                ocr_provider=effective_ocr_provider,
+                ocr_command=ocr_command,
+                ocr_language=ocr_language,
+                ocr_psm=ocr_psm,
+                reuse_tesseract_sidecar=(
+                    reuse_tesseract_sidecar
+                    if reuse_tesseract_sidecar is not None
+                    else resumed_from_output
+                ),
+                persist_tesseract_sidecar=persist_tesseract_sidecar,
+            )
+        else:
+            capture_payload = _build_capture_import_payload_from_capture_result(
+                request=request,
+                capture_result=capture_result,
+                effective_ocr_provider=effective_ocr_provider,
+                ocr_command=ocr_command,
+                ocr_language=ocr_language,
+                ocr_psm=ocr_psm,
+                reuse_tesseract_sidecar=reuse_tesseract_sidecar,
+                persist_tesseract_sidecar=persist_tesseract_sidecar,
+            )
         current_stage = "parse_capture_payload"
         parsed_payload = parse_capture_payload(capture_payload)
         parsed_payload, highest_rank_collected, reached_max_rank = _apply_max_rank_limit(
@@ -592,16 +605,78 @@ def _build_pipeline_recovery_payload(
     output_dir: Path,
     request_path: str | Path,
 ) -> dict[str, str]:
-    return {
-        "capture_import_command": (
+    recovery = {
+        "rerun_pipeline_command": (
             "backend/.venv/bin/python "
-            f"collector/capture_import.py {output_dir}"
-        ),
-        "resume_pipeline_command": (
-            "backend/.venv/bin/python "
-            f"collector/run_capture_pipeline.py --resume-only --output-dir {output_dir} {request_path}"
+            f"collector/run_capture_pipeline.py --force-recapture --output-dir {output_dir} {request_path}"
         ),
     }
+    if (output_dir / "manifest.json").exists():
+        recovery["capture_import_command"] = (
+            "backend/.venv/bin/python "
+            f"collector/capture_import.py {output_dir}"
+        )
+        recovery["resume_pipeline_command"] = (
+            "backend/.venv/bin/python "
+            f"collector/run_capture_pipeline.py --resume-only --output-dir {output_dir} {request_path}"
+        )
+    return recovery
+
+
+def _build_capture_import_payload_from_capture_result(
+    *,
+    request: AdbCaptureRequest,
+    capture_result: AdbCaptureResult,
+    effective_ocr_provider: str | None,
+    ocr_command: str | None,
+    ocr_language: str | None,
+    ocr_psm: int | None,
+    reuse_tesseract_sidecar: bool | None,
+    persist_tesseract_sidecar: bool | None,
+) -> CaptureImportPayload:
+    provider = effective_ocr_provider or request.ocr["provider"]
+    runtime_ocr = OcrConfig(
+        provider=provider,
+        command=ocr_command or request.ocr.get("command"),
+        language=ocr_language or request.ocr.get("language"),
+        psm=ocr_psm if ocr_psm is not None else request.ocr.get("psm"),
+        extra_args=tuple(request.ocr.get("extra_args", [])),
+        crop=_build_ocr_crop(request.ocr.get("crop")),
+        upscale_ratio=float(request.ocr.get("upscale_ratio", 1.0)),
+        reuse_cached_sidecar=(
+            True if reuse_tesseract_sidecar is None else reuse_tesseract_sidecar
+        ),
+        persist_sidecar=(
+            True if persist_tesseract_sidecar is None else persist_tesseract_sidecar
+        ),
+        blue_archive_fast_path=False,
+    )
+    return CaptureImportPayload(
+        base_dir=capture_result.output_dir,
+        season=request.season,
+        snapshot={
+            **request.snapshot,
+            "source_type": CAPTURE_SOURCE_TYPE_BY_PROVIDER[
+                effective_ocr_provider or request.ocr["provider"]
+            ],
+        },
+        pages=[
+            CapturePage(
+                image_path=image_path.name,
+                ocr_text_path=None,
+                default_ocr_confidence=None,
+            )
+            for image_path in capture_result.image_paths
+        ],
+        ocr=runtime_ocr,
+        capture={
+            "requested_page_count": capture_result.requested_page_count,
+            "captured_page_count": len(capture_result.image_paths),
+            "stopped_reason": capture_result.stopped_reason,
+            "stopped_source": capture_result.stopped_source,
+            "stopped_level": capture_result.stopped_level,
+        },
+    )
 
 
 def _unlink_if_exists(path: Path) -> None:

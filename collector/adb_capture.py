@@ -371,6 +371,7 @@ def capture_adb_screenshot(
     client: AdbClient,
     *,
     after_capture_page: Callable[[list[Path]], AdbCaptureStopDecision] | None = None,
+    persist_manifest: bool = True,
 ) -> AdbCaptureResult:
     _run_adb_preflight_if_available(client, request.adb.device_serial)
     _ensure_capture_output_dir_is_empty(request.adb.output_dir)
@@ -442,31 +443,32 @@ def capture_adb_screenshot(
         "captured_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     manifest_path = request.adb.output_dir / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "season": request.season,
-                "snapshot": runtime_snapshot,
-                "ocr": request.ocr,
-                "capture": {
-                    "requested_page_count": request.adb.page_count,
-                    "captured_page_count": len(image_paths),
-                    "stopped_reason": stopped_reason,
-                    "stopped_source": stopped_source,
-                    "stopped_level": stopped_level,
+    if persist_manifest:
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "season": request.season,
+                    "snapshot": runtime_snapshot,
+                    "ocr": request.ocr,
+                    "capture": {
+                        "requested_page_count": request.adb.page_count,
+                        "captured_page_count": len(image_paths),
+                        "stopped_reason": stopped_reason,
+                        "stopped_source": stopped_source,
+                        "stopped_level": stopped_level,
+                    },
+                    "pages": [
+                        {
+                            "image_path": image_path.name,
+                        }
+                        for image_path in image_paths
+                    ],
                 },
-                "pages": [
-                    {
-                        "image_path": image_path.name,
-                    }
-                    for image_path in image_paths
-                ],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     return AdbCaptureResult(
         output_dir=request.adb.output_dir,

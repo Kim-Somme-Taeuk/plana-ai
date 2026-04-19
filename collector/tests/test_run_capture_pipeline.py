@@ -128,7 +128,7 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     }
     assert result.highest_rank_collected == 10
     assert result.reached_max_rank is False
-    assert result.manifest_path.exists()
+    assert result.manifest_path.exists() is False
     assert len(result.image_paths) == 1
     pipeline_result = json.loads(
         (tmp_path / "capture-output" / "pipeline-result.json").read_text(
@@ -139,9 +139,9 @@ def test_run_capture_pipeline_captures_and_imports_with_tesseract(
     assert pipeline_result["entry_count"] == 2
     assert pipeline_result["highest_rank_collected"] == 10
     assert pipeline_result["reached_max_rank"] is False
-    assert pipeline_result["recovery"]["capture_import_command"].endswith(
-        "collector/capture_import.py "
-        f"{tmp_path / 'capture-output'}"
+    assert pipeline_result["recovery"]["rerun_pipeline_command"].endswith(
+        "--force-recapture --output-dir "
+        f"{tmp_path / 'capture-output'} {request_path}"
     )
     assert [call[0] for call in api_client.calls] == [
         "create_season",
@@ -424,9 +424,7 @@ def test_run_capture_pipeline_force_recapture_clears_existing_output(
 
     assert adb_client.capture_calls == 1
     assert result.resumed_from_output is False
-    assert json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))["pages"] == [
-        {"image_path": "page-001.png"}
-    ]
+    assert (output_dir / "manifest.json").exists() is False
 
 
 def test_run_capture_pipeline_reuses_existing_season_on_duplicate_label(
@@ -652,7 +650,7 @@ def test_run_capture_pipeline_propagates_import_error_after_capture(
         )
 
     assert "unexpected import failure" in str(exc_info.value)
-    assert (tmp_path / "capture-output" / "manifest.json").exists()
+    assert (tmp_path / "capture-output" / "manifest.json").exists() is False
     pipeline_error = json.loads(
         (tmp_path / "capture-output" / "pipeline-error.json").read_text(
             encoding="utf-8"
@@ -661,9 +659,9 @@ def test_run_capture_pipeline_propagates_import_error_after_capture(
     assert pipeline_error["stage"] == "import"
     assert pipeline_error["error_type"] == "RuntimeError"
     assert pipeline_error["message"] == "unexpected import failure"
-    assert pipeline_error["recovery"]["capture_import_command"].endswith(
-        "collector/capture_import.py "
-        f"{tmp_path / 'capture-output'}"
+    assert pipeline_error["recovery"]["rerun_pipeline_command"].endswith(
+        "--force-recapture --output-dir "
+        f"{tmp_path / 'capture-output'} {request_path}"
     )
 
 
