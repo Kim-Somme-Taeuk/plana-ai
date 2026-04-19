@@ -3493,6 +3493,70 @@ def test_parse_blue_archive_fixed_rows_skips_anchor_ocr_when_row_ranks_are_compl
     assert entries[0]["_absolute_rank_base"] == 3522
 
 
+def test_parse_blue_archive_fixed_rows_reuses_original_row_ranks_for_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+            (0.69, 0.98),
+        ),
+    )
+    combined = iter(
+        [
+            (1, "Insane", 27_771_072),
+            (2, "Insane", 27_770_049),
+            (3, "Insane", 27_768_256),
+        ]
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: next(combined),
+    )
+    original_ranks = iter([16109, 16110, 16111])
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: next(original_ranks),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_resolve_blue_archive_absolute_rank_base_from_original_rows",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("original rows should not be rescanned")
+        ),
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        image_path=Path("page.png"),
+        prepared_image_path=Path("prepared.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=0.9,
+        page_index=1,
+    )
+
+    assert [entry["rank"] for entry in entries] == [16109, 16110, 16111]
+
+
 def test_select_blue_archive_row_rank_prefers_original_absolute_rank() -> None:
     assert capture_import._select_blue_archive_row_rank(
         prepared_rank=10001,

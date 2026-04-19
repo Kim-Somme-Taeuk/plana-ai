@@ -2239,6 +2239,7 @@ def _parse_blue_archive_fixed_rows(
 
     raw_rows: list[dict[str, Any]] = []
     detected_ranks: list[int | None] = []
+    original_detected_ranks: list[int | None] = []
     complete_row_ranks = True
 
     for row_index, (top_ratio, bottom_ratio) in enumerate(row_bands, start=1):
@@ -2293,6 +2294,9 @@ def _parse_blue_archive_fixed_rows(
         if rank is None:
             complete_row_ranks = False
         detected_ranks.append(rank)
+        original_detected_ranks.append(
+            original_image_rank if isinstance(original_image_rank, int) and original_image_rank > 100 else None
+        )
         raw_rows.append(
             {
                 "rank": rank if rank is not None else row_index,
@@ -2327,10 +2331,8 @@ def _parse_blue_archive_fixed_rows(
         detected_ranks
     )
     if absolute_rank_base is None:
-        absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_original_rows(
-            image_path=image_path,
-            ocr=ocr,
-            row_bands=row_bands,
+        absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+            original_detected_ranks
         )
     absolute_rank_base_source: str | None = None
     absolute_rank_anchor_source: str | None = None
