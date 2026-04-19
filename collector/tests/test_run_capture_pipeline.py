@@ -2608,6 +2608,79 @@ def test_run_capture_pipeline_stops_capture_when_max_rank_reached(
     assert result.entry_ids == [1, 2, 3]
 
 
+def test_run_capture_pipeline_fresh_capture_uses_runtime_snapshot_timestamp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _write_request(
+        tmp_path,
+        season_label="pipeline-runtime-snapshot-season",
+        include_ocr=False,
+    )
+
+    class FakeAdbClient:
+        def capture_screenshot(self, *, device_serial):
+            return b"\x89PNG\r\n\x1a\nfake"
+
+    captured_snapshot_payloads: list[dict[str, object]] = []
+
+    class FakeApiClient(SnapshotAwareApiClientMixin):
+        def create_season(self, payload):
+            return {"id": 101, **payload}
+
+        def create_snapshot(self, season_id, payload):
+            captured_snapshot_payloads.append(dict(payload))
+            return {"id": 202, "season_id": season_id, **payload}
+
+        def create_entry(self, snapshot_id, payload):
+            return {"id": 1}
+
+        def update_snapshot_status(self, snapshot_id, status):
+            return {"id": snapshot_id, "status": status}
+
+    monkeypatch.setattr(
+        capture_pipeline,
+        "parse_capture_payload",
+        lambda *args, **kwargs: capture_import.ParsedCapturePayload(
+            mock_payload=capture_import.MockImportPayload(
+                season={
+                    "event_type": "total_assault",
+                    "server": "kr",
+                    "boss_name": "Binah",
+                    "terrain": "outdoor",
+                    "season_label": "pipeline-runtime-snapshot-season",
+                },
+                snapshot={"captured_at": "ignored", "source_type": "image"},
+                entries=[
+                    {
+                        "rank": 1,
+                        "player_name": "Lunatic",
+                        "score": 53404105,
+                        "ocr_confidence": None,
+                        "raw_text": "row",
+                        "image_path": "page-001.png",
+                        "is_valid": True,
+                        "validation_issue": None,
+                    }
+                ],
+            ),
+            ignored_lines=[],
+            page_summaries=[],
+        ),
+    )
+
+    run_capture_pipeline(
+        request_path,
+        base_url="http://localhost:8000",
+        output_dir=str(tmp_path / "capture-output"),
+        adb_client=FakeAdbClient(),
+        api_client=FakeApiClient(),
+    )
+
+    assert len(captured_snapshot_payloads) == 1
+    assert captured_snapshot_payloads[0]["captured_at"] != "2026-04-16T12:00:00Z"
+
+
 def _write_request(
     base_dir: Path,
     *,

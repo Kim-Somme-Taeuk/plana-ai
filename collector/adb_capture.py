@@ -83,6 +83,7 @@ class AdbCaptureResult:
     stopped_reason: str | None
     stopped_source: str | None
     stopped_level: str | None
+    runtime_snapshot: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -517,6 +518,7 @@ def capture_adb_screenshot(
         stopped_reason=stopped_reason,
         stopped_source=stopped_source,
         stopped_level=stopped_level,
+        runtime_snapshot=runtime_snapshot,
     )
 
 

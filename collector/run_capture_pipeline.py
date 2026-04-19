@@ -403,6 +403,7 @@ def _load_existing_capture_result(
         stopped_reason=_normalize_optional_string(capture.get("stopped_reason")),
         stopped_source=_normalize_optional_string(capture.get("stopped_source")),
         stopped_level=_normalize_optional_string(capture.get("stopped_level")),
+        runtime_snapshot=manifest.get("snapshot") if isinstance(manifest.get("snapshot"), dict) else None,
     )
 
 
@@ -685,7 +686,7 @@ def _build_capture_import_payload_from_capture_result(
         base_dir=capture_result.output_dir,
         season=request.season,
         snapshot={
-            **request.snapshot,
+            **(capture_result.runtime_snapshot or request.snapshot),
             "source_type": CAPTURE_SOURCE_TYPE_BY_PROVIDER[
                 effective_ocr_provider or request.ocr["provider"]
             ],
