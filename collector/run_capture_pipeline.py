@@ -737,15 +737,19 @@ def _build_after_capture_page_callback(
                 image_path=latest_image_path,
                 ocr=runtime_ocr,
             )
+            valid_page_ranks = [
+                rank for rank in page_ranks if isinstance(rank, int)
+            ]
             highest_rank_collected = max(
-                (rank for rank in page_ranks if isinstance(rank, int)),
+                valid_page_ranks,
                 default=None,
             )
-            if highest_rank_collected is not None:
+            if highest_rank_collected is not None and len(valid_page_ranks) >= 2:
                 last_highest_rank_collected = highest_rank_collected
             if (
                 stop_policy.max_rank is not None
                 and highest_rank_collected is not None
+                and len(valid_page_ranks) >= 2
                 and highest_rank_collected > stop_policy.max_rank
             ):
                 return AdbCaptureStopDecision(
