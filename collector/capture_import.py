@@ -2136,17 +2136,7 @@ def _parse_blue_archive_page_ranks_fast(
             if not any(rank is not None for rank in detected_ranks):
                 continue
 
-            resolved_ranks = _resolve_anchor_ranks(detected_ranks)
-            absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
-                detected_ranks
-            )
-            if absolute_rank_base is not None:
-                resolved_ranks = list(
-                    range(
-                        absolute_rank_base,
-                        absolute_rank_base + len(resolved_ranks),
-                    )
-                )
+            resolved_ranks = _resolve_blue_archive_fast_page_ranks(detected_ranks)
             if len(resolved_ranks) > len(best_ranks):
                 best_ranks = resolved_ranks
             if len(resolved_ranks) >= 3:
@@ -2154,6 +2144,34 @@ def _parse_blue_archive_page_ranks_fast(
         finally:
             cleanup()
     return best_ranks
+
+
+def _resolve_blue_archive_fast_page_ranks(
+    detected_ranks: list[int | None],
+) -> list[int]:
+    if not detected_ranks:
+        return []
+
+    absolute_rank_signal = _has_strong_blue_archive_absolute_row_rank_signal(detected_ranks)
+    if absolute_rank_signal:
+        resolved_ranks = _resolve_anchor_ranks(detected_ranks)
+        absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
+            detected_ranks
+        )
+        if absolute_rank_base is not None:
+            return list(
+                range(
+                    absolute_rank_base,
+                    absolute_rank_base + len(resolved_ranks),
+                )
+            )
+        return resolved_ranks
+
+    sanitized_detected_ranks = [
+        rank if isinstance(rank, int) and rank <= 100 else None
+        for rank in detected_ranks
+    ]
+    return _resolve_anchor_ranks(sanitized_detected_ranks)
 
 
 def _is_blue_archive_fixed_layout_image(

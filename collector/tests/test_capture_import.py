@@ -4242,6 +4242,18 @@ def test_ocr_blue_archive_row_rank_prefers_rank_prefixed_candidate(
     assert rank == 3522
 
 
+def test_resolve_blue_archive_fast_page_ranks_ignores_weak_absolute_signal() -> None:
+    assert capture_import._resolve_blue_archive_fast_page_ranks(
+        [None, 55566, None]
+    ) == [1, 2, 3]
+
+
+def test_resolve_blue_archive_fast_page_ranks_keeps_strong_absolute_signal() -> None:
+    assert capture_import._resolve_blue_archive_fast_page_ranks(
+        [12001, 12002, 12003]
+    ) == [12001, 12002, 12003]
+
+
 def test_ocr_blue_archive_row_difficulty_uses_majority_vote(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
