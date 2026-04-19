@@ -746,7 +746,7 @@ def _build_after_capture_page_callback(
             if (
                 stop_policy.max_rank is not None
                 and highest_rank_collected is not None
-                and highest_rank_collected >= stop_policy.max_rank
+                and highest_rank_collected > stop_policy.max_rank
             ):
                 return AdbCaptureStopDecision(
                     should_continue=False,
@@ -944,7 +944,7 @@ def _apply_max_rank_limit(
     if max_rank is None or highest_rank_collected is None:
         return parsed_payload, highest_rank_collected, False
 
-    reached_max_rank = highest_rank_collected >= max_rank
+    reached_max_rank = highest_rank_collected > max_rank
     if not reached_max_rank:
         return parsed_payload, highest_rank_collected, False
 
