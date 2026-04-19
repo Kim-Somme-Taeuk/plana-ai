@@ -112,6 +112,7 @@ COLLECTOR_JSON_PREFIX = "collector_json: "
 SNAPSHOT_NOTE_MAX_LENGTH = 255
 STALE_LAST_PAGE_NEW_RANK_RATIO_THRESHOLD = 0.25
 STALE_LAST_PAGE_MIN_ENTRY_COUNT = 4
+_LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -271,7 +272,7 @@ def parse_capture_payload(
     ):
         entries, page_summaries, ignored_lines = parse_blue_archive_capture(
             resolved_pages=resolved_pages,
-            parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_entries(
+            parse_page_rows=lambda image_path, default_ocr_confidence, page_index: _parse_blue_archive_page_entries_with_debug(
                 image_path=image_path,
                 ocr=payload.ocr,
                 default_ocr_confidence=default_ocr_confidence,
@@ -673,6 +674,9 @@ def _build_capture_page_summaries(
                 "absolute_rank_anchor_source": metadata["absolute_rank_anchor_source"],
                 "absolute_rank_base": metadata["absolute_rank_base"],
                 "absolute_rank_base_source": metadata["absolute_rank_base_source"],
+                "detected_row_bands": metadata.get("detected_row_bands", []),
+                "row_bands": metadata.get("row_bands", []),
+                "row_debugs": metadata.get("row_debugs", []),
             }
         )
         previous_page_ranks = current_page_ranks
@@ -2037,7 +2041,28 @@ def _parse_blue_archive_page_entries(
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> list[dict[str, Any]]:
+    entries, _ = _parse_blue_archive_page_entries_with_debug(
+        image_path=image_path,
+        ocr=ocr,
+        default_ocr_confidence=default_ocr_confidence,
+        page_index=page_index,
+    )
+    return entries
+
+
+def _parse_blue_archive_page_entries_with_debug(
+    *,
+    image_path: Path,
+    ocr: OcrConfig,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     best_blue_archive_entries: list[dict[str, Any]] = []
+    best_page_debug: dict[str, Any] = {
+        "detected_row_bands": [],
+        "row_bands": [],
+        "row_debugs": [],
+    }
     attempt_ocrs = _iter_tesseract_layout_ocr_attempts(ocr)
     if not ocr.blue_archive_fast_path:
         attempt_ocrs = attempt_ocrs[:2]
@@ -2051,22 +2076,26 @@ def _parse_blue_archive_page_entries(
                 default_ocr_confidence=default_ocr_confidence,
                 page_index=page_index,
             )
+            page_debug = _consume_blue_archive_fixed_rows_debug()
             if not entries:
+                if page_debug.get("row_bands") or page_debug.get("row_debugs"):
+                    best_page_debug = page_debug
                 continue
             normalized_entries = _normalize_tesseract_page_entry_ranks(entries)
             best_blue_archive_entries = _select_preferred_blue_archive_attempt_entries(
                 current_entries=best_blue_archive_entries,
                 candidate_entries=normalized_entries,
             )
+            best_page_debug = page_debug
             if ocr.blue_archive_fast_path:
-                return _tag_blue_archive_layout_entries(normalized_entries)
+                return _tag_blue_archive_layout_entries(normalized_entries), best_page_debug
             if _is_sufficient_blue_archive_fixed_row_entries(normalized_entries):
-                return _tag_blue_archive_layout_entries(normalized_entries)
+                return _tag_blue_archive_layout_entries(normalized_entries), best_page_debug
         finally:
             cleanup()
     if best_blue_archive_entries:
-        return _tag_blue_archive_layout_entries(best_blue_archive_entries)
-    return []
+        return _tag_blue_archive_layout_entries(best_blue_archive_entries), best_page_debug
+    return [], best_page_debug
 
 
 def _parse_blue_archive_page_ranks_fast(
@@ -2230,12 +2259,56 @@ def _parse_blue_archive_fixed_rows(
     default_ocr_confidence: float | None,
     page_index: int,
 ) -> list[dict[str, Any]]:
+    global _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG
+    entries, page_debug = _parse_blue_archive_fixed_rows_with_debug(
+        prepared_image_path=prepared_image_path,
+        image_path=image_path,
+        ocr=ocr,
+        default_ocr_confidence=default_ocr_confidence,
+        page_index=page_index,
+    )
+    _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG = page_debug
+    return entries
+
+
+def _consume_blue_archive_fixed_rows_debug() -> dict[str, Any]:
+    global _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG
+    page_debug = _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG
+    _LAST_BLUE_ARCHIVE_FIXED_ROWS_DEBUG = None
+    if page_debug is None:
+        return {
+            "detected_row_bands": [],
+            "row_bands": [],
+            "row_debugs": [],
+        }
+    return page_debug
+
+
+def _parse_blue_archive_fixed_rows_with_debug(
+    *,
+    prepared_image_path: Path,
+    image_path: Path,
+    ocr: OcrConfig,
+    default_ocr_confidence: float | None,
+    page_index: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     detected_row_bands = _detect_blue_archive_row_bands(prepared_image_path) or (
         (0.02, 0.31),
         (0.35, 0.65),
         (0.69, 0.98),
     )
     row_bands = _select_visible_blue_archive_row_bands(detected_row_bands)
+    page_debug = {
+        "detected_row_bands": [
+            [round(top_ratio, 4), round(bottom_ratio, 4)]
+            for top_ratio, bottom_ratio in detected_row_bands
+        ],
+        "row_bands": [
+            [round(top_ratio, 4), round(bottom_ratio, 4)]
+            for top_ratio, bottom_ratio in row_bands
+        ],
+        "row_debugs": [],
+    }
 
     raw_rows: list[dict[str, Any]] = []
     detected_ranks: list[int | None] = []
@@ -2288,9 +2361,29 @@ def _parse_blue_archive_fixed_rows(
                 page_index=page_index,
             )
 
+        discard_reason: str | None = None
         if score is None:
+            discard_reason = "missing_score"
+        elif rank is None and difficulty is None:
+            discard_reason = "missing_rank_and_difficulty"
+
+        page_debug["row_debugs"].append(
+            {
+                "row_index": row_index,
+                "top_ratio": round(top_ratio, 4),
+                "bottom_ratio": round(bottom_ratio, 4),
+                "combined_rank": combined_rank,
+                "original_rank": original_image_rank,
+                "selected_rank": rank,
+                "difficulty": difficulty,
+                "score": score,
+                "discard_reason": discard_reason,
+            }
+        )
+
+        if discard_reason == "missing_score":
             continue
-        if rank is None and difficulty is None:
+        if discard_reason == "missing_rank_and_difficulty":
             continue
 
         if rank is None:
@@ -2313,7 +2406,7 @@ def _parse_blue_archive_fixed_rows(
         )
 
     if not raw_rows:
-        return []
+        return [], page_debug
 
     page_difficulty = _resolve_blue_archive_page_difficulty(raw_rows)
     entries = [
@@ -2326,7 +2419,7 @@ def _parse_blue_archive_fixed_rows(
     ]
 
     if not entries:
-        return []
+        return [], page_debug
 
     resolved_ranks = _resolve_anchor_ranks(detected_ranks)
     absolute_rank_base = _resolve_blue_archive_absolute_rank_base_from_detected_ranks(
@@ -2412,8 +2505,8 @@ def _parse_blue_archive_fixed_rows(
         )
         rank_index += 1
     if not _blue_archive_scores_are_non_increasing(normalized_entries):
-        return []
-    return normalized_entries
+        return [], page_debug
+    return normalized_entries, page_debug
 
 
 def _apply_blue_archive_original_row_ranks(

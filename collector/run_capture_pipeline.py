@@ -704,6 +704,7 @@ def _build_after_capture_page_callback(
     previous_soft_reason: str | None = None
     previous_soft_count = 0
     last_highest_rank_collected: int | None = None
+    pending_max_rank_stop_count = 0
     latest_page_only = (
         stop_capture_on_recommendation_mode == "off"
         and stop_policy.max_rank is not None
@@ -713,7 +714,10 @@ def _build_after_capture_page_callback(
         image_paths: list[Path],
         latest_callback_image_path: Path | None,
     ) -> AdbCaptureStopDecision:
-        nonlocal previous_soft_reason, previous_soft_count, last_highest_rank_collected
+        nonlocal previous_soft_reason
+        nonlocal previous_soft_count
+        nonlocal last_highest_rank_collected
+        nonlocal pending_max_rank_stop_count
         if latest_page_only and not _should_run_max_rank_callback(
             captured_page_count=len(image_paths),
             stop_policy=stop_policy,
@@ -752,12 +756,16 @@ def _build_after_capture_page_callback(
                 and len(valid_page_ranks) >= 2
                 and highest_rank_collected > stop_policy.max_rank
             ):
-                return AdbCaptureStopDecision(
-                    should_continue=False,
-                    reason="max_rank_reached",
-                    source="capture",
-                    level="hard",
-                )
+                pending_max_rank_stop_count += 1
+                if pending_max_rank_stop_count >= 2:
+                    return AdbCaptureStopDecision(
+                        should_continue=False,
+                        reason="max_rank_reached",
+                        source="capture",
+                        level="hard",
+                    )
+                return AdbCaptureStopDecision(should_continue=True)
+            pending_max_rank_stop_count = 0
             return AdbCaptureStopDecision(should_continue=True)
         pages_for_parse = [image_paths[-1]] if latest_page_only else image_paths
         parsed_payload = parse_capture_payload(
@@ -827,6 +835,7 @@ def _build_after_capture_page_callback(
 
         previous_soft_reason = None
         previous_soft_count = 0
+        pending_max_rank_stop_count = 0
         return stop_decision
 
     return after_capture_page

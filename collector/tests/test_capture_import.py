@@ -438,6 +438,9 @@ def test_parse_capture_payload_ignores_non_entry_lines(
             "absolute_rank_anchor_source": None,
             "absolute_rank_base": None,
             "absolute_rank_base_source": None,
+            "detected_row_bands": [],
+            "row_bands": [],
+            "row_debugs": [],
         }
     ]
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
@@ -718,13 +721,16 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_ranks": [],
             "new_rank_count": 2,
             "new_rank_ratio": 1.0,
-            "absolute_rank_anchor": None,
-            "absolute_rank_anchor_source": None,
-            "absolute_rank_base": None,
-            "absolute_rank_base_source": None,
-        },
-        {
-            "page_index": 2,
+                "absolute_rank_anchor": None,
+                "absolute_rank_anchor_source": None,
+                "absolute_rank_base": None,
+                "absolute_rank_base_source": None,
+                "detected_row_bands": [],
+                "row_bands": [],
+                "row_debugs": [],
+            },
+            {
+                "page_index": 2,
             "image_path": capture_import._build_entry_image_path(
                 (tmp_path / "page-002.png").resolve()
             ),
@@ -738,12 +744,15 @@ def test_parse_capture_payload_reports_multi_page_summaries(
             "overlap_with_previous_ranks": [],
             "new_rank_count": 2,
             "new_rank_ratio": 1.0,
-            "absolute_rank_anchor": None,
-            "absolute_rank_anchor_source": None,
-            "absolute_rank_base": None,
-            "absolute_rank_base_source": None,
-        },
-    ]
+                "absolute_rank_anchor": None,
+                "absolute_rank_anchor_source": None,
+                "absolute_rank_base": None,
+                "absolute_rank_base_source": None,
+                "detected_row_bands": [],
+                "row_bands": [],
+                "row_debugs": [],
+            },
+        ]
 
 
 def test_parse_capture_payload_uses_blue_archive_row_pipeline_without_loading_ocr_text(
@@ -789,18 +798,25 @@ def test_parse_capture_payload_uses_blue_archive_row_pipeline_without_loading_oc
     }
     monkeypatch.setattr(
         capture_import,
-        "_parse_blue_archive_page_entries",
-        lambda **kwargs: [
+        "_parse_blue_archive_page_entries_with_debug",
+        lambda **kwargs: (
+            [
+                {
+                    **entry,
+                    "ocr_confidence": None,
+                    "raw_text": "",
+                    "image_path": kwargs["image_path"].name,
+                    "is_valid": True,
+                    "validation_issue": None,
+                }
+                for entry in page_entries[kwargs["page_index"]]
+            ],
             {
-                **entry,
-                "ocr_confidence": None,
-                "raw_text": "",
-                "image_path": kwargs["image_path"].name,
-                "is_valid": True,
-                "validation_issue": None,
-            }
-            for entry in page_entries[kwargs["page_index"]]
-        ],
+                "detected_row_bands": [],
+                "row_bands": [],
+                "row_debugs": [],
+            },
+        ),
     )
 
     payload = load_capture_import_payload(tmp_path)
@@ -1139,6 +1155,9 @@ def test_parse_capture_payload_reports_empty_page_summary_without_crashing(
         "absolute_rank_anchor_source": None,
         "absolute_rank_base": None,
         "absolute_rank_base_source": None,
+        "detected_row_bands": [],
+        "row_bands": [],
+        "row_debugs": [],
     }
     note_lines = parsed_payload.mock_payload.snapshot["note"].splitlines()
     assert note_lines[0] == "capture import test fixture"
@@ -4720,6 +4739,79 @@ def test_parse_blue_archive_page_entries_limits_attempts_to_two(
 
     assert entries == []
     assert attempt_calls == [0.37, 0.34]
+
+
+def test_parse_blue_archive_page_entries_with_debug_returns_row_debugs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_path = tmp_path / "blue-archive-page.png"
+    from PIL import Image
+
+    Image.new("RGB", (1600, 900), color="white").save(image_path)
+
+    ocr = capture_import.OcrConfig(
+        provider="tesseract",
+        command="tesseract",
+        language="eng",
+        psm=11,
+        extra_args=(),
+        crop=capture_import.OcrCrop(
+            left_ratio=0.37,
+            top_ratio=0.34,
+            right_ratio=0.56,
+            bottom_ratio=0.94,
+        ),
+        upscale_ratio=1.0,
+        reuse_cached_sidecar=False,
+        persist_sidecar=False,
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_iter_tesseract_layout_ocr_attempts",
+        lambda ocr: [ocr],
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_prepare_image_for_ocr",
+        lambda image_path, ocr: (image_path, lambda: None),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_parse_blue_archive_fixed_rows_with_debug",
+        lambda **kwargs: (
+            [{"rank": 3, "score": 100, "player_name": "Lunatic"}],
+            {
+                "detected_row_bands": [[0.02, 0.31], [0.35, 0.65]],
+                "row_bands": [[0.35, 0.65]],
+                "row_debugs": [
+                    {
+                        "row_index": 1,
+                        "top_ratio": 0.35,
+                        "bottom_ratio": 0.65,
+                        "combined_rank": 3,
+                        "original_rank": None,
+                        "selected_rank": 3,
+                        "difficulty": "Lunatic",
+                        "score": 100,
+                        "discard_reason": None,
+                    }
+                ],
+            },
+        ),
+    )
+
+    entries, page_debug = capture_import._parse_blue_archive_page_entries_with_debug(
+        image_path=image_path,
+        ocr=ocr,
+        default_ocr_confidence=None,
+        page_index=1,
+    )
+
+    assert entries[0]["rank"] == 3
+    assert page_debug["detected_row_bands"] == [[0.02, 0.31], [0.35, 0.65]]
+    assert page_debug["row_bands"] == [[0.35, 0.65]]
+    assert page_debug["row_debugs"][0]["selected_rank"] == 3
 
 
 def test_has_strong_blue_archive_absolute_row_rank_signal_requires_two_close_hits() -> None:

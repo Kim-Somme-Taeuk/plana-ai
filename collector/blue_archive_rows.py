@@ -7,7 +7,7 @@ from typing import Any, Callable
 def parse_blue_archive_capture(
     *,
     resolved_pages: list[tuple[int, Path, float | None]],
-    parse_page_rows: Callable[[Path, float | None, int], list[dict[str, Any]]],
+    parse_page_rows: Callable[[Path, float | None, int], tuple[list[dict[str, Any]], dict[str, Any]]],
     realign_page_ranks: Callable[[list[dict[str, Any]], list[dict[str, Any]]], list[dict[str, Any]]],
     retrofit_absolute_ranks: Callable[[list[list[dict[str, Any]]], list[dict[str, Any]]], tuple[list[list[dict[str, Any]]], list[dict[str, Any]]]],
     prune_sparse_pages: Callable[[list[list[dict[str, Any]]], list[dict[str, Any]]], tuple[list[list[dict[str, Any]]], list[dict[str, Any]]]],
@@ -21,7 +21,7 @@ def parse_blue_archive_capture(
     previous_page_entries: list[dict[str, Any]] = []
 
     for page_index, image_path, default_ocr_confidence in resolved_pages:
-        page_entries = parse_page_rows(
+        page_entries, page_debug = parse_page_rows(
             image_path,
             default_ocr_confidence,
             page_index,
@@ -39,6 +39,9 @@ def parse_blue_archive_capture(
                 "absolute_rank_base": _first_internal_value(page_entries, "_absolute_rank_base"),
                 "absolute_rank_base_source": _first_internal_value(page_entries, "_absolute_rank_base_source"),
                 "is_blue_archive_layout": True,
+                "row_bands": page_debug.get("row_bands", []),
+                "detected_row_bands": page_debug.get("detected_row_bands", []),
+                "row_debugs": page_debug.get("row_debugs", []),
             }
         )
         parsed_pages.append(page_entries)
