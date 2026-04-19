@@ -1813,6 +1813,25 @@ def test_should_run_max_rank_callback_checks_every_page_near_threshold() -> None
     ) is True
 
 
+def test_should_run_max_rank_callback_checks_every_two_pages_mid_threshold() -> None:
+    stop_policy = PipelineStopPolicy(
+        min_pages_before_ocr_stop=2,
+        soft_stop_repeat_threshold=2,
+        max_rank=12000,
+    )
+
+    assert capture_pipeline._should_run_max_rank_callback(
+        captured_page_count=2,
+        stop_policy=stop_policy,
+        last_highest_rank_collected=7000,
+    ) is True
+    assert capture_pipeline._should_run_max_rank_callback(
+        captured_page_count=3,
+        stop_policy=stop_policy,
+        last_highest_rank_collected=7000,
+    ) is False
+
+
 def test_build_runtime_ocr_config_uses_fast_path_for_blue_archive_callback(
     tmp_path: Path,
 ) -> None:

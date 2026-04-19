@@ -2251,12 +2251,14 @@ def _parse_blue_archive_fixed_rows(
             page_index=page_index,
         )
 
-        original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
-            image_path=image_path,
-            ocr=ocr,
-            top_ratio=top_ratio,
-            bottom_ratio=bottom_ratio,
-        )
+        original_image_rank = None
+        if not isinstance(combined_rank, int) or combined_rank <= 100:
+            original_image_rank = _ocr_blue_archive_row_rank_from_original_image(
+                image_path=image_path,
+                ocr=ocr,
+                top_ratio=top_ratio,
+                bottom_ratio=bottom_ratio,
+            )
         prepared_rank = combined_rank
         if original_image_rank is None and prepared_rank is None:
             prepared_rank = _ocr_blue_archive_row_rank(

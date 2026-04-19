@@ -840,12 +840,21 @@ def _should_run_max_rank_callback(
         return True
     if captured_page_count <= 1:
         return True
+    medium_threshold_rank = stop_policy.max_rank - max(
+        3000,
+        stop_policy.max_rank // 2,
+    )
     near_threshold_rank = stop_policy.max_rank - max(1000, stop_policy.max_rank // 6)
     if (
         last_highest_rank_collected is not None
         and last_highest_rank_collected >= near_threshold_rank
     ):
         return True
+    if (
+        last_highest_rank_collected is not None
+        and last_highest_rank_collected >= medium_threshold_rank
+    ):
+        return captured_page_count % 2 == 0
     return captured_page_count % 3 == 0
 
 

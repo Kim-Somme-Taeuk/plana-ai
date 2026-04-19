@@ -3557,6 +3557,62 @@ def test_parse_blue_archive_fixed_rows_reuses_original_row_ranks_for_base(
     assert [entry["rank"] for entry in entries] == [16109, 16110, 16111]
 
 
+def test_parse_blue_archive_fixed_rows_skips_original_rank_ocr_when_combined_rank_is_absolute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_detect_blue_archive_row_bands",
+        lambda prepared_image_path: (
+            (0.02, 0.31),
+            (0.35, 0.65),
+        ),
+    )
+    combined = iter(
+        [
+            (3522, "Torment", 40_100_000),
+            (3523, "Torment", 40_097_600),
+        ]
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_combined_fields",
+        lambda **kwargs: next(combined),
+    )
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_blue_archive_row_rank_from_original_image",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("absolute combined rank should skip original rank OCR")
+        ),
+    )
+
+    entries = capture_import._parse_blue_archive_fixed_rows(
+        image_path=Path("page.png"),
+        prepared_image_path=Path("prepared.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=capture_import.OcrCrop(
+                left_ratio=0.37,
+                top_ratio=0.34,
+                right_ratio=0.56,
+                bottom_ratio=0.94,
+            ),
+            upscale_ratio=2.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        default_ocr_confidence=0.9,
+        page_index=1,
+    )
+
+    assert [entry["rank"] for entry in entries] == [3522, 3523]
+
+
 def test_select_blue_archive_row_rank_prefers_original_absolute_rank() -> None:
     assert capture_import._select_blue_archive_row_rank(
         prepared_rank=10001,
