@@ -4358,6 +4358,66 @@ def test_ocr_blue_archive_row_score_uses_majority_vote(
     assert score == 40040720
 
 
+def test_ocr_blue_archive_row_score_rejects_short_numeric_noise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["2", "7", "40,040,720"],
+    )
+
+    score = capture_import._ocr_blue_archive_row_score(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+        page_index=1,
+    )
+
+    assert score == 40040720
+
+
+def test_ocr_blue_archive_row_score_returns_none_for_only_short_noise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        capture_import,
+        "_ocr_prepared_image_ratio_region_candidates",
+        lambda **kwargs: ["2", "3", "7"],
+    )
+
+    score = capture_import._ocr_blue_archive_row_score(
+        prepared_image_path=Path("page.png"),
+        ocr=capture_import.OcrConfig(
+            provider="tesseract",
+            command="tesseract",
+            language="eng",
+            psm=11,
+            extra_args=(),
+            crop=None,
+            upscale_ratio=1.0,
+            reuse_cached_sidecar=False,
+            persist_sidecar=False,
+        ),
+        top_ratio=0.02,
+        bottom_ratio=0.31,
+        page_index=1,
+    )
+
+    assert score is None
+
+
 @pytest.mark.parametrize("image_size", [(2400, 1080), (2340, 1080), (1600, 900)])
 def test_parse_tesseract_layout_entries_prefers_blue_archive_fixed_rows(
     image_size: tuple[int, int],

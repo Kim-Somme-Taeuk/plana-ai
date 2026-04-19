@@ -4086,7 +4086,7 @@ def _ocr_blue_archive_row_score(
     candidates = _ocr_prepared_image_ratio_region_candidates(
         prepared_image_path=prepared_image_path,
         x_ratios=(0.3, 1.0),
-        y_ratios=(top_ratio + 0.1, min(bottom_ratio, top_ratio + 0.28)),
+        y_ratios=(top_ratio + 0.12, min(bottom_ratio, top_ratio + 0.245)),
         attempts=[
             OcrRegionAttempt(
                 language="eng",
@@ -4103,12 +4103,36 @@ def _ocr_blue_archive_row_score(
         ],
         base_ocr=ocr,
     )
+    valid_scores: dict[int, int] = {}
     for candidate in candidates:
+        if not _is_valid_blue_archive_score_candidate(candidate):
+            continue
         try:
-            return _parse_score_text(candidate, page_index=page_index, line_index=1)
+            parsed_score = _parse_score_text(
+                candidate,
+                page_index=page_index,
+                line_index=1,
+            )
         except MockImportError:
             continue
-    return None
+        if not _is_valid_blue_archive_score_value(parsed_score):
+            continue
+        valid_scores[parsed_score] = valid_scores.get(parsed_score, 0) + 1
+    if not valid_scores:
+        return None
+    return max(valid_scores.items(), key=lambda item: (item[1], item[0]))[0]
+
+
+def _is_valid_blue_archive_score_candidate(value: str) -> bool:
+    normalized = _normalize_score_ocr_token(value)
+    if not normalized.isdigit():
+        return False
+    return 7 <= len(normalized) <= 8
+
+
+def _is_valid_blue_archive_score_value(value: int) -> bool:
+    normalized_length = len(str(abs(value)))
+    return 7 <= normalized_length <= 8
 
 
 def _build_blue_archive_row_y_ratios(
